@@ -1,0 +1,6 @@
+Revision history for Perl extension uSAC::SIO.
+
+0.01  Wed Dec  8 14:24:09 2021
+	- original version; created by h2xs 1.23 with options
+		-X -P --name uSAC::SIO
+
