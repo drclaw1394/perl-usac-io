@@ -54,12 +54,12 @@ sub make_sio_writer {
 		my $wfh=$_[1];
 		my $w_cb=$_[2];
 		my $on_eof=$_[3]//sub{
-			print "Done\n";
+			#print "Done\n";
 			#close socket
 		};
 		my $on_error=$_[4]//sub{
 			#close socket
-			print "Error\n";
+			#print "Error\n";
 		};
 		#setup writer sub
 
@@ -87,6 +87,7 @@ sub make_sio_writer {
 				#no write watcher so try synchronous write
 				$offset+=$w = syswrite($wfh, $_[0], length($_[0])-$offset, $offset);
 				#$offset+=$w;
+				say $! unless $w;
 				if($offset==length $_[0]){
 					#say "FULL WRITE NO APPEND";
 					#say "writer cb is: $cb";
