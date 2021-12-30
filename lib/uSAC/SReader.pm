@@ -2,13 +2,12 @@ package uSAC::SReader;
 use strict;
 use warnings;
 use feature qw<refaliasing current_sub say>;
-no warnings "experimental";
+no warnings qw<experimental uninitialized>;
 
 use AnyEvent;
 use Errno qw(EAGAIN EINTR);
 use Data::Dumper;
 use constant DEBUG=>0;
-use constant MAX_READ_SIZE=>16;
 
 #pass in fh, ctx, on_read, on_eof, on_error
 #Returns a sub which is called with a buffer, an optional callback and argument
@@ -18,11 +17,13 @@ use enum (qw<ctx_ rfh_ on_read_ on_eof_ on_error_ max_read_size_ rw_ buffer_ >);
 		
 sub new {
 	my $package=shift//__PACKAGE__;
-	my $self->@*=splice @_, 0, 6;;
+	
+	my $self=[@_];
 	$self->[on_read_]//=sub {$self->pause};
 	$self->[on_eof_]//=sub{};
 	$self->[on_error_]//=sub{};
 	$self->[max_read_size_]//=4096;
+	$self->[rw_]=undef;
 	$self->[buffer_]="";
 	bless $self, $package;
 }
@@ -46,12 +47,15 @@ sub on_error : lvalue{
 sub max_read_size :lvalue{
 	$_[0][max_read_size_];
 }
+sub buffer :lvalue{
+	$_[0][buffer_];
+}
 
 
 #alias variables and create io watcher
 sub start {
 	my $self=shift;
-
+	
 	\my $ctx=\$self->[ctx_];
 	\my $on_read=\$self->[on_read_]; #alias cb 
 	\my $on_eof=\$self->[on_eof_];
@@ -59,12 +63,12 @@ sub start {
 	\my $rw=\$self->[rw_];
 	\my $buf=\$self->[buffer_];
 	\my $max_read_size=\$self->[max_read_size_];
-	my $rfh=$self->[rfh_];		
+	my $rfh=shift//$self->[rfh_];		
 	my $len;
-	say $on_read;
+	$rw=undef;
 	$rw = AE::io $rfh, 0, sub {
 		#$self->[time_]=$Time;	#Update the last access time
-		$len = sysread( $rfh, $buf, $max_read_size, length $buf );
+		$len = sysread($rfh, $buf, $max_read_size, length $buf );
 		#say $buf;
 		if($len>0){
 			$on_read->($ctx, $buf, 1) if $on_read;

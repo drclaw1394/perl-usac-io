@@ -6,6 +6,32 @@ use version; our $VERSION=version->declare("v0.1");
 use uSAC::SReader;
 use uSAC::SWriter;
 
+use enum qw<sreader_ swriter_ writer_ fh_>;
+
+sub new {
+	my $package=shift//__PACKAGE__;
+	my $self=[];
+	my $ctx=shift;
+	my $fh=shift;
+
+	my %options=@_;
+
+	my $sreader=uSAC::SReader->new($ctx, $fh);
+	my $swriter=uSAC::SWriter->new($ctx, $fh);
+	bless $self, $package;
+}
+
+sub on_error : lvalue {
+
+}
+
+sub on_read : lvalue {
+
+}
+sub on_eof : lvalue {
+
+}
+
 ##########################################################
 # #Core                                                  #
 # use Symbol 'gensym';                                   #
