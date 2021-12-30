@@ -12,7 +12,7 @@ use constant DEBUG=>0;
 #pass in fh, ctx, on_read, on_eof, on_error
 #Returns a sub which is called with a buffer, an optional callback and argument
 
-use enum (qw<ctx_ rfh_ on_read_ on_eof_ on_error_ max_read_size_ rw_ buffer_ >);
+use enum (qw<ctx_ rfh_ time_ clock_ on_read_ on_eof_ on_error_ max_read_size_ rw_ buffer_ >);
 
 		
 sub new {
@@ -25,7 +25,14 @@ sub new {
 	$self->[max_read_size_]//=4096;
 	$self->[rw_]=undef;
 	$self->[buffer_]="";
+	my $time=0;;
+	$self->[time_]=\$time;
+	$self->[clock_]=\$time;
 	bless $self, $package;
+}
+
+sub timing {
+	shift->@[time_, clock_]=@_;
 }
 
 sub ctx : lvalue{
@@ -64,10 +71,13 @@ sub start {
 	\my $buf=\$self->[buffer_];
 	\my $max_read_size=\$self->[max_read_size_];
 	my $rfh=shift//$self->[rfh_];		
+	\my $time=$self->[time_];
+	\my $clock=$self->[clock_];
 	my $len;
 	$rw=undef;
 	$rw = AE::io $rfh, 0, sub {
 		#$self->[time_]=$Time;	#Update the last access time
+		$time=$clock;
 		$len = sysread($rfh, $buf, $max_read_size, length $buf );
 		#say $buf;
 		if($len>0){

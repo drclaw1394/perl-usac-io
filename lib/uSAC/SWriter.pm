@@ -12,7 +12,7 @@ use constant DEBUG=>0;
 #pass in fh, ctx, on_read, on_eof, on_error
 #Returns a sub which is called with a buffer, an optional callback and argument
 
-use enum (qw<ctx_ wfh_ on_error_ writer_ ww_ queue_>);
+use enum (qw<ctx_ wfh_ time_ clock_ on_error_ writer_ ww_ queue_>);
 
 
 sub new {
@@ -22,9 +22,15 @@ sub new {
 	$self->[writer_]=undef;
 	$self->[ww_]=undef;
 	$self->[queue_]=[];
+	my $time=0;
+	$self->[time_]=\$time;
+	$self->[clock_]=\$time;
 	bless $self, $package;
 }
-
+sub timing {
+	my $self=shift;
+	$self->@[time_, clock_]=@_;
+}
 #return or create an return writer
 sub writer {
 	$_[0][writer_]//=$_[0]->_make_writer;
@@ -67,6 +73,8 @@ sub _make_writer {
 
 	\my $ww=\$self->[ww_];
 	\my @queue=$self->[queue_];
+	\my $time=\$self->[time_];
+	\my $clock=\$self->[clock_];
 
 	my $w;
 	my $offset=0;
@@ -86,6 +94,7 @@ sub _make_writer {
 							#access to input
 		if(!$ww){
 			#no write watcher so try synchronous write
+			$$time=$$clock;
 			$offset+=$w = syswrite($wfh, $_[0], length($_[0])-$offset, $offset);
 			#$offset+=$w;
 			if($offset==length $_[0]){
@@ -122,7 +131,8 @@ sub _make_writer {
 				\my $cb=\$entry->[2];
 				\my $arg=\$entry->[3];
 				#say "watcher cb";
-				$w = syswrite $wfh, $buf, length($buf)-$offset, $offset;
+				$$time=$$clock;
+				$offset+=$w = syswrite $wfh, $buf, length($buf)-$offset, $offset;
 				if($offset==length $buf) {
 					#say "FULL async write";
 					shift @queue;
