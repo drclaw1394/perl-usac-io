@@ -32,7 +32,8 @@ sub new {
 }
 
 sub timing {
-	shift->@[time_, clock_]=@_;
+	my $self=shift;
+	$self->@[time_, clock_]=@_;
 }
 
 sub ctx : lvalue{
@@ -71,34 +72,45 @@ sub start {
 	\my $buf=\$self->[buffer_];
 	\my $max_read_size=\$self->[max_read_size_];
 	my $rfh=shift//$self->[rfh_];		
-	\my $time=$self->[time_];
-	\my $clock=$self->[clock_];
+	\my $time=\$self->[time_];
+	\my $clock=\$self->[clock_];
 	my $len;
 	$rw=undef;
 	$rw = AE::io $rfh, 0, sub {
 		#$self->[time_]=$Time;	#Update the last access time
-		$time=$clock;
+		$$time=$$clock;
 		$len = sysread($rfh, $buf, $max_read_size, length $buf );
 		#say $buf;
-		if($len>0){
-			$on_read->($ctx, $buf, 1) if $on_read;
-		}
-		#when(0){
-		elsif($len==0){
-			#say "read len is zero";
-			#End of file
-			#say "END OF  READER";
-			$rw=undef;
-			$on_eof->($ctx, $buf, 0);
-		}
-		else {
-			#potential error
-			#say "ERROR";
-			return if $! == EAGAIN or $! == EINTR;
-			warn "ERROR IN READER" if DEBUG;
-			$rw=undef;
-			$on_error->($ctx, $buf, undef);
-		}
+		$len>0 and return($on_read and $on_read->($ctx, $buf, 1));
+		$len==0 and return($on_eof->($ctx, $buf,0));
+		($! == EAGAIN or $! == EINTR) and return;
+
+		warn "ERROR IN READER" if DEBUG;
+		$rw=undef;
+		$on_error->($ctx, $buf, undef);
+		return;
+
+                ##################################################
+                # if($len>0){                                    #
+                #         $on_read->($ctx, $buf, 1) if $on_read; #
+                # }                                              #
+                # #when(0){                                      #
+                # elsif($len==0){                                #
+                #         #say "read len is zero";               #
+                #         #End of file                           #
+                #         #say "END OF  READER";                 #
+                #         $rw=undef;                             #
+                #         $on_eof->($ctx, $buf, 0);              #
+                # }                                              #
+                # else {                                         #
+                #         #potential error                       #
+                #         #say "ERROR";                          #
+                #         return if $! == EAGAIN or $! == EINTR; #
+                #         warn "ERROR IN READER" if DEBUG;       #
+                #         $rw=undef;                             #
+                #         $on_error->($ctx, $buf, undef);        #
+                # }                                              #
+                ##################################################
 	};
 	$self;
 }
@@ -108,6 +120,10 @@ sub pause{
 	undef $_[0][rw_];
 	$_[0];
 }
+#manually call on_read if buffer is not empty
+sub pump {
+	$_[0][on_read_]->($_[0][ctx_],$_[0][buffer_]) if $_[0][buffer_];
+}
 
 1;
 
@@ -115,7 +131,7 @@ __END__
 
 =head1 NAME
 
-SReader 
+uSAC::SReader - Streamlined non blocking Input
 
 =head1 SYNOPSIS
 

@@ -59,8 +59,8 @@ sub pause {
 
 #OO interface
 sub write {
-	shift;
-	&{$_[0][writer_]};
+	my $self=shift;
+	&{$self->[writer_]};
 }
 
 #internal
@@ -95,13 +95,19 @@ sub _make_writer {
 		if(!$ww){
 			#no write watcher so try synchronous write
 			$$time=$$clock;
-			$offset+=$w = syswrite($wfh, $_[0], length($_[0])-$offset, $offset);
+			$offset+=$w = syswrite($wfh, $_[0]);#, length($_[0])-$offset, $offset);
+			#$offset+=$w = syswrite($wfh, $_[0], length($_[0])-$offset, $offset);
 			#$offset+=$w;
-			if($offset==length $_[0]){
-				#say "FULL WRITE NO APPEND";
-				$cb->($arg) if $cb;
-				return;
-			}
+			$offset==length($_[0]) and return($cb and $cb->($arg));
+
+
+                        ########################################
+                        # if($offset==length $_[0]){           #
+                        #         #say "FULL WRITE NO APPEND"; #
+                        #         $cb->($arg) if $cb;          #
+                        #         return;                      #
+                        # }                                    #
+                        ########################################
 
 			if(!defined($w) and $! != EAGAIN and $! != EINTR){
 				#this is actual error
@@ -165,3 +171,64 @@ sub _make_writer {
 }
 
 1;
+
+__END__
+=head1 NAME 
+
+uSAC::SWriter - Streamlined non blocking, no copy queuing Output
+
+=head1 SYNOPSIS
+
+	use uSAC::SWriter
+
+	my $fh;		#<< already opened file handle to socket
+	my $ctx;	#<< User context/scalar used in callbacks
+	my $writer=uSAC::SWriter->new($ct, $fh);
+	
+	#Set callback
+	$writer->on_error=sub{};
+
+	#Return sub for direct (non oo) writing
+	$w=$writer->writer;
+
+	#Write data with no callback
+	$w->("data to write")
+
+
+	#write data with callback when written
+	$w->("more data to write", sub {
+		#callback passes ctx and arg
+	}, 
+	"arg");
+	
+
+=head1 DESCRIPTION
+
+SWriter (Stream Writer) is built around perl features (some experimental) and AnyEvent to give efficient and easy to use writing to non blocking filehanles.
+
+Efficiency is gained by:
+
+
+=over 
+
+=item *
+
+Using lexical aliases to object fields
+
+=item *
+
+array backed object instead of hash
+
+=item *
+
+non destructive write buffer/queue preventing extra data copies
+
+=item *
+
+lvalue for read/write accessor, allowing fast runtime modification of callbacks
+
+=back
+
+
+
+=cut
