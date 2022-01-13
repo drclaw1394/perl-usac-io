@@ -120,6 +120,7 @@ sub pause{
 	undef $_[0][rw_];
 	$_[0];
 }
+
 #manually call on_read if buffer is not empty
 sub pump {
 	$_[0][on_read_]->($_[0][ctx_],$_[0][buffer_]) if $_[0][buffer_];

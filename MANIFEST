@@ -1,0 +1,15 @@
+benchmarks/00-reading.pl
+benchmarks/00-writing.pl
+Changes
+lib/uSAC/SIO.pm
+lib/uSAC/SIO.pod
+lib/uSAC/SReader.pm
+lib/uSAC/SWriter.pm
+Makefile.PL
+MANIFEST
+MANIFEST.SKIP
+README
+README.md
+t/uSAC-SIO.t
+update-readme.pl
+uSAC-SIO-v0.1.tar

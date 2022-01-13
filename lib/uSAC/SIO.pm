@@ -86,8 +86,14 @@ sub on_eof : lvalue {
 
 }
 
+sub timing {
+	my ($self, $read_time, $write_time, $clock)=@_;
+	$self->[sreader_]($read_time, $clock);
+	$self->[swriter_]($write_time, $clock);
+}
 
 
+#experimental
 sub connect_inet {
 
 	my ($ctx,$host,$port,$on_connect,$on_error)=@_;
@@ -138,127 +144,6 @@ sub connect_inet {
 	AnyEvent::postpone {$on_connect->($ctx,$fh)};
 }
 
-
-##########################################################
-# #Core                                                  #
-# use Symbol 'gensym';                                   #
-# use IPC::Open3;                                        #
-#                                                        #
-# #CPAN                                                  #
-#                                                        #
-# use uSAC::SReader;                                     #
-# use uSAC::SWriter;                                     #
-#                                                        #
-# sub open_child {                                       #
-#         my ($cmd, $on_child, $on_error)=@_;            #
-#         my $err=gensym;                                #
-#         my $pid=open3(my $poci, my $copi, $err, $cmd); #
-#         if(defined $pid){                              #
-#                 AE::child $pid, sub {                  #
-#                         #close                         #
-#                         $on_child;                     #
-#                 }                                      #
-#         }                                              #
-# }                                                      #
-##########################################################
 1;
 
-__END__
 
-=head1 NAME
-
-uSAC::SIO - Streamlined non blocking Socket IO
-
-=head1 SYNOPSIS
-
-	use uSAC::SIO;
-	my $sio=uSAC::SIO->new($ctx, $rfh);
-
-	$sio->on_error=sub {};
-	$sio->on_read=sub {};
-	$sio->on_eof=sub {};
-
-
-	#Start reading events
-	$sio->start;
-	
-	#queuing write
-	$sio->write("hello world");
-
-	#queuing write with callback
-	$sio->write("hello again", sub {
-		say "Write complete"
-	});
-
-
-	#or more functional approach
-
-=head1 DESCRIPTION
-
-uSAC::SIO (Streamlined IO) is built around perl features (some experimental) and AnyEvent to give efficient and easy to use reading and writing of non blocking filehandles
-
-It Uses C<uSAC::SReader> and C<uSAC::SWriter> so please refer to those modules for further details not covered here.
-
-
-
-=head1 MOTIVATION
-
-
-Many modules exist to perform non blocking IO, but here are the main points in making another one:
-
-=over 
-
-=item Efficiency
-
-=over
-
-=item Array based objects
-
-Using arrays instead of hashes reduces memory and element access time. However its done with subclassing in mind
-
-=item Lexical Aliasing
-
-Variables in objects are aliased to read/write subroutines to further reduce access time.
-
-=item  lvalues
-
-While possibly breaking OO principles, accessors to writable class elements are lvalues. Cleaner and smaller code writing
-
-	eg
-		$sio->on_read=sub{};
-
-=item Non destructive buffering
-
-
-non destructive write buffer/queue preventing extra data copies and allows optional callbacks for write calls
-
-	eg 
-		$sio->write("some data to write", sub {});
-
-=back
-
-=item Utilising features
-
-Designed to allow simple write calls and monitored write calls.
-
-=back
-
-
-=item *
-
-using lexical aliases to object fields
-
-=item *
-
-array backed object instead of hash
-
-=item *
-
-
-=item *
-
-lvalue for read/write accessor, allowing fast runtime modification of callbacks
-
-=back
-
-=cut

@@ -26,6 +26,8 @@ sub new {
 	$self->[time_]=\$time;
 	$self->[clock_]=\$time;
 	bless $self, $package;
+	$self->writer;		#create writer;
+	$self;
 }
 sub timing {
 	my $self=shift;
