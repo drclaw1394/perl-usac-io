@@ -40,6 +40,10 @@ modules/classes by trading complete opaqueness for run time performance.
 
 It uses L<uSAC::SReader> and L<uSAC::SWriter> , which you can also choose directly if you want to customise your usage.
 
+=head1 MOTIVATION
+
+Boosting IO performance by designing code to work with built in perl features,
+not look pretty
 
 =head1 DESIGN
 
@@ -336,7 +340,13 @@ TODO
 
 =head2 PERFORMANCE
 
-TODO
+Benchmarks are a work in progress. Yet to be completed.
+
+=head2 KNOWN ISSUES
+
+The perl implementation the AnyEvent event loop seems to limit the read
+performance, even through cpu time is still available.
+
 
 =head2 REPOSITORY
 
