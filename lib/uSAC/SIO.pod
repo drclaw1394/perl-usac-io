@@ -31,17 +31,14 @@ uSAC::SIO - Streamlined non blocking Socket/Pipe/FIFO IO
 =head1 DESCRIPTION
 
 uSAC::SIO (Streamlined IO) is built around perl features (some experimental
-currently) and AnyEvent to give efficient and easy to use reading and writing
+currently) and AnyEvent to give efficient and concise reading and writing
 of non blocking file handles.
 
 uSAC::SIO isn't really intended to be used as a stand alone do-it-all IO
 module. It's deliberately designed to delegate to and rely on other
-modules/classes. It is a mix and match of object oriented and functional
-programming. Trading complete opaqueness for run time performance.
+modules/classes by trading complete opaqueness for run time performance.
 
-It uses L<uSAC::SReader> and L<uSAC::SWriter> so please refer to those modules
-for further details not covered here.
-
+It uses L<uSAC::SReader> and L<uSAC::SWriter> , which you can also choose directly if you want to customise your usage.
 
 
 =head1 DESIGN
@@ -133,6 +130,69 @@ L<uSAC::SWriter>
 Sets up read event watcher to call C<on_read> callback when data is available
 
 
+=head3 Implementing C<on_read> callbacks
+
+The internal read buffer is accumulating. New data from the file handle is
+append to the end of it. The C<on_read> callback is responsible for consuming
+the buffer from the begining, otherwise memory will grow until the file handle
+is eof or the C<pause> method is called.
+
+The C<on_read> callback is passed the ctx in C<$_[0]> and the buffer in
+C<$_[1]>.
+
+The C<on_read> callback MUST consume data from the alias, not a copy. Using
+signatures or the usual C<shift> operation will make your day bad. This is
+highlighted the following examples of processing the first 5 bytes in the read
+buffer:
+
+	#DO NOT DO THIS
+	use feature qw<signatures>;
+
+	$sio->on_read=sub ($ctx, $buf){
+	
+		# Consume and process the first 5 bytes of the buffer
+		# The problem is that $buf is a COPY of the read buffer
+		# so the bytes were not consumed.
+
+		my $data=substr($_[1],0, 5, "");
+	};
+
+	#DO NOT DO THIS
+
+	$sio->on_read=sub {
+		my ($ctx,$buf)=shift;
+		# Same problems as above
+		# $buf is still a copy
+
+		my $data=substr($_[1],0, 5, "");
+	};
+
+
+Instead the following code consume from the internal buffer via an alias:
+
+	#DO THIS
+	$sio->on_read=sub {
+		# Consume/process the first 5 bytes of the buffer
+		# The interla read buffer is correctly modified
+		my $data=substr($_[1],0, 5, "");
+	};
+
+
+
+For complex subs use perl's experimental 'refaliasing' to give the buffer a named alias:
+
+	#use feature qw<refaliasing>;
+
+	$sio->on_read=sub {
+		\my $buf=\$_[1];	# $buf is now an alias (not a copy)
+
+		# Consume/process the first 5 bytes of the buffer
+		# The internal read buffer is correctly modified
+		my $data=substr($buf,0, 5, "");
+	};
+
+
+
 =head3 C<write>
 
 	$sio->write($data,$cb, $arg);
@@ -152,6 +212,28 @@ queued.
 Data is aliased to prevent copying of data. Do not change the data until the
 callback has been called.
 
+=head3 Implementing write callbacks
+
+Each call to the C<write> method can take an optional callback and an argument to pass to that callback.
+	
+
+For fire and forget writing, simply call write with the data:
+
+	$sio->write("data to write");
+
+If you want to know when the data was actually written, then provide a callback:
+
+	$sio->write("data to write", sub{
+		
+		#called when data is actuall written.
+		
+	},
+	$arg);
+
+The C<$arg> parameter is also optional. If it isn't supplied, a ref to the C<writer> sub is used.
+
+The purpose of the argument, is to allow channing of writes with different writer subs.
+
 
 =head3 pause
 
@@ -160,6 +242,14 @@ callback has been called.
 Stops watching for read and write events. Any data in write queue will not be
 processed until another write call is issued
 
+=head3 pump
+
+Forces a manual call of the C<on_read> callback if any data remains in the read
+buffer.  If the reader as C<pause> called, the C<on_read> will not be called
+even if there is data remaining in the read buffer.
+
+Useful when if changes to the C<on_read> have been made and no new events are
+arriving.
 
 =head3 timimg
 
@@ -237,6 +327,8 @@ Returns the current on_read handler
 Read/Write
 
 Returns the current on_eof handler
+
+
 
 =head2 COOKBOOK
 

@@ -58,6 +58,10 @@ sub start {
 	$_[0][sreader_]->start;
 }
 
+sub pump {
+	$_[0][sreader_]->pump;
+}
+
 sub writer {
 	$_[0][swriter_]->writer;
 
@@ -84,6 +88,9 @@ sub on_read : lvalue {
 sub on_eof : lvalue {
 	$_[0][sreader_]->on_eof;
 
+}
+sub max_read_size :lvalue{
+	$_[0][sreader_]->max_read_size($_[1]);
 }
 
 sub timing {
