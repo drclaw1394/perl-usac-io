@@ -1,4 +1,4 @@
-package uSAC::SWriter;
+package uSAC::DWriter;
 use strict;
 use warnings;
 use feature qw<refaliasing current_sub say>;
@@ -85,6 +85,7 @@ sub _make_writer {
 
 	my $w;
 	my $offset=0;
+	my $flags=0;
 	#Arguments are buffer and callback.
 	#do not call again until callback is called
 	#if no callback is provided, the session dropper is called.
@@ -102,21 +103,12 @@ sub _make_writer {
 		if(!$ww){
 			#no write watcher so try synchronous write
 			$$time=$$clock;
-			$offset+=$w = syswrite($wfh, $_[0]);#, length($_[0])-$offset, $offset);
+			$offset+= $w= send $wfh, $_[0], $flags;
 			$offset==length($_[0]) and return($cb and $cb->($arg));
 
-
-                        ########################################
-                        # if($offset==length $_[0]){           #
-                        #         #say "FULL WRITE NO APPEND"; #
-                        #         $cb->($arg) if $cb;          #
-                        #         return;                      #
-                        # }                                    #
-                        ########################################
-
+			#TODO: DO we need to restructure on ICMP results for a unreachable host, connection refused, etc?
 			if(!defined($w) and $! != EAGAIN and $! != EINTR){
 				#this is actual error
-				warn "ERROR IN WRITE NO APPEND" if DEBUG;
 				warn $! if DEBUG;
 				#actual error		
 				$ww=undef;
@@ -143,7 +135,8 @@ sub _make_writer {
 				\my $arg=\$entry->[3];
 				#say "watcher cb";
 				$$time=$$clock;
-				$offset+=$w = syswrite $wfh, $buf, length($buf)-$offset, $offset;
+				#$offset+=$w = syswrite $wfh, $buf, length($buf)-$offset, $offset;
+				$offset+= $w= send $wfh, substr($buf,$offset), $flags;
 				if($offset==length $buf) {
 					#say "FULL async write";
 					shift @queue;

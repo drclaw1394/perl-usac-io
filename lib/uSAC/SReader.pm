@@ -8,12 +8,20 @@ use AnyEvent;
 use Errno qw(EAGAIN EINTR);
 use Data::Dumper;
 use constant DEBUG=>0;
+use Exporter "import";
 
 #pass in fh, ctx, on_read, on_eof, on_error
 #Returns a sub which is called with a buffer, an optional callback and argument
 
-use enum (qw<ctx_ rfh_ time_ clock_ on_read_ on_eof_ on_error_ max_read_size_ rw_ buffer_ >);
+use constant KEY_OFFSET=>0;
+use enum ("ctx_=".KEY_OFFSET, qw< rfh_ time_ clock_ on_read_ on_eof_ on_error_ max_read_size_ rw_ buffer_ >);
 
+use constant KEY_COUNT=>buffer_-ctx_+1;
+
+my @fields=qw<ctx_ rfh_ time_ clock_ on_read_ on_eof_ on_error_ max_read_size_ rw_ buffer_>;
+
+our @EXPORT_OK=@fields;
+our %EXPORT_TAGS=(":fields"=>[@fields]);
 		
 sub new {
 	my $package=shift//__PACKAGE__;

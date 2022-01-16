@@ -6,8 +6,9 @@ no warnings "experimental";
 
 use EV;
 use AnyEvent;
-use uSAC::SIO;
+use uSAC::DReader;
 use Time::HiRes qw<time>;
+use Socket qw<AF_INET SOCK_STREAM SOCK_DGRAM pack_sockaddr_in inet_aton>;
 
 my %results;
 
@@ -15,7 +16,9 @@ my $read_size=$ARGV[0]//4096;
 sub do_usac {
 	#read for time 
 	my $cv=AE::cv;
-	my $fh=*STDIN;
+	socket my $fh, AF_INET, SOCK_DGRAM, 0;
+	my $addr=pack_sockaddr_in 8080, inet_aton "localhost";
+	bind 	$fh, $addr;
 	my $timer;
 	
 	my $total=0;
@@ -23,9 +26,9 @@ sub do_usac {
 	my $end_time;
 	my $flag=0;
 	my $calls=0;
-	my $reader=uSAC::SIO->new(undef, $fh);
+	my $reader=uSAC::DReader->new(undef, $fh);
 	$reader->max_read_size=$read_size;
-	$reader->on_read=sub {
+	$reader->on_message=sub {
 		$calls++;
 		$total+=length $_[1];
 			if($flag){

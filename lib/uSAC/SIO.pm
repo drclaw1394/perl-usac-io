@@ -80,6 +80,11 @@ sub on_error : lvalue {
 
 }
 
+sub on_drain : lvalue {
+	$_[0][swriter_]->on_drain;
+
+}
+
 sub on_read : lvalue {
 	$_[0][sreader_]->on_read;
 
@@ -155,7 +160,7 @@ sub connect_inet_datagram{
 	$on_connect//=sub{};
 	$on_error//=sub{};
 
-	socket my $fh, AF_INET, SOCK_DATAGRAM, 0;
+	socket my $fh, AF_INET, SOCK_DGRAM, 0;
 
 	fcntl $fh, F_SETFL, O_NONBLOCK;
 	my $addr=pack_sockaddr_in $port, inet_aton $host;
