@@ -100,8 +100,8 @@ sub max_read_size :lvalue{
 
 sub timing {
 	my ($self, $read_time, $write_time, $clock)=@_;
-	$self->[sreader_]($read_time, $clock);
-	$self->[swriter_]($write_time, $clock);
+	$self->[sreader_]->timing($read_time, $clock);
+	$self->[swriter_]->timing($write_time, $clock);
 }
 
 
