@@ -31,14 +31,15 @@ uSAC::SIO - Streamlined non blocking Socket/Pipe/FIFO IO
 =head1 DESCRIPTION
 
 uSAC::SIO (Streamlined IO) is built around perl features (some experimental
-currently) and AnyEvent to give efficient and concise reading and writing
-of non blocking file handles.
+currently) and AnyEvent to give efficient and concise reading and writing of
+non blocking file handles.
 
 uSAC::SIO isn't really intended to be used as a stand alone do-it-all IO
 module. It's deliberately designed to delegate to and rely on other
 modules/classes by trading complete opaqueness for run time performance.
 
-It uses L<uSAC::SReader> and L<uSAC::SWriter> , which you can also choose directly if you want to customise your usage.
+It uses L<uSAC::SReader> and L<uSAC::SWriter> , which you can also choose
+directly if you want to customise your usage.
 
 =head1 MOTIVATION
 
@@ -50,9 +51,9 @@ not look pretty
 
 =head2 Array Backed Object
 
-Using an array instead of a hash reduces memory and element access time. It also
-has the benefit of making it a little harder to circumvent the documented API
-outside of the C<uSAC::SIO> package.
+Using an array instead of a hash reduces memory and element access time. It
+also has the benefit of making it a little harder to circumvent the documented
+API outside of the C<uSAC::SIO> package.
 
 
 It can be extended with a couple lines of code in case your really want to add
@@ -118,8 +119,8 @@ Creates a new C<uSAC::SIO> instance.
 C<$ctx> is required but can be C<undef>. It is passed to callback functions and
 is defined by the user.
 
-C<$fh> is a file handle already opened and will be setup for non blocking operation. It
-is assumed to be both readable and writable. 
+C<$fh> is a file handle already opened and will be setup for non blocking
+operation. It is assumed to be both readable and writable. 
 
 Event watcher for read and write events are setup (via L<uSAC::SReader> and
 L<uSAC::SWriter>
@@ -183,7 +184,8 @@ Instead the following code consume from the internal buffer via an alias:
 
 
 
-For complex subs use perl's experimental 'refaliasing' to give the buffer a named alias:
+For complex subs use perl's experimental 'refaliasing' to give the buffer a
+named alias:
 
 	#use feature qw<refaliasing>;
 
@@ -218,14 +220,16 @@ callback has been called.
 
 =head3 Implementing write callbacks
 
-Each call to the C<write> method can take an optional callback and an argument to pass to that callback.
+Each call to the C<write> method can take an optional callback and an argument
+to pass to that callback.
 	
 
 For fire and forget writing, simply call write with the data:
 
 	$sio->write("data to write");
 
-If you want to know when the data was actually written, then provide a callback:
+If you want to know when the data was actually written, then provide a
+callback:
 
 	$sio->write("data to write", sub{
 		
@@ -234,9 +238,11 @@ If you want to know when the data was actually written, then provide a callback:
 	},
 	$arg);
 
-The C<$arg> parameter is also optional. If it isn't supplied, a ref to the C<writer> sub is used.
+The C<$arg> parameter is also optional. If it isn't supplied, a ref to the
+C<writer> sub is used.
 
-The purpose of the argument, is to allow channing of writes with different writer subs.
+The purpose of the argument, is to allow channing of writes with different
+writer subs.
 
 
 =head3 pause

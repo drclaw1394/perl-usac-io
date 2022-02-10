@@ -10,7 +10,8 @@ my %results;
 
 #read for time 
 my $fh=*STDOUT;
-my $data="hello"x ($ARGV[0]//2096);#128;
+my $data="a"x ($ARGV[0]//4096);#128;
+my $results=$ARGV[1]//"write-results.txt";
 
 sub do_usac {
 	my $label=shift;
@@ -52,20 +53,15 @@ sub do_usac {
 	#$writer->start;
 
 	$cv->recv;
-	$results{$label}=$total/($end_time-$start_time);
+	my $rate=$total/($end_time-$start_time);
+	$results{$label}=$rate;
 
-	say STDERR "bytes per second: ", $total/($end_time-$start_time);
+	say STDERR "bytes per second: ", $rate;
+	if(open my $output, ">>", $results){
+		say $output "$label $rate ".length($data);
+	}
 
 }
 
 
 do_usac("usac");
-
-my @keys= sort keys %results;
-local $,=", ";
-say STDERR @keys;
-for my $row (@keys){
-	my $base=$results{$row};
-	say STDERR $row;
-	say STDERR map { $results{$_}/$base } (@keys)
-}

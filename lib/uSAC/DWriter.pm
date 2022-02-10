@@ -30,10 +30,12 @@ sub new {
 	$self->writer;		#create writer;
 	$self;
 }
+
 sub timing {
 	my $self=shift;
 	$self->@[time_, clock_]=@_;
 }
+
 #return or create an return writer
 sub writer {
 	$_[0][writer_]//=$_[0]->_make_writer;
@@ -169,64 +171,3 @@ sub _make_writer {
 }
 
 1;
-
-__END__
-=head1 NAME 
-
-uSAC::SWriter - Streamlined non blocking, no copy queuing Output
-
-=head1 SYNOPSIS
-
-	use uSAC::SWriter
-
-	my $fh;		#<< already opened file handle to socket
-	my $ctx;	#<< User context/scalar used in callbacks
-	my $writer=uSAC::SWriter->new($ct, $fh);
-	
-	#Set callback
-	$writer->on_error=sub{};
-
-	#Return sub for direct (non oo) writing
-	$w=$writer->writer;
-
-	#Write data with no callback
-	$w->("data to write")
-
-
-	#write data with callback when written
-	$w->("more data to write", sub {
-		#callback passes ctx and arg
-	}, 
-	"arg");
-	
-
-=head1 DESCRIPTION
-
-SWriter (Stream Writer) is built around perl features (some experimental) and AnyEvent to give efficient and easy to use writing to non blocking filehanles.
-
-Efficiency is gained by:
-
-
-=over 
-
-=item *
-
-Using lexical aliases to object fields
-
-=item *
-
-array backed object instead of hash
-
-=item *
-
-non destructive write buffer/queue preventing extra data copies
-
-=item *
-
-lvalue for read/write accessor, allowing fast runtime modification of callbacks
-
-=back
-
-
-
-=cut

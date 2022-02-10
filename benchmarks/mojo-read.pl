@@ -8,6 +8,9 @@ no warnings "experimental";
 use Mojo::IOLoop;
 use Mojo::IOLoop::Stream;
 
+my $read_size=$ARGV[0]//4096;
+my $results=$ARGV[1]//"read-results.txt";
+
 my %results;
 sub do_mojo {
 	my $label=shift;
@@ -17,6 +20,19 @@ sub do_mojo {
 	my $end_time;
 	my $calls=0;
 	my $flag=0;
+
+	unless ($read_size==131072){
+
+		say STDERR "SKIPPING MOJO READ";
+		if(open my $output, ">>", $results){
+			say $output "$label 0 0";
+		}
+		return;
+		
+	}
+
+
+
 	# Create stream
 	my $stream = Mojo::IOLoop::Stream->new(*STDIN);
 	$stream->on(read => sub ($stream, $bytes) {
@@ -52,9 +68,13 @@ sub do_mojo {
 
 	# Start reactor if necessary
 	$stream->reactor->start unless $stream->reactor->is_running;
-
-	$results{mojo}=$total/($end_time-$start_time);
-	say "bytes per second: ", $total/($end_time-$start_time);
-	say "Call count: $calls";
+	my $rate=$total/($end_time-$start_time);
+	$results{$label}=$rate;
+	say STDERR "bytes per second: ", $rate;
+	if(open my $output, ">>", $results){
+		say $output "$label $rate $read_size";
+	}
 }
-do_mojo;
+
+	do_mojo("mojo");
+

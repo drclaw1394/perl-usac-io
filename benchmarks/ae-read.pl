@@ -11,8 +11,10 @@ use Time::HiRes qw<time>;
 my %results;
 
 my $read_size=$ARGV[0]//4096;
+my $results=$ARGV[1]//"read-results.txt";
 
 sub do_ae{
+	my $label=shift;
 	my$total=0;
 	my$cv=AE::cv;
 	my $fh=*STDIN;
@@ -50,18 +52,12 @@ sub do_ae{
 	$start_time=time;
 
 	$cv->recv;
-	$results{ae}=$total/($end_time-$start_time);
-
-	say "bytes per second: ", $total/($end_time-$start_time);
-	say "Call count: $calls";
+	my $rate=$total/($end_time-$start_time);
+	$results{$label}=$rate;
+	say STDERR "bytes per second: ", $rate;
+	if(open my $output, ">>", $results){
+		say $output "$label $rate $read_size";
+	}
 
 }
-do_ae;
-
-my @keys= sort keys %results;
-local $,=", ";
-for my $row (@keys){
-	my $base=$results{$row};
-	say STDERR $row;
-	say STDERR map { $results{$_}/$base } (@keys)
-}
+do_ae("ae");

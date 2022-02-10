@@ -88,7 +88,6 @@ sub start {
 		#$self->[time_]=$Time;	#Update the last access time
 		$$time=$$clock;
 		$len = sysread($rfh, $buf, $max_read_size, length $buf );
-		#say $buf;
 		$len>0 and return($on_read and $on_read->($ctx, $buf, 1));
 		$len==0 and return($on_eof->($ctx, $buf,0));
 		($! == EAGAIN or $! == EINTR) and return;

@@ -12,7 +12,8 @@ use Time::HiRes qw<time>;
 my %results;
 
 my $fh=*STDOUT;
-my $data="hello"x ($ARGV[0]//2096);#128;
+my $data="a"x ($ARGV[0]//4096);#128;
+my $results=$ARGV[1]//"write-results.txt";
 sub do_mojo {
 	my $label=shift;
 	my $total=0;
@@ -56,8 +57,11 @@ sub do_mojo {
 	# Start reactor if necessary
 	$stream->reactor->start unless $stream->reactor->is_running;
 
-	$results{mojo}=$total/($end_time-$start_time);
-	say "bytes per second: ", $total/($end_time-$start_time);
-	say "Call count: $calls";
+	my $rate=$total/($end_time-$start_time);
+	$results{$label}=$rate;
+	say STDERR "bytes per second: ", $rate;
+	if(open my $output, ">>",$results){
+		say $output "$label $rate ".length($data);
+	}
 }
-do_mojo;
+do_mojo("mojo");

@@ -55,6 +55,7 @@ sub pause{
 sub on_error : lvalue{
 	$_[0][on_error_];
 }
+
 sub flags : lvalue{
 	$_[0][flags_];
 }
@@ -96,5 +97,3 @@ sub start {
 }
 
 1;
-
-
