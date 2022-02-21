@@ -28,8 +28,10 @@ sub new {
 	
 	my $self=[@_];
 	$self->[on_read_]//=sub {$self->pause};
-	$self->[on_eof_]//=sub{};
-	$self->[on_error_]//=sub{};
+	$self->[on_error_]//= $self->[on_eof_]//=sub{};
+
+	#$self->[on_eof_]//=sub{};
+	#$self->[on_error_]//=sub{};
 	$self->[max_read_size_]//=4096;
 	$self->[rw_]=undef;
 	$self->[buffer_]="";

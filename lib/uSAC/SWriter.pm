@@ -18,16 +18,16 @@ use enum (qw<ctx_ wfh_ time_ clock_ on_drain_ on_error_ writer_ ww_ queue_>);
 sub new {
 	my $package=shift//__PACKAGE__;
 	my $self=[@_];
-	$self->[on_drain_]//=sub{};
-	$self->[on_error_]//=sub{};
-	$self->[writer_]=undef;
+	$self->[on_drain_]//=$self->[on_error_]//=sub{};
+	#$self->[writer_]=undef;
 	$self->[ww_]=undef;
 	$self->[queue_]=[];
 	my $time=0;
 	$self->[time_]=\$time;
 	$self->[clock_]=\$time;
 	bless $self, $package;
-	$self->writer;		#create writer;
+	#$self->writer;		#create writer;
+	$self->[writer_]//=$self->_make_writer;
 	$self;
 }
 sub timing {
@@ -91,6 +91,7 @@ sub _make_writer {
 	#
 	sub {
 		use integer;
+		no warnings "recursion";
 		$_[0]//return;				#undefined input. was a stack reset
 		#my $dropper=$on_done;			#default callback
 
