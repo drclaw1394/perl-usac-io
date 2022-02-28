@@ -1,4 +1,4 @@
-package uSAC::DReader;
+package uSAC::DIO::AE::DReader;
 use strict;
 use warnings;
 use feature qw<refaliasing current_sub say>;
@@ -22,7 +22,8 @@ use constant KEY_COUNT=>flags_-ctx_+1;
 sub new {
 	my $package=shift//__PACKAGE__;
 	
-	my $self=[@_];
+	my $self=[];
+	$self->[rfh_]=shift;
 	$self->[on_message_]//=sub {$self->pause};
 	$self->[on_error_]//=sub{};
 	$self->[max_read_size_]//=4096;
@@ -35,6 +36,7 @@ sub new {
 
 sub on_message : lvalue {
 	$_[0][on_message_];
+
 }
 
 sub timing {
@@ -42,9 +44,11 @@ sub timing {
 	$self->@[time_, clock_]=@_;
 }
 
-sub ctx : lvalue{
-	$_[0][ctx_];
-}
+########################
+# sub ctx : lvalue{    #
+#         $_[0][ctx_]; #
+# }                    #
+########################
 
 #destroy io watcher, 
 sub pause{
@@ -69,7 +73,7 @@ sub max_read_size : lvalue{
 sub start {
 	my $self=shift;
 	
-	\my $ctx=\$self->[ctx_];
+	#\my $ctx=\$self->[ctx_];
 	\my $on_message=\$self->[on_message_]; #alias cb 
 	\my $on_error=\$self->[on_error_];
 	\my $rw=\$self->[rw_];
@@ -85,12 +89,12 @@ sub start {
 		$$time=$$clock;
 		my $buf="";
 		my $addr =recv($rfh, $buf, $max_read_size,$flags);
-		$addr and return($on_message and $on_message->($ctx, $buf, $addr));
+		$addr and return($on_message and $on_message->($addr, $buf));
 		($! == EAGAIN or $! == EINTR) and return;
 
 		warn "ERROR IN READER" if DEBUG;
 		$rw=undef;
-		$on_error->($ctx, undef, undef);
+		$on_error->($!);
 		return;
 	};
 	$self;

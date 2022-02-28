@@ -1,4 +1,4 @@
-package uSAC::SReader;
+package uSAC::SIO::AE::SReader;
 use strict;
 use warnings;
 use feature qw<refaliasing current_sub say>;
@@ -26,7 +26,8 @@ our %EXPORT_TAGS=(":fields"=>[@fields]);
 sub new {
 	my $package=shift//__PACKAGE__;
 	
-	my $self=[@_];
+	my $self=[];#[@_];
+	$self->[rfh_]=shift;
 	$self->[on_read_]//=sub {$self->pause};
 	$self->[on_error_]//= $self->[on_eof_]//=sub{};
 
@@ -46,9 +47,11 @@ sub timing {
 	$self->@[time_, clock_]=@_;
 }
 
-sub ctx : lvalue{
-	$_[0][ctx_];
-}
+########################
+# sub ctx : lvalue{    #
+#         $_[0][ctx_]; #
+# }                    #
+########################
 
 sub on_read : lvalue {
 	$_[0][on_read_];
@@ -74,7 +77,7 @@ sub buffer :lvalue{
 sub start {
 	my $self=shift;
 	
-	\my $ctx=\$self->[ctx_];
+	#\my $ctx=\$self->[ctx_];
 	\my $on_read=\$self->[on_read_]; #alias cb 
 	\my $on_eof=\$self->[on_eof_];
 	\my $on_error=\$self->[on_error_];
@@ -90,13 +93,13 @@ sub start {
 		#$self->[time_]=$Time;	#Update the last access time
 		$$time=$$clock;
 		$len = sysread($rfh, $buf, $max_read_size, length $buf );
-		$len>0 and return($on_read and $on_read->($ctx, $buf, 1));
-		$len==0 and return($on_eof->($ctx, $buf,0));
+		$len>0 and return($on_read and $on_read->(undef, $buf));
+		$len==0 and return($on_eof->(undef, $buf));
 		($! == EAGAIN or $! == EINTR) and return;
 
 		warn "ERROR IN READER" if DEBUG;
 		$rw=undef;
-		$on_error->($ctx, $buf, undef);
+		$on_error->(undef, $buf);
 		return;
 
                 ##################################################
@@ -132,7 +135,7 @@ sub pause{
 
 #manually call on_read if buffer is not empty
 sub pump {
-	$_[0][on_read_]->($_[0][ctx_],$_[0][buffer_]) if $_[0][buffer_];
+	$_[0][on_read_]->(undef, $_[0][buffer_]) if $_[0][buffer_];
 }
 
 1;
@@ -141,17 +144,17 @@ __END__
 
 =head1 NAME
 
-uSAC::SReader - Streamlined non blocking Input
+uSAC::SIO::AE::SReader - Streamlined non blocking Input
 
 =head1 SYNOPSIS
 
-	use uSAC::SReader;
+	use uSAC::SIO::AE::SReader;
 
 	#Socket/pipe/fifo already opened
 	my $fh;		
 
 	#Create the reader with the handle
-	my $sr=uSAC::SReader->new($fh);
+	my $sr=uSAC::SIO::AE::SReader->new($fh);
 
 	#Set on read and on eof
 	$sr->on_read=sub {print $_[1]; $_[1]=""};

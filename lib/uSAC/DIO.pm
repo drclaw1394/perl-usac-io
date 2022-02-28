@@ -1,4 +1,4 @@
-package uSAC::SIO;
+package uSAC::DIO;
 use strict;
 use warnings;
 use version; our $VERSION=version->declare("v0.1");
@@ -10,27 +10,20 @@ use Fcntl qw(F_GETFL F_SETFL O_NONBLOCK);
 use Errno qw(EAGAIN EINTR EINPROGRESS);
 use Carp qw<carp>;
 
-
 use Exporter qw<import>;
 
-our @EXPORT_OK=qw<
-	connect_inet
-	sreader_
-	swriter_
-	writer_
-	ctx_
-	on_error_
-	fh_
+our @EXPORT_OK=qw<connect_inet bind_inet
+	dreader_ dwriter_ writer_ ctx_ on_error_ fh_
 >;
+our @EXPORT=@EXPORT_OK;
+our %EXPORT_TAGS=(fields=>[qw<dreader_ dwriter_ writer_ ctx_ on_error_ fh_>]);
 
-our @EXPORT=qw<connect_inet>;
-our %EXPORT_TAGS=(fields=>[qw<sreader_ swriter_ writer_ ctx_ on_error_ fh_>]);
 
+use enum qw<dreader_ dwriter_ writer_ ctx_ on_error_ fh_>;
 
-use enum qw<sreader_ swriter_ writer_ ctx_ on_error_ fh_>;
 my $backend;
 if(exists $main::{"AnyEvent::"}){
-	$backend="uSAC::SIO::AE";
+	$backend="uSAC::DIO::AE";
 }
 elsif(exists $main::{"IOASync::"}){
 }
@@ -39,25 +32,27 @@ elsif(exists $main::{"IOMojo::"}){
 else {
 	carp "No event system detected. defaulting to AE";
 	#set default to any event
-	$backend="uSAC::SIO::AE";
+	$backend="uSAC::DIO::AE";
 }
-my $sb=($backend."::SIO");
+my $sb=($backend."::DIO");
 eval "require $sb";
-say $sb;
+
 {
 	no strict qw<refs>;
-	*_inet=*{"$sb"."::connect_inet"};
+	*_connect=*{"$sb"."::connect_inet"};
+	*_bind=*{"$sb"."::bind_inet"};
 }
 
-my $rb=($backend."::SReader");
+my $rb=($backend."::DReader");
 eval "require $rb";
-my $wb=($backend."::SWriter");
+my $wb=($backend."::DWriter");
 eval "require $wb";
 
 sub new {
 	my $package=shift//__PACKAGE__;
 	#Attempt to located supported backends		
 	my $self=[];
+	#my $ctx=shift;
 	my $fh=shift;
 	my $fh2=shift//$fh;
 
@@ -66,38 +61,38 @@ sub new {
 	bless $self, $package;
 	#$self->[ctx_]=$ctx;
 	fcntl $fh, F_SETFL, O_NONBLOCK;
-	my $sreader=$rb->new($fh);
-	$sreader->on_error=sub {$self->[on_error_]->&*};
+	my $dreader=$rb->new($fh);
+	$dreader->on_error=sub {$self->[on_error_]->&*};
 
-	my $swriter=$wb->new($fh2);
-	$swriter->on_error=sub {$self->[on_error_]->&*};
-	$swriter->writer;	
-	$self->[sreader_]=$sreader;
-	$self->[swriter_]=$swriter;
+	my $dwriter=$wb->new( $fh2);
+	$dwriter->on_error=sub {$self->[on_error_]->&*};
+	$dwriter->writer;	
+	$self->[dreader_]=$dreader;
+	$self->[dwriter_]=$dwriter;
 	$self;
 }
 
 #methods
 sub write {
 	my $self=shift;
-	$self->[swriter_]->write(@_);
+	$self->[dwriter_]->write(@_);
 }
 
 sub pause{
-	$_[0][sreader_]->pause;
-	$_[0][swriter_]->pause;
+	$_[0][dreader_]->pause;
+	$_[0][dwriter_]->pause;
 }
 
 sub start {
-	$_[0][sreader_]->start;
+	$_[0][dreader_]->start;
 }
 
 sub pump {
-	$_[0][sreader_]->pump;
+	$_[0][dreader_]->pump;
 }
 
 sub writer {
-	$_[0][swriter_]->writer;
+	$_[0][dwriter_]->writer;
 
 }
 
@@ -117,34 +112,37 @@ sub on_error : lvalue {
 }
 
 sub on_drain : lvalue {
-	$_[0][swriter_]->on_drain;
+	$_[0][dwriter_]->on_drain;
 
 }
 
 sub on_read : lvalue {
-	$_[0][sreader_]->on_read;
+	$_[0][dreader_]->on_message;
 
 }
 
 sub on_eof : lvalue {
-	$_[0][sreader_]->on_eof;
+	$_[0][dreader_]->on_eof;
 
 }
 sub max_read_size :lvalue{
-	$_[0][sreader_]->max_read_size($_[1]);
+	$_[0][dreader_]->max_read_size($_[1]);
 }
 
 sub timing {
 	my ($self, $read_time, $write_time, $clock)=@_;
-	$self->[sreader_]->timing($read_time, $clock);
-	$self->[swriter_]->timing($write_time, $clock);
+	$self->[dreader_]->timing($read_time, $clock);
+	$self->[dwriter_]->timing($write_time, $clock);
 }
 
 
 sub connect_inet {
-	&_inet;
+	&_connect;
 }
 
+sub bind_inet {
+	&_bind;
+}
 1;
 
 

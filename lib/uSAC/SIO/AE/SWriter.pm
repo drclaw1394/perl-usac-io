@@ -1,4 +1,4 @@
-package uSAC::DWriter;
+package uSAC::SIO::AE::SWriter;
 use strict;
 use warnings;
 use feature qw<refaliasing current_sub say>;
@@ -17,34 +17,35 @@ use enum (qw<ctx_ wfh_ time_ clock_ on_drain_ on_error_ writer_ ww_ queue_>);
 
 sub new {
 	my $package=shift//__PACKAGE__;
-	my $self=[@_];
-	$self->[on_drain_]//=sub{};
-	$self->[on_error_]//=sub{};
-	$self->[writer_]=undef;
+	my $self=[];#[@_];
+	$self->[wfh_]=shift;
+	$self->[on_drain_]//=$self->[on_error_]//=sub{};
+	#$self->[writer_]=undef;
 	$self->[ww_]=undef;
 	$self->[queue_]=[];
 	my $time=0;
 	$self->[time_]=\$time;
 	$self->[clock_]=\$time;
 	bless $self, $package;
-	$self->writer;		#create writer;
+	#$self->writer;		#create writer;
+	$self->[writer_]//=$self->_make_writer;
 	$self;
 }
-
 sub timing {
 	my $self=shift;
 	$self->@[time_, clock_]=@_;
 }
-
 #return or create an return writer
 sub writer {
 	$_[0][writer_]//=$_[0]->_make_writer;
 }
 
 
-sub ctx : lvalue{
-	$_[0][ctx_];
-}
+########################
+# sub ctx : lvalue{    #
+#         $_[0][ctx_]; #
+# }                    #
+########################
 
 ###############################
 # sub on_eof : lvalue {       #
@@ -76,7 +77,7 @@ sub write {
 #Aliases variables for (hopefully) faster access in repeated calls
 sub _make_writer {
 	my $self=shift;
-	\my $ctx=\$self->[ctx_];#$_[0];
+	#\my $ctx=\$self->[ctx_];#$_[0];
 	my $wfh=$self->[wfh_];
 	\my $on_error=\$self->[on_error_];#$_[3]//sub{
 
@@ -87,13 +88,13 @@ sub _make_writer {
 
 	my $w;
 	my $offset=0;
-	my $flags=0;
 	#Arguments are buffer and callback.
 	#do not call again until callback is called
 	#if no callback is provided, the session dropper is called.
 	#
 	sub {
 		use integer;
+		no warnings "recursion";
 		$_[0]//return;				#undefined input. was a stack reset
 		#my $dropper=$on_done;			#default callback
 
@@ -105,18 +106,27 @@ sub _make_writer {
 		if(!$ww){
 			#no write watcher so try synchronous write
 			$$time=$$clock;
-			$offset+= $w= send $wfh, $_[0], $flags;
+			$offset+=$w = syswrite($wfh, $_[0]);#, length($_[0])-$offset, $offset);
 			$offset==length($_[0]) and return($cb and $cb->($arg));
 
-			#TODO: DO we need to restructure on ICMP results for a unreachable host, connection refused, etc?
+
+                        ########################################
+                        # if($offset==length $_[0]){           #
+                        #         #say "FULL WRITE NO APPEND"; #
+                        #         $cb->($arg) if $cb;          #
+                        #         return;                      #
+                        # }                                    #
+                        ########################################
+
 			if(!defined($w) and $! != EAGAIN and $! != EINTR){
 				#this is actual error
+				warn "ERROR IN WRITE NO APPEND" if DEBUG;
 				warn $! if DEBUG;
 				#actual error		
 				$ww=undef;
 				@queue=();	#reset queue for session reuse
 				$cb->(undef) if $cb;
-				$on_error->($ctx);
+				$on_error->($!);
 				#uSAC::HTTP::Session::drop $session, "$!";
 				return;
 			}
@@ -137,8 +147,7 @@ sub _make_writer {
 				\my $arg=\$entry->[3];
 				#say "watcher cb";
 				$$time=$$clock;
-				#$offset+=$w = syswrite $wfh, $buf, length($buf)-$offset, $offset;
-				$offset+= $w= send $wfh, substr($buf,$offset), $flags;
+				$offset+=$w = syswrite $wfh, $buf, length($buf)-$offset, $offset;
 				if($offset==length $buf) {
 					#say "FULL async write";
 					shift @queue;
@@ -155,7 +164,7 @@ sub _make_writer {
 					$ww=undef;
 					@queue=();	#reset queue for session reuse
 					$cb->(undef);
-					$on_error->($ctx);
+					$on_error->($!);
 					return;
 				}
 			};
@@ -171,3 +180,64 @@ sub _make_writer {
 }
 
 1;
+
+__END__
+=head1 NAME 
+
+uSAC::SIO::AE::SWriter - Streamlined non blocking, no copy queuing Output
+
+=head1 SYNOPSIS
+
+	use uSAC::SIO::AE::SWriter
+
+	my $fh;		#<< already opened file handle to socket
+	my $ctx;	#<< User context/scalar used in callbacks
+	my $writer=uSAC::SIO::AE::SWriter->new($ct, $fh);
+	
+	#Set callback
+	$writer->on_error=sub{};
+
+	#Return sub for direct (non oo) writing
+	$w=$writer->writer;
+
+	#Write data with no callback
+	$w->("data to write")
+
+
+	#write data with callback when written
+	$w->("more data to write", sub {
+		#callback passes ctx and arg
+	}, 
+	"arg");
+	
+
+=head1 DESCRIPTION
+
+SWriter (Stream Writer) is built around perl features (some experimental) and AnyEvent to give efficient and easy to use writing to non blocking filehanles.
+
+Efficiency is gained by:
+
+
+=over 
+
+=item *
+
+Using lexical aliases to object fields
+
+=item *
+
+array backed object instead of hash
+
+=item *
+
+non destructive write buffer/queue preventing extra data copies
+
+=item *
+
+lvalue for read/write accessor, allowing fast runtime modification of callbacks
+
+=back
+
+
+
+=cut
