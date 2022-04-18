@@ -31,6 +31,13 @@ sub new {
 	$self->[writer_]//=$self->_make_writer;
 	$self;
 }
+
+sub set_write_handle {
+	my ($self, $wh)=@_;
+	$self->[wfh_]=$wh;
+	$self->[ww_]=undef;
+
+}
 sub timing {
 	my $self=shift;
 	$self->@[time_, clock_]=@_;
@@ -78,7 +85,7 @@ sub write {
 sub _make_writer {
 	my $self=shift;
 	#\my $ctx=\$self->[ctx_];#$_[0];
-	my $wfh=$self->[wfh_];
+	\my $wfh=\$self->[wfh_];
 	\my $on_error=\$self->[on_error_];#$_[3]//sub{
 
 	\my $ww=\$self->[ww_];
