@@ -1,8 +1,9 @@
 package uSAC::SIO::AE::SWriter;
 use strict;
 use warnings;
-use feature qw<refaliasing current_sub say>;
+use feature qw<refaliasing current_sub say try>;
 no warnings qw<experimental uninitialized>;
+
 
 use AnyEvent;
 use Errno qw(EAGAIN EINTR);
