@@ -6,8 +6,9 @@ no warnings qw<experimental uninitialized>;
 
 
 use AnyEvent;
+use Log::ger;
+use Log::OK;
 use Errno qw(EAGAIN EINTR);
-use constant DEBUG=>0;
 
 
 #pass in fh, ctx, on_read, on_eof, on_error
@@ -107,7 +108,7 @@ sub _make_writer {
 		#my $dropper=$on_done;			#default callback
 
 		my $cb= $_[1];
-		my $arg=$_[2]//__SUB__;			#is this sub unless provided
+		my $arg=1;#$_[2]//__SUB__;			#is this sub unless provided
 
 		$offset=0;				#offset allow no destructive
 							#access to input
@@ -128,13 +129,12 @@ sub _make_writer {
 
 			if(!defined($w) and $! != EAGAIN and $! != EINTR){
 				#this is actual error
-				warn "ERROR IN WRITE NO APPEND" if DEBUG;
-				warn $! if DEBUG;
+				Log::OK::ERROR and log_error "SIO Writer: ERROR IN WRITE NO APPEND $!";
 				#actual error		
 				$ww=undef;
 				@queue=();	#reset queue for session reuse
-				$cb->(undef) if $cb;
 				$on_error->($!);
+				$cb->() if $cb;
 				#uSAC::HTTP::Session::drop $session, "$!";
 				return;
 			}
@@ -166,13 +166,12 @@ sub _make_writer {
 
 				if(!defined($w) and $! != EAGAIN and $! != EINTR){
 					#this is actual error
-					warn "ERROR IN EVENT WRITE" if DEBUG;
-					warn $! if DEBUG;
+					Log::OK::ERROR and log_error "SIO Writer: ERROR IN WRITE $!";
 					#actual error		
 					$ww=undef;
 					@queue=();	#reset queue for session reuse
-					$cb->(undef);
 					$on_error->($!);
+					$cb->();
 					return;
 				}
 			};

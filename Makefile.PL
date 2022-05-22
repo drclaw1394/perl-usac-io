@@ -6,6 +6,8 @@ WriteMakefile(
     PREREQ_PM         => {
     				enum=>0,
 				AnyEvent=>0,
+				"Log::ger"=>0,
+				"Log::OK"=>0
 			}, 
     ABSTRACT_FROM     => 'lib/uSAC/SIO.pm', 
     AUTHOR            => 'Ruben Westerberg <drclaw@mac.com>',

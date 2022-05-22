@@ -5,9 +5,11 @@ use feature qw<refaliasing current_sub say>;
 no warnings qw<experimental uninitialized>;
 
 use AnyEvent;
+use Log::ger;
+use Log::OK;
+
 use Errno qw(EAGAIN EINTR);
 use Data::Dumper;
-use constant DEBUG=>0;
 use Exporter "import";
 
 #pass in fh, ctx, on_read, on_eof, on_error
@@ -97,7 +99,7 @@ sub start {
 		$len==0 and return($on_eof->(undef, $buf));
 		($! == EAGAIN or $! == EINTR) and return;
 
-		warn "ERROR IN READER" if DEBUG;
+		Log::OK::ERROR and log_error "ERROR IN READER: $!";
 		$rw=undef;
 		$on_error->(undef, $buf);
 		return;
