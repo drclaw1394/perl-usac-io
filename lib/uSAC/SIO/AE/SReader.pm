@@ -38,7 +38,7 @@ sub new {
 	$self->[max_read_size_]//=4096;
 	$self->[rw_]=undef;
 	$self->[buffer_]="";
-	my $time=0;;
+	my $time=0;
 	$self->[time_]=\$time;
 	$self->[clock_]=\$time;
 	bless $self, $package;
@@ -96,7 +96,7 @@ sub start {
 		$$time=$$clock;
 		$len = sysread($rfh, $buf, $max_read_size, length $buf );
 		$len>0 and return($on_read and $on_read->(undef, $buf));
-		$len==0 and return($on_eof->(undef, $buf));
+		$len==0 and return($on_eof and $on_eof->(undef, $buf));
 		($! == EAGAIN or $! == EINTR) and return;
 
 		Log::OK::ERROR and log_error "ERROR IN READER: $!";
@@ -139,6 +139,12 @@ sub pause{
 sub pump {
 	$_[0][on_read_]->(undef, $_[0][buffer_]) if $_[0][buffer_];
 }
+
+#######################################
+# sub DESTROY {                       #
+#         say "++-- SREADER destroy"; #
+# }                                   #
+#######################################
 
 1;
 

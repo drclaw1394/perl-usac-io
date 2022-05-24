@@ -3,6 +3,7 @@ use strict;
 use warnings;
 use feature qw<refaliasing current_sub say try>;
 no warnings qw<experimental uninitialized>;
+#use Scalar::Util qw<weaken>;
 
 
 use AnyEvent;
@@ -181,10 +182,17 @@ sub _make_writer {
 		else {
 			#watcher existing, add to queue
 			push @queue, [$_[0],0,$cb,$arg];
+			#weaken $queue[$#queue][2];
 		}
 
 	};
 }
+
+#######################################
+# sub DESTROY {                       #
+#         say "++-- SWRITER destroy"; #
+# }                                   #
+#######################################
 
 1;
 
