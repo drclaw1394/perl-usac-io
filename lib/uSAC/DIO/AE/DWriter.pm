@@ -33,6 +33,13 @@ sub new {
 	$self;
 }
 
+sub set_write_handle {
+	my ($self, $wh)=@_;
+	$self->[wfh_]=$wh;
+	$self->[ww_]=undef;
+
+}
+
 sub timing {
 	my $self=shift;
 	$self->@[time_, clock_]=@_;
@@ -110,7 +117,7 @@ sub _make_writer {
 			#no write watcher so try synchronous write
 			$$time=$$clock;
 			$offset+= $w= send $wfh, $_[0], $flags, $to;
-			$offset==length($_[0]) and return($cb and $cb->());
+			$offset==length($_[0]) and return($cb and $cb->($to));
 
 			#TODO: DO we need to restructure on ICMP results for a unreachable host, connection refused, etc?
 			if(!defined($w) and $! != EAGAIN and $! != EINTR){
@@ -119,8 +126,8 @@ sub _make_writer {
 				#actual error		
 				$ww=undef;
 				@queue=();	#reset queue for session reuse
-				$cb->(undef) if $cb;
 				$on_error->($!);
+				$cb->() if $cb;
 				#uSAC::HTTP::Session::drop $session, "$!";
 				return;
 			}
@@ -147,7 +154,7 @@ sub _make_writer {
 					#say "FULL async write";
 					shift @queue;
 					undef $ww unless @queue;
-					$cb->() if $cb;
+					$cb->($to) if $cb;
 					return;
 				}
 
@@ -158,8 +165,8 @@ sub _make_writer {
 					#actual error		
 					$ww=undef;
 					@queue=();	#reset queue for session reuse
-					$cb->(undef);
 					$on_error->($!);
+					$cb->();
 					return;
 				}
 			};
