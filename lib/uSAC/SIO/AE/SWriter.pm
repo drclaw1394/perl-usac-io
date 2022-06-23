@@ -1,7 +1,7 @@
 package uSAC::SIO::AE::SWriter;
 use strict;
 use warnings;
-use feature qw<refaliasing current_sub say try>;
+use feature qw<refaliasing current_sub say>;
 no warnings qw<experimental uninitialized>;
 #use Scalar::Util qw<weaken>;
 
