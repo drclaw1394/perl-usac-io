@@ -62,6 +62,8 @@ sub new {
 	#$self->[ctx_]=$ctx;
 	fcntl $fh, F_SETFL, O_NONBLOCK;
 	my $dreader=$rb->new($fh);
+	$self->[on_error_]=sub {};
+	
 	$dreader->on_error=sub {$self->[on_error_]->&*};
 
 	my $dwriter=$wb->new( $fh2);
@@ -117,7 +119,7 @@ sub on_drain : lvalue {
 }
 
 sub on_read : lvalue {
-	$_[0][dreader_]->on_message;
+	$_[0][dreader_]->on_read;
 
 }
 

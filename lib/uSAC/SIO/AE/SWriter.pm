@@ -113,6 +113,10 @@ sub _make_writer {
 
 		$offset=0;				#offset allow no destructive
 							#access to input
+		unless($wfh){
+			Log::OK::ERROR and log_error "SIO Writer: file handle undef, but write called from". join ", ", caller;
+			return;
+		}
 		if(!$ww){
 			#no write watcher so try synchronous write
 			$$time=$$clock;
@@ -133,6 +137,7 @@ sub _make_writer {
 				Log::OK::ERROR and log_error "SIO Writer: ERROR IN WRITE NO APPEND $!";
 				#actual error		
 				$ww=undef;
+				$wfh=undef;
 				@queue=();	#reset queue for session reuse
 				$on_error->($!);
 				$cb->() if $cb;
@@ -149,11 +154,15 @@ sub _make_writer {
 			#say "PARTIAL WRITE Synchronous";
 			my $entry;
 			$ww = AE::io $wfh, 1, sub {
+				unless($wfh){
+					Log::OK::ERROR and log_error "SIO Writer: file handle undef, but write watcher still active";
+					return;
+				}
 				$entry=$queue[0];
 				\my $buf=\$entry->[0];
 				\my $offset=\$entry->[1];
 				\my $cb=\$entry->[2];
-				\my $arg=\$entry->[3];
+				#\my $arg=\$entry->[3];
 				#say "watcher cb";
 				$$time=$$clock;
 				$offset+=$w = syswrite $wfh, $buf, length($buf)-$offset, $offset;
@@ -161,7 +170,7 @@ sub _make_writer {
 					#say "FULL async write";
 					shift @queue;
 					undef $ww unless @queue;
-					$cb->($arg) if $cb;
+					$cb->($entry->[3]) if $cb;
 					return;
 				}
 
@@ -170,6 +179,7 @@ sub _make_writer {
 					Log::OK::ERROR and log_error "SIO Writer: ERROR IN WRITE $!";
 					#actual error		
 					$ww=undef;
+					$wfh=undef;
 					@queue=();	#reset queue for session reuse
 					$on_error->($!);
 					$cb->();

@@ -116,7 +116,10 @@ sub _make_writer {
 		if(!$ww){
 			#no write watcher so try synchronous write
 			$$time=$$clock;
-			$offset+= $w= send $wfh, $_[0], $flags, $to;
+			$offset+= $w= $to 
+				? send $wfh, $_[0], $flags, $to
+				: send $wfh, $_[0], $flags;
+			say "send result: $w";
 			$offset==length($_[0]) and return($cb and $cb->($to));
 
 			#TODO: DO we need to restructure on ICMP results for a unreachable host, connection refused, etc?

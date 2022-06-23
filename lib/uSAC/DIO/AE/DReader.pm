@@ -14,7 +14,7 @@ use constant DEBUG=>0;
 
 use constant KEY_OFFSET=>0;
 
-use enum ("ctx_=".KEY_OFFSET, qw< rfh_ time_ clock_ on_message_ on_error_ max_read_size_ rw_  flags_>);
+use enum ("ctx_=".KEY_OFFSET, qw< rfh_ time_ clock_ on_read_ on_error_ max_read_size_ rw_  flags_>);
 
 use constant KEY_COUNT=>flags_-ctx_+1;
 
@@ -24,7 +24,7 @@ sub new {
 	
 	my $self=[];
 	$self->[rfh_]=shift;
-	$self->[on_message_]//=sub {$self->pause};
+	$self->[on_read_]//=sub {$self->pause};
 	$self->[on_error_]//=sub{};
 	$self->[max_read_size_]//=4096;
 	$self->[rw_]=undef;
@@ -34,8 +34,8 @@ sub new {
 	bless $self, $package;
 }
 
-sub on_message : lvalue {
-	$_[0][on_message_];
+sub on_read : lvalue {
+	$_[0][on_read_];
 
 }
 
@@ -74,7 +74,7 @@ sub start {
 	my $self=shift;
 	
 	#\my $ctx=\$self->[ctx_];
-	\my $on_message=\$self->[on_message_]; #alias cb 
+	\my $on_read=\$self->[on_read_]; #alias cb 
 	\my $on_error=\$self->[on_error_];
 	\my $rw=\$self->[rw_];
 	#\my $buf=\$self->[buffer_];
@@ -89,7 +89,7 @@ sub start {
 		$$time=$$clock;
 		my $buf="";
 		my $addr =recv($rfh, $buf, $max_read_size,$flags);
-		$addr and return($on_message and $on_message->($addr, $buf));
+		defined($addr) and return($on_read and $on_read->($buf,$addr));
 		($! == EAGAIN or $! == EINTR) and return;
 
 		warn "ERROR IN READER" if DEBUG;

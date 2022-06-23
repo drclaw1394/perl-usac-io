@@ -55,10 +55,15 @@ sub connect_inet {
 
         my $addr=pack_sockaddr_in $port, inet_aton $host;
 
+	my $local=pack_sockaddr_in 0, inet_aton "0.0.0.0";
         #Do non blocking connect
         #A EINPROGRESS is expected due to non block
+        ################################
+        # unless(bind $fh, $local){    #
+        #         say "bind error $!"; #
+        # }                            #
+        ################################
 	my $res=connect $fh, $addr;
-	#my $res=bind 	$fh, $addr;
         unless($res){
                 #EAGAIN for pipes
                 if($! == EAGAIN or $! == EINPROGRESS){
