@@ -1,4 +1,4 @@
-package uSAC::SIO::AE::SWriter;
+package uSAC::IO::AE::SWriter;
 use strict;
 use warnings;
 use feature qw<refaliasing current_sub say>;
@@ -10,29 +10,25 @@ use AnyEvent;
 use Log::ger;
 use Log::OK;
 use Errno qw(EAGAIN EINTR);
+use parent "uSAC::IO::Writer";
+use uSAC::IO::Writer qw<:fields>;
 
 
 #pass in fh, ctx, on_read, on_eof, on_error
 #Returns a sub which is called with a buffer, an optional callback and argument
 
-use enum (qw<ctx_ wfh_ time_ clock_ on_drain_ on_error_ writer_ ww_ queue_>);
+#use enum (qw<ctx_ wfh_ time_ clock_ on_drain_ on_error_ writer_ ww_ queue_>);
 
+use constant KEY_OFFSET=>uSAC::IO::Writer::KEY_OFFSET + uSAC::IO::Writer::KEY_COUNT;
+use enum ("ww_=".KEY_OFFSET, qw<>);
+
+use constant KEY_COUNT=>ww_-ww_+1;
 
 sub new {
 	my $package=shift//__PACKAGE__;
-	my $self=[];#[@_];
-	$self->[wfh_]=shift;
-	$self->[on_drain_]//=$self->[on_error_]//=sub{};
-	#$self->[writer_]=undef;
-	$self->[ww_]=undef;
-	$self->[queue_]=[];
-	my $time=0;
-	$self->[time_]=\$time;
-	$self->[clock_]=\$time;
-	bless $self, $package;
-	#$self->writer;		#create writer;
-	$self->[writer_]//=$self->_make_writer;
-	$self;
+	my $self=$package->SUPER::new(@_);
+	#$self->[ww_]=undef;
+
 }
 
 sub set_write_handle {
@@ -41,46 +37,11 @@ sub set_write_handle {
 	$self->[ww_]=undef;
 
 }
-sub timing {
-	my $self=shift;
-	$self->@[time_, clock_]=@_;
-}
-#return or create an return writer
-sub writer {
-	$_[0][writer_]//=$_[0]->_make_writer;
-}
-
-
-########################
-# sub ctx : lvalue{    #
-#         $_[0][ctx_]; #
-# }                    #
-########################
-
-###############################
-# sub on_eof : lvalue {       #
-#         $_[0][on_eof_]->$*; #
-# }                           #
-###############################
-
-sub on_error : lvalue{
-	$_[0][on_error_];
-}
-
-sub on_drain : lvalue{
-	$_[0][on_drain_];
-}
 
 #pause any automatic writing
 sub pause {
 	$_[0]->[ww_]=undef;
-}
-
-
-#OO interface
-sub write {
-	my $self=shift;
-	&{$self->[writer_]};
+	$_[0];
 }
 
 #internal
@@ -197,72 +158,4 @@ sub _make_writer {
 
 	};
 }
-
-#######################################
-# sub DESTROY {                       #
-#         say "++-- SWRITER destroy"; #
-# }                                   #
-#######################################
-
 1;
-
-__END__
-=head1 NAME 
-
-uSAC::SIO::AE::SWriter - Streamlined non blocking, no copy queuing Output
-
-=head1 SYNOPSIS
-
-	use uSAC::SIO::AE::SWriter
-
-	my $fh;		#<< already opened file handle to socket
-	my $ctx;	#<< User context/scalar used in callbacks
-	my $writer=uSAC::SIO::AE::SWriter->new($ct, $fh);
-	
-	#Set callback
-	$writer->on_error=sub{};
-
-	#Return sub for direct (non oo) writing
-	$w=$writer->writer;
-
-	#Write data with no callback
-	$w->("data to write")
-
-
-	#write data with callback when written
-	$w->("more data to write", sub {
-		#callback passes ctx and arg
-	}, 
-	"arg");
-	
-
-=head1 DESCRIPTION
-
-SWriter (Stream Writer) is built around perl features (some experimental) and AnyEvent to give efficient and easy to use writing to non blocking filehanles.
-
-Efficiency is gained by:
-
-
-=over 
-
-=item *
-
-Using lexical aliases to object fields
-
-=item *
-
-array backed object instead of hash
-
-=item *
-
-non destructive write buffer/queue preventing extra data copies
-
-=item *
-
-lvalue for read/write accessor, allowing fast runtime modification of callbacks
-
-=back
-
-
-
-=cut

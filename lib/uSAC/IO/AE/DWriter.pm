@@ -1,36 +1,34 @@
-package uSAC::DIO::AE::DWriter;
+package uSAC::IO::AE::DWriter;
 use strict;
 use warnings;
 use feature qw<refaliasing current_sub say>;
 no warnings qw<experimental uninitialized>;
 
 use AnyEvent;
+use Log::ger;
+use Log::OK;
 use Errno qw(EAGAIN EINTR);
 use constant DEBUG=>0;
+
+use parent "uSAC::IO::DWriter";
+use uSAC::IO::Writer ":fields";
 
 
 #pass in fh, ctx, on_read, on_eof, on_error
 #Returns a sub which is called with a buffer, an optional callback and argument
+#
+use constant KEY_OFFSET=>uSAC::IO::DWriter::KEY_OFFSET+uSAC::IO::DWriter::KEY_COUNT;
 
-use enum (qw<ctx_ wfh_ time_ clock_ on_drain_ on_error_ writer_ ww_ queue_>);
+use enum ("ww_=".KEY_OFFSET, qw<>);
+
+use constant KEY_COUNT=>ww_-ww_+1;
+
 
 
 sub new {
 	my $package=shift//__PACKAGE__;
 	
-	my $self=[];
-	$self->[wfh_]=shift;
-	$self->[on_drain_]//=sub{};
-	$self->[on_error_]//=sub{};
-	$self->[writer_]=undef;
-	$self->[ww_]=undef;
-	$self->[queue_]=[];
-	my $time=0;
-	$self->[time_]=\$time;
-	$self->[clock_]=\$time;
-	bless $self, $package;
-	$self->writer;		#create writer;
-	$self;
+	my $self=$package->SUPER::new(@_);
 }
 
 sub set_write_handle {
@@ -40,55 +38,25 @@ sub set_write_handle {
 
 }
 
-sub timing {
-	my $self=shift;
-	$self->@[time_, clock_]=@_;
-}
-
-#return or create an return writer
-sub writer {
-	$_[0][writer_]//=$_[0]->_make_writer;
-}
 
 
-########################
-# sub ctx : lvalue{    #
-#         $_[0][ctx_]; #
-# }                    #
-########################
 
-###############################
-# sub on_eof : lvalue {       #
-#         $_[0][on_eof_]->$*; #
-# }                           #
-###############################
 
-sub on_error : lvalue{
-	$_[0][on_error_];
-}
 
-sub on_drain : lvalue{
-	$_[0][on_drain_];
-}
 
 #pause any automatic writing
 sub pause {
 	$_[0]->[ww_]=undef;
+	$_[0];
 }
 
-
-#OO interface
-sub write {
-	my $self=shift;
-	&{$self->[writer_]};
-}
 
 #internal
 #Aliases variables for (hopefully) faster access in repeated calls
 sub _make_writer {
 	my $self=shift;
 	#\my $ctx=\$self->[ctx_];#$_[0];
-	my $wfh=$self->[wfh_];
+	\my $wfh=\$self->[wfh_];
 	\my $on_error=\$self->[on_error_];#$_[3]//sub{
 
 	\my $ww=\$self->[ww_];
@@ -112,6 +80,10 @@ sub _make_writer {
 		my $to=$_[2];#//__SUB__;			#is this sub unless provided
 
 		$offset=0;				#offset allow no destructive
+		unless($wfh){
+			Log::OK::ERROR and log_error "IO Writer: file handle undef, but write called from". join ", ", caller;
+			return;
+		}
 							#access to input
 		if(!$ww){
 			#no write watcher so try synchronous write
@@ -119,7 +91,6 @@ sub _make_writer {
 			$offset+= $w= $to 
 				? send $wfh, $_[0], $flags, $to
 				: send $wfh, $_[0], $flags;
-			say "send result: $w";
 			$offset==length($_[0]) and return($cb and $cb->($to));
 
 			#TODO: DO we need to restructure on ICMP results for a unreachable host, connection refused, etc?
@@ -152,7 +123,10 @@ sub _make_writer {
 				#say "watcher cb";
 				$$time=$$clock;
 				#$offset+=$w = syswrite $wfh, $buf, length($buf)-$offset, $offset;
-				$offset+= $w= send $wfh, substr($buf,$offset), $flags;
+				#$offset+= $w= send $wfh, substr($buf,$offset), $flags;
+				$offset+= $w= $to 
+					? send $wfh, substr($buf,$offset), $flags, $to
+					: send $wfh, substr($buf,$offset), $flags;
 				if($offset==length $buf) {
 					#say "FULL async write";
 					shift @queue;
