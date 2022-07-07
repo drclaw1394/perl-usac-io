@@ -31,6 +31,7 @@ our %EXPORT_TAGS=("fields"=>\@fields);
 
 
 sub new {
+	say __PACKAGE__." new";
 	my $package=shift//__PACKAGE__;
 	my $self=[];#[@_];
 	$self->[wfh_]=shift;
@@ -39,11 +40,13 @@ sub new {
 	#$self->[writer_]=undef;
 	$self->[queue_]=[];
 	my $time=0;
+
 	$self->[time_]=\$time;
 	$self->[clock_]=\$time;
 
-	bless $self, $package;
-	$self->[writer_]//=$self->_make_writer;
+	$self=bless $self, $package;
+	#say "IN Writer new: ".$self;
+	$self->[writer_]=$self->_make_writer;
 	$self;
 }
 
@@ -92,7 +95,7 @@ sub set_write_handle {
 }
 
 sub _make_writer {
-
+	say "IN IO WRITER make writer";
 }
 sub queue {
 	$_[0][queue_];

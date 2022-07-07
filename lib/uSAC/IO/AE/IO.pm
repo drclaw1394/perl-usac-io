@@ -28,6 +28,7 @@ sub connect {
         #A EINPROGRESS is expected due to non block
         my ($package, $socket, $addr, $on_connect, $on_error)=@_;
 
+	say "In connect: ".unpack "H*", $addr;
 	my $res=CORE::connect $socket, $addr;
         unless($res){
                 #EAGAIN for pipes

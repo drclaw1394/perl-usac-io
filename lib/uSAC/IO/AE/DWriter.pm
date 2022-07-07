@@ -8,7 +8,7 @@ use AnyEvent;
 use Log::ger;
 use Log::OK;
 use Errno qw(EAGAIN EINTR);
-use constant DEBUG=>0;
+use constant DEBUG=>1;
 
 use parent "uSAC::IO::DWriter";
 use uSAC::IO::Writer ":fields";
@@ -28,7 +28,11 @@ use constant KEY_COUNT=>ww_-ww_+1;
 sub new {
 	my $package=shift//__PACKAGE__;
 	
+	say __PACKAGE__." new";
 	my $self=$package->SUPER::new(@_);
+	say __PACKAGE__." after super";
+	#$self->writer;
+	$self;
 }
 
 sub set_write_handle {
@@ -37,7 +41,6 @@ sub set_write_handle {
 	$self->[ww_]=undef;
 
 }
-
 
 
 
@@ -55,6 +58,7 @@ sub pause {
 #Aliases variables for (hopefully) faster access in repeated calls
 sub _make_writer {
 	my $self=shift;
+	say "IN AE::Dwriter make _writer". $self;
 	#\my $ctx=\$self->[ctx_];#$_[0];
 	\my $wfh=\$self->[wfh_];
 	\my $on_error=\$self->[on_error_];#$_[3]//sub{
@@ -88,6 +92,9 @@ sub _make_writer {
 		if(!$ww){
 			#no write watcher so try synchronous write
 			$$time=$$clock;
+			say "In write: ".unpack "H*", $to;
+			say "In write: ".unpack "H*", getpeername $wfh;
+
 			$offset+= $w= $to 
 				? send $wfh, $_[0], $flags, $to
 				: send $wfh, $_[0], $flags;
@@ -97,6 +104,7 @@ sub _make_writer {
 			if(!defined($w) and $! != EAGAIN and $! != EINTR){
 				#this is actual error
 				warn $! if DEBUG;
+				warn "ERRNO: ".($!+0);
 				#actual error		
 				$ww=undef;
 				@queue=();	#reset queue for session reuse
