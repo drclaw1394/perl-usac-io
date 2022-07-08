@@ -1,6 +1,6 @@
+use Object::Pad;
 package uSAC::IO::AE::DWriter;
-use strict;
-use warnings;
+class uSAC::IO::AE::DWriter :isa(uSAC::IO::DWriter);
 use feature qw<refaliasing current_sub say>;
 no warnings qw<experimental uninitialized>;
 
@@ -10,63 +10,39 @@ use Log::OK;
 use Errno qw(EAGAIN EINTR);
 use constant DEBUG=>1;
 
-use parent "uSAC::IO::DWriter";
-use uSAC::IO::Writer ":fields";
-
-
-#pass in fh, ctx, on_read, on_eof, on_error
-#Returns a sub which is called with a buffer, an optional callback and argument
-#
-use constant KEY_OFFSET=>uSAC::IO::DWriter::KEY_OFFSET+uSAC::IO::DWriter::KEY_COUNT;
-
-use enum ("ww_=".KEY_OFFSET, qw<>);
-
-use constant KEY_COUNT=>ww_-ww_+1;
+field $_ww;
 
 
 
-sub new {
-	my $package=shift//__PACKAGE__;
-	
-	say __PACKAGE__." new";
-	my $self=$package->SUPER::new(@_);
-	say __PACKAGE__." after super";
-	#$self->writer;
-	$self;
-}
-
-sub set_write_handle {
-	my ($self, $wh)=@_;
-	$self->[wfh_]=$wh;
-	$self->[ww_]=undef;
+method set_write_handle :override ($wh){
+	$self->wfh=$wh; #Call parent
+	$_ww=undef;
 
 }
-
 
 
 
 
 
 #pause any automatic writing
-sub pause {
-	$_[0]->[ww_]=undef;
-	$_[0];
+method pause :override {
+	$_ww=undef;
+	$self;
 }
 
 
 #internal
 #Aliases variables for (hopefully) faster access in repeated calls
-sub _make_writer {
-	my $self=shift;
+method _make_writer :override {
 	say "IN AE::Dwriter make _writer". $self;
 	#\my $ctx=\$self->[ctx_];#$_[0];
-	\my $wfh=\$self->[wfh_];
-	\my $on_error=\$self->[on_error_];#$_[3]//sub{
+	\my $wfh=\$self->wfh;
+	\my $on_error=\$self->on_error;
 
-	\my $ww=\$self->[ww_];
-	\my @queue=$self->[queue_];
-	\my $time=\$self->[time_];
-	\my $clock=\$self->[clock_];
+	#\my $ww=\$self->[ww_];
+	\my @queue=$self->queue;
+	\my $time=$self->time;
+	\my $clock=$self->clock;
 
 	my $w;
 	my $offset=0;
@@ -89,9 +65,9 @@ sub _make_writer {
 			return;
 		}
 							#access to input
-		if(!$ww){
+		if(!$_ww){
 			#no write watcher so try synchronous write
-			$$time=$$clock;
+			$time=$clock;
 			say "In write: ".unpack "H*", $to;
 			say "In write: ".unpack "H*", getpeername $wfh;
 
@@ -106,7 +82,7 @@ sub _make_writer {
 				warn $! if DEBUG;
 				warn "ERRNO: ".($!+0);
 				#actual error		
-				$ww=undef;
+				$_ww=undef;
 				@queue=();	#reset queue for session reuse
 				$on_error->($!);
 				$cb->() if $cb;
@@ -122,7 +98,7 @@ sub _make_writer {
 			push @queue,[$_[0], $offset, $cb, $to];
 			#say "PARTIAL WRITE Synchronous";
 			my $entry;
-			$ww = AE::io $wfh, 1, sub {
+			$_ww = AE::io $wfh, 1, sub {
 				$entry=$queue[0];
 				\my $buf=\$entry->[0];
 				\my $offset=\$entry->[1];
@@ -138,7 +114,7 @@ sub _make_writer {
 				if($offset==length $buf) {
 					#say "FULL async write";
 					shift @queue;
-					undef $ww unless @queue;
+					undef $_ww unless @queue;
 					$cb->($to) if $cb;
 					return;
 				}
@@ -148,7 +124,7 @@ sub _make_writer {
 					warn "ERROR IN EVENT WRITE" if DEBUG;
 					warn $! if DEBUG;
 					#actual error		
-					$ww=undef;
+					$_ww=undef;
 					@queue=();	#reset queue for session reuse
 					$on_error->($!);
 					$cb->();

@@ -10,10 +10,12 @@ use parent "uSAC::IO";
 
 use AnyEvent;
 
-sub new {
-	my $package=shift;
-	$package->SUPER::new(@_);
-}
+#####################################
+# sub new {                         #
+#         my $package=shift;        #
+#         $package->SUPER::new(@_); #
+# }                                 #
+#####################################
 
 sub bind {
 	my ($package, $socket, $addr, $on_bind, $on_error)=@_;
@@ -29,6 +31,7 @@ sub connect {
         my ($package, $socket, $addr, $on_connect, $on_error)=@_;
 
 	say "In connect: ".unpack "H*", $addr;
+	say "socket: $socket";
 	my $res=CORE::connect $socket, $addr;
         unless($res){
                 #EAGAIN for pipes

@@ -1,6 +1,7 @@
+use Object::Pad;
 package uSAC::IO::Reader;
-use strict;
-use warnings;
+class uSAC::IO::Reader;
+
 use feature qw<refaliasing current_sub say>;
 no warnings qw<experimental uninitialized>;
 
@@ -14,85 +15,84 @@ use Data::Dumper;
 use Exporter "import";
 
 #pass in fh, ctx, on_read, on_eof, on_error
-#Returns a sub which is called with a buffer, an optional callback and argument
+#Returns a method which is called with a buffer, an optional callback and argument
 
-use constant KEY_OFFSET=>0;
-use enum ("ctx_=".KEY_OFFSET, qw<rfh_ reader_ time_ clock_ on_read_ on_eof_ on_error_ max_read_size_ buffer_ >);
-
-use constant KEY_COUNT=>buffer_-ctx_+1;
-
-our @fields=qw<ctx_ rfh_ reader_ time_ clock_ on_read_ on_eof_ on_error_ max_read_size_ buffer_>;
-
-our @EXPORT_OK=@fields;
-our %EXPORT_TAGS=("fields"=>\@fields);
+field $_ctx;
+field $_rfh :param :mutator;
+field $_reader 	:mutator;
+field $_time	:mutator;
+field $_clock	 :mutator;
+field $_on_read :mutator;
+field $_on_eof  :mutator;
+field $_on_error :mutator;
+field $_max_read_size :mutator;
+field $_buffer	:mutator;
 		
-sub new {
-	my $package=shift//__PACKAGE__;
 	
-	my $self=[];#[@_];
-	$self->[rfh_]=shift;
-        fcntl $self->[rfh_], F_SETFL, O_NONBLOCK;
+BUILD{
+        fcntl $_rfh, F_SETFL, O_NONBLOCK;
 
-	$self->[on_read_]//=sub {$self->pause};
-	$self->[on_error_]//= $self->[on_eof_]//=sub{};
+	$_on_read//=sub {$self->pause};
+	$_on_error//= $_on_eof//=sub{};
 
-	$self->[max_read_size_]//=4096;
-	$self->[buffer_]="";
+	$_max_read_size//=4096;
+	$_buffer="";
 
 	
 	my $time=0;
-	$self->[time_]=\$time;
-	$self->[clock_]=\$time;
-
-	bless $self, $package;
+	$_time=\$time;
+	$_clock=\$time;
 }
+
 
 # Accessor API
 #
 #Set the external variables to use as clock source and timer
-sub timing {
-	my $self=shift;
-	$self->@[time_, clock_]=@_;
+method timing {
+	($_time, $_clock)=@_;
 }
 
-sub on_read : lvalue {
-	$_[0][on_read_];
-}
-
-sub on_eof : lvalue {
-	$_[0][on_eof_];
-}
-
-sub on_error : lvalue{
-	$_[0][on_error_];
-}
-
-sub max_read_size :lvalue{
-	$_[0][max_read_size_];
-}
-sub buffer :lvalue{
-	$_[0][buffer_];
-}
 
 
 #manually call on_read if buffer is not empty
-sub pump {
-	$_[0][on_read_]->(undef, $_[0][buffer_]) if $_[0][buffer_];
+method pump {
+	$_on_read->($_buffer, undef) if $_buffer;
 }
 
 
-sub start {
-	#sub class for backend to override
+method start {
+	#method class for backend to override
 }
 
-sub pause{
-	#sub class for backend to override
+method pause{
+	#method class for backend to override
 }
 
-sub _make_reader {
+method _make_reader {
 
 }
 
+method pipe  ($writer,$limit=undef){
+	my $counter;
+	\my @queue=$writer->queue;
+	$self->on_read= sub {
+		if(!$limit  or $#queue < $limit){
+			#The next write cannot equal the limit so blaze ahead
+			#with no callback,
+			$writer->write($_[0]);
+		}
+		else{
+			#the next write will equal the limit,
+			#use a callback
+			$self->pause;	#Pause the reader
+			$writer->write($_[0], sub{
+				#restart the reader
+				$self->start;
+			});
+		}
+	};
+	$writer; #Return writer to allow chaining
+}
 1;
 
 __END__
