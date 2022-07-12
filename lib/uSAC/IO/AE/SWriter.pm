@@ -12,9 +12,15 @@ use uSAC::IO::Writer qw<:fields>;
 
 
 field $_ww;		# Actual new variable for sub class
+field $_wfh_ref;
+
+BUILD {
+	$_wfh_ref=\$self->wfh;
+}
 
 method set_write_handle :override ($wh){
-	$self->wfh=$wh; #Call parent
+	$$_wfh_ref=$wh;
+	#$self->wfh=$wh; #Call parent
 	$_ww=undef;
 
 }
@@ -28,7 +34,7 @@ method pause :override {
 #internal
 #Aliases variables for (hopefully) faster access in repeated calls
 method _make_writer {
-	\my $wfh=\$self->wfh;	#refalias
+	\my $wfh=$_wfh_ref;#\$self->wfh;	#refalias
 	\my $on_error=\$self->on_error;#$_[3]//method{
 
 	#\my $ww=\$self->[ww_];

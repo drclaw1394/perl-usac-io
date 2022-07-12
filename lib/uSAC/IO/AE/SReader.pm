@@ -13,29 +13,40 @@ use Errno qw(EAGAIN EINTR);
 use Data::Dumper;
 
 field $_rw;
+field $_reader;
 		
+field $_rfh_ref;
+
+BUILD {
+	$_rfh_ref=\$self->rfh;
+}
 
 method start :override ($fh=undef) {
-	$self->rfh=$fh if $fh;
-	$_rw= AE::io $self->rfh, 0, $self->_make_reader;
+	$$_rfh_ref=$fh if $fh;
+	#$self->rfh=$fh if $fh;
+	$_rw= AE::io $$_rfh_ref, 0, $_reader//=$self->_make_reader;
 	$self;
 }
 
 method _make_reader  :override {
 #alias variables and create io watcher
 	
+	#NOTE: Object::Pad does not allow child classes to have access to 
+	#parent fields. Here we alias what we need so 'runtime' access is
+	#not impacted
+	#
 	\my $on_read=\$self->on_read; #alias cb 
 	\my $on_eof=\$self->on_eof;
 	\my $on_error=\$self->on_error;
 	#\my $rw=\$self->[rw_];
 	\my $buf=\$self->buffer;
 	\my $max_read_size=\$self->max_read_size;
-	\my $rfh=\$self->rfh;		
+	\my $rfh=$_rfh_ref;#$self->rfh;		
 	\my $time=$self->time;
 	\my $clock=$self->clock;
 	my $len;
 	$_rw=undef;
-	$self->reader=sub {
+	sub {
 		$time=$clock;
 		$len = sysread($rfh, $buf, $max_read_size, length $buf );
 		$len>0 and return($on_read and $on_read->($buf));

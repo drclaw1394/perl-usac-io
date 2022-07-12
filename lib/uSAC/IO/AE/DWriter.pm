@@ -11,11 +11,17 @@ use Errno qw(EAGAIN EINTR);
 use constant DEBUG=>1;
 
 field $_ww;
+field $_wfh_ref;
+
+BUILD {
+	$_wfh_ref=\$self->wfh;
+}
 
 
 
 method set_write_handle :override ($wh){
-	$self->wfh=$wh; #Call parent
+	$$_wfh_ref=$wh;
+	#$self->wfh=$wh; #Call parent
 	$_ww=undef;
 
 }

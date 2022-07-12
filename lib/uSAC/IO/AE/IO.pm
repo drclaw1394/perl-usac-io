@@ -10,13 +10,6 @@ use parent "uSAC::IO";
 
 use AnyEvent;
 
-#####################################
-# sub new {                         #
-#         my $package=shift;        #
-#         $package->SUPER::new(@_); #
-# }                                 #
-#####################################
-
 sub bind {
 	my ($package, $socket, $addr, $on_bind, $on_error)=@_;
 	unless(CORE::bind $socket, $addr){
