@@ -39,7 +39,6 @@ method pause :override {
 #internal
 #Aliases variables for (hopefully) faster access in repeated calls
 method _make_writer :override {
-	say "IN AE::Dwriter make _writer". $self;
 	#\my $ctx=\$self->[ctx_];#$_[0];
 	\my $wfh=$_wfh_ref;#\$self->wfh;
 	\my $on_error=\$self->on_error;
@@ -73,8 +72,6 @@ method _make_writer :override {
 		if(!$_ww){
 			#no write watcher so try synchronous write
 			$time=$clock;
-			say "In write: ".unpack "H*", $to;
-			say "In write: ".unpack "H*", getpeername $wfh;
 
 			$offset+= $w= $to 
 				? send $wfh, $_[0], $flags, $to
@@ -97,11 +94,9 @@ method _make_writer :override {
 
 			#either a partial write or an EAGAIN situation
 
-			#say "EAGAIN or partial write";
 			#If the write was only partial, or had a async 'error'
 			#push the buffer to setup events
 			push @queue,[$_[0], $offset, $cb, $to];
-			#say "PARTIAL WRITE Synchronous";
 			my $entry;
 			$_ww = AE::io $wfh, 1, sub {
 				$entry=$queue[0];
@@ -109,7 +104,6 @@ method _make_writer :override {
 				\my $offset=\$entry->[1];
 				\my $cb=\$entry->[2];
 				\my $to=\$entry->[3];
-				#say "watcher cb";
 				$$time=$$clock;
 				#$offset+=$w = syswrite $wfh, $buf, length($buf)-$offset, $offset;
 				#$offset+= $w= send $wfh, substr($buf,$offset), $flags;
@@ -117,7 +111,6 @@ method _make_writer :override {
 					? send $wfh, substr($buf,$offset), $flags, $to
 					: send $wfh, substr($buf,$offset), $flags;
 				if($offset==length $buf) {
-					#say "FULL async write";
 					shift @queue;
 					undef $_ww unless @queue;
 					$cb->($to) if $cb;

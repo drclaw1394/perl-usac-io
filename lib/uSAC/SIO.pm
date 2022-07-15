@@ -43,7 +43,6 @@ else {
 }
 my $sb=($backend."::SIO");
 eval "require $sb";
-#say $sb;
 {
 	no strict qw<refs>;
 	*_inet=*{"$sb"."::connect_inet"};

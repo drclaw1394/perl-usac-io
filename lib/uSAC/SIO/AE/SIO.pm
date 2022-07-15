@@ -36,7 +36,6 @@ sub connect_inet {
 	unless($res){
 		#EAGAIN for pipes
 		if($! == EAGAIN or $! == EINPROGRESS){
-			say " non blocking connect";
 			my $cw;$cw=AE::io $fh, 1, sub {
 				#Need to check if the socket has	
 				my $sockaddr=getpeername $fh;
@@ -46,14 +45,12 @@ sub connect_inet {
 				}
 				else {
 					#error
-					say $!;
 					$on_error->($!);
 				}
 			};
 			return;
 		}
 		else {
-			say "Error in connect";
 			warn "Counld not connect to host";
 			#$self->[on_error_]();
 			AnyEvent::postpone { 

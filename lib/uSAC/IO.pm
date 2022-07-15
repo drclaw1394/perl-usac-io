@@ -13,15 +13,13 @@ use uSAC::IO::SReader;
 
 use Socket  ":all";
 
-use IO::Socket::IP '-register';
+#use IO::Socket::IP '-register';
 
 
 use Exporter;# qw<import>;
 
 sub import {
-	#Export all symbols in sock
-	@_=(":all");
-	goto &IO::Socket::import;
+	Socket->export_to_level(1, undef, ":all");
 
 }
 
@@ -45,14 +43,8 @@ sub socket {
 sub bind{
 	my $package=shift;
 
-	#say "bind".$_[0];
 	my @stat=stat $_[0];
-	say join ", ",@stat;
 	my $fam= sockaddr_family getsockname $_[0];
-	say "Family: $fam";
-	say unpack "I*", $fam;
-	say "AF_INET:".AF_INET;
-	say "AF_INET6:".AF_INET6;
 	die  "Not a socket" unless defined $fam;
 	if($fam==AF_INET){
 		return $package->bind_inet(@_);		
@@ -69,16 +61,10 @@ sub bind{
 }
 sub connect{
 	my $package=shift;
-	say "CONNECT ".caller;
-	say $package;
-	say "";
-	#say "bind".$_[0];
 	my @stat=stat $_[0];
-	say join ", ",@stat;
 	my $fam= sockaddr_family getsockname $_[0];
 	die  "Not a socket" unless defined $fam;
 	if($fam==AF_INET){
-		say  "calling inet with: ",@_;
 		return $package->connect_inet(@_);		
 	}
 	elsif($fam=AF_INET6){
@@ -139,7 +125,6 @@ sub bind_unix {
 #CONNECT
 sub connect_inet {
         my ($package, $socket, $host, $port, $on_connect,$on_error)=@_;
-	say "Called with: ",join ", ",@_;
         my $addr=pack_sockaddr_in $port, inet_pton AF_INET, $host;
 	(ref($package)|| $rb)->connect($socket, $addr, $on_connect, $on_error);
 }
@@ -163,20 +148,20 @@ sub cancel_connect {
 
 sub dreader {
 	shift;
-	uSAC::IO::DReader->dreader(@_);
+	uSAC::IO::DReader->create(@_);
 }
 sub sreader {
 	shift;
-	uSAC::IO::SReader->sreader(@_);
+	uSAC::IO::SReader->create(@_);
 }
 
 sub dwriter {
 	shift;
-	uSAC::IO::DWriter->dwriter(@_);
+	uSAC::IO::DWriter->create(@_);
 }
 sub swriter {
 	shift;
-	uSAC::IO::SWriter->swriter(@_);
+	uSAC::IO::SWriter->create(@_);
 }
 
 
@@ -185,17 +170,12 @@ sub swriter {
 sub writer {
 	my $package=shift;
 
-	say "Inputs: ",@_;
-	say "WRiter: ".$_[1];
-	my @stat=stat $_[1];
-	say join ", ",@stat;
-	if(-p $_[1]){
-		say "PIPE FH";
+	my @stat=stat $_[0];
+	if(-p $_[0]){
 		return $package->swriter(@_);		
 	}
 	elsif(-S $_[1]){
-		say "SOCKET FH";
-		for(unpack "I", getsockopt $_[1], SOL_SOCKET, SO_TYPE){
+		for(unpack "I", getsockopt $_[0], SOL_SOCKET, SO_TYPE){
 			if($_==SOCK_STREAM){
 				return $package->swriter(@_);		
 			}
@@ -212,28 +192,19 @@ sub writer {
 	}
 	else {
 		#TODO: fix this
-		say "DIFFERT TYPE";
 		return $package->swriter(@_);		
 	}
 }
 
 sub reader{
 	my $package=shift;
-	say "inputs: ",@_;
-	say "reader: ".$_[1];
-	my @stat=stat $_[1];
-	say join ", ",@stat;
-	if(-p $_[1]){
-		say "PIPE FH";
+	my @stat=stat $_[0];
+	if(-p $_[0]){
 		return $package->sreader(@_);		
 	}
-	elsif(-S $_[1]){
-		say "SOCKET FH";
+	elsif(-S $_[0]){
 
-		for(unpack "I", getsockopt $_[1], SOL_SOCKET, SO_TYPE){
-			#say "SOCK_STREAM: ".SOCK_STREAM;
-			#say unpack "H*",$_;
-			#say unpack "I",$_;
+		for(unpack "I", getsockopt $_[0], SOL_SOCKET, SO_TYPE){
 			if($_ == SOCK_STREAM){
 				return $package->sreader(@_);		
 			}
@@ -250,9 +221,25 @@ sub reader{
 	}
 	else {
 		#TODO: fix this
-		say "DIFFERT TYPE";
 		return $package->sreader(@_);		
 	}
+}
+
+sub pair {
+	my ($package, $fh)=@_;
+	my ($r,$w)=($package->reader(fh=>$fh), $package->writer(fh=>$fh));
+	$r and $w ? ($r,$w):();
+}
+
+sub pipe {
+	my ($package, $rfh,$wfh)=@_;
+	my ($r,$w)=($package->reader($rfh), $package->writer($wfh));
+	if($r and $w){
+		$r->pipe($w);
+		return ($r,$w);	
+	}
+	();
+	
 }
 
 1;

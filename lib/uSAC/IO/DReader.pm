@@ -14,14 +14,11 @@ use constant DEBUG=>0;
 my $backend=uSAC::IO::Common::detect_backend;
 
 my $rb=($backend."::DReader");
-say $rb;
-unless(eval "require $rb"){
-	say "ERROR IN REQUIRE";
-	say $@;
-}
+die "Could not require $rb" unless(eval "require $rb");
 
 field $_flags :mutator;
 
 sub dreader { shift; $rb->new(@_); }
+sub create { shift; $rb->new(fh=>@_); }
 
 1;

@@ -76,7 +76,6 @@ method set_write_handle {
 }
 
 method _make_writer {
-	say "IN IO WRITER make writer";
 }
 
 method queue {

@@ -76,16 +76,18 @@ method pipe  ($writer,$limit=undef){
 	my $counter;
 	\my @queue=$writer->queue;
 	$self->on_read= sub {
+		my $data=$_[0];	#Copy data
+		$_[0]="";	#Consume input
 		if(!$limit  or $#queue < $limit){
 			#The next write cannot equal the limit so blaze ahead
 			#with no callback,
-			$writer->write($_[0]);
+			$writer->write($data);
 		}
 		else{
 			#the next write will equal the limit,
 			#use a callback
 			$self->pause;	#Pause the reader
-			$writer->write($_[0], sub{
+			$writer->write($data, sub{
 				#restart the reader
 				$self->start;
 			});

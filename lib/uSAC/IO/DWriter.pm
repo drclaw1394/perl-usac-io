@@ -12,13 +12,10 @@ my $backend=uSAC::IO::Common::detect_backend;
 
 my $rb=($backend."::DWriter");
 #say $rb;
-unless(eval "require $rb"){
-	#say "ERROR IN REQUIRE";
-	#die "Counld not load backend $rb: $@";
-	#say $@;
-}
+die "Could not require $rb" unless(eval "require $rb");
 
 
-sub dwriter { shift; $rb->new(@_); }
+#sub dwriter { shift; $rb->new(@_); }
+sub create { shift; $rb->new(fh=>@_); }
 
 1;

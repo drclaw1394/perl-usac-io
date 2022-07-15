@@ -4,7 +4,7 @@ use strict;
 use warnings;
 use feature "say";
 
-use Socket qw<AF_INET AF_INET6 AF_UNIX pack_sockaddr_in pack_sockaddr_in6 pack_sockaddr_un>;
+use Socket ":all";#qw<AF_INET AF_INET6 AF_UNIX pack_sockaddr_in pack_sockaddr_in6 pack_sockaddr_un>;
 use Errno qw(EAGAIN EINTR EINPROGRESS);
 use parent "uSAC::IO";
 
@@ -25,14 +25,11 @@ sub connect {
         #A EINPROGRESS is expected due to non block
         my ($package, $socket, $addr, $on_connect, $on_error)=@_;
 
-	say "In connect: ".unpack "H*", $addr;
-	say "socket: $socket";
 	$id++;
 	my $res=CORE::connect $socket, $addr;
         unless($res){
                 #EAGAIN for pipes
                 if($! == EAGAIN or $! == EINPROGRESS){
-                        say " non blocking connect";
                         my $cw;$cw=AE::io $socket, 1, sub {
                                 #Need to check if the socket has
                                 my $sockaddr=getpeername $socket;
@@ -51,7 +48,6 @@ sub connect {
                         return;
                 }
                 else {
-                        say "Error in connect";
                         warn "Counld not connect to host";
                         $on_error and AnyEvent::postpone {
                                 $on_error->($!) 

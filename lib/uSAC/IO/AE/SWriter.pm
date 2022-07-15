@@ -92,11 +92,9 @@ method _make_writer {
 				\my $offset=\$entry->[1];
 				\my $cb=\$entry->[2];
 				#\my $arg=\$entry->[3];
-				#say "watcher cb";
 				$time=$clock;
 				$offset+=$w = syswrite $wfh, $buf, length($buf)-$offset, $offset;
 				if($offset==length $buf) {
-					#say "FULL async write";
 					shift @queue;
 					undef $_ww unless @queue;
 					$cb->($entry->[3]) if $cb;

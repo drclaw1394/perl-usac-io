@@ -13,7 +13,8 @@ my $rb=($backend."::SReader");
 eval "require $rb";
 
 #Wrapper 
-sub sreader { shift; $rb->new(@_); }
+#sub sreader { shift; $rb->new(@_); }
+sub create { shift; $rb->new(fh=>@_); }
 1;
 
 

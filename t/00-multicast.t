@@ -11,7 +11,7 @@ use AnyEvent;
 
 use uSAC::IO;		
 
-use Socket ":all";
+#:use Socket ":all";
 
 my $cv=AE::cv;
 
@@ -53,8 +53,8 @@ unless(setsockopt $fh, IPPROTO_IP, IP_ADD_MEMBERSHIP , $m){
 }
 
 say "My filehandle is: $fh";
-my $reader=uSAC::IO->reader(fh=>$fh);
-my $writer=uSAC::IO->writer(fh=>\*STDOUT);
+my $reader=uSAC::IO->reader($fh);
+my $writer=uSAC::IO->writer(\*STDOUT);
 
 $reader->on_read=\&parse_DNS;
 $reader->start;
@@ -71,7 +71,7 @@ my $id=uSAC::IO->connect(
 	"224.0.0.251",
 	5353,
 	sub {
-		my $output=uSAC::IO->writer(fh=>$_[0]);
+		my $output=uSAC::IO->writer($_[0]);
 		my $query=Net::DNS::Packet->new("rmbp.local")->encode;
 		#say unpack "H*", $query;
 		$output->write($query,sub {say "Done"});

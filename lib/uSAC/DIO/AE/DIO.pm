@@ -56,18 +56,10 @@ sub connect_inet {
         my $addr=pack_sockaddr_in $port, inet_aton $host;
 
 	my $local=pack_sockaddr_in 0, inet_aton "0.0.0.0";
-        #Do non blocking connect
-        #A EINPROGRESS is expected due to non block
-        ################################
-        # unless(bind $fh, $local){    #
-        #         say "bind error $!"; #
-        # }                            #
-        ################################
 	my $res=connect $fh, $addr;
         unless($res){
                 #EAGAIN for pipes
                 if($! == EAGAIN or $! == EINPROGRESS){
-                        say " non blocking connect";
                         my $cw;$cw=AE::io $fh, 1, sub {
                                 #Need to check if the socket has
                                 my $sockaddr=getpeername $fh;
@@ -77,14 +69,12 @@ sub connect_inet {
                                 }
                                 else {
                                         #error
-                                        say $!;
                                         $on_error->($!);
                                 }
                         };
                         return;
                 }
                 else {
-                        say "Error in connect";
                         warn "Counld not connect to host";
                         #$self->[on_error_]();
                         AnyEvent::postpone {
