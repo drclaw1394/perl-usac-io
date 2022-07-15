@@ -18,7 +18,7 @@ use Exporter "import";
 #Returns a method which is called with a buffer, an optional callback and argument
 
 field $_ctx;
-field $_rfh :param :mutator;
+field $_fh :param :mutator;
 field $_reader 	:mutator;
 field $_time	:mutator;
 field $_clock	 :mutator;
@@ -30,7 +30,7 @@ field $_buffer	:mutator;
 		
 	
 BUILD{
-        fcntl $_rfh, F_SETFL, O_NONBLOCK;
+        fcntl $_fh, F_SETFL, O_NONBLOCK;
 
 	$_on_read//=sub {$self->pause};
 	$_on_error//= $_on_eof//=sub{};

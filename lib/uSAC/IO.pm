@@ -39,6 +39,13 @@ unless(eval "require $rb"){
 }
 
 
+sub socket {
+	my ($package, $fam, $type, $proto)=@_;
+	my $socket;
+	CORE::socket $socket,$fam, $type, $proto;
+	$socket;
+}
+
 sub bind{
 	my $package=shift;
 
@@ -46,7 +53,6 @@ sub bind{
 	my @stat=stat $_[0];
 	say join ", ",@stat;
 	my $fam= sockaddr_family getsockname $_[0];
-	say "sockdomain ".$_[0]->sockdomain;
 	say "Family: $fam";
 	say unpack "I*", $fam;
 	say "AF_INET:".AF_INET;

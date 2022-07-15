@@ -14,14 +14,13 @@ field $_ww;
 field $_wfh_ref;
 
 BUILD {
-	$_wfh_ref=\$self->wfh;
+	$_wfh_ref=\$self->fh;
 }
 
 
 
 method set_write_handle :override ($wh){
 	$$_wfh_ref=$wh;
-	#$self->wfh=$wh; #Call parent
 	$_ww=undef;
 
 }
@@ -42,7 +41,7 @@ method pause :override {
 method _make_writer :override {
 	say "IN AE::Dwriter make _writer". $self;
 	#\my $ctx=\$self->[ctx_];#$_[0];
-	\my $wfh=\$self->wfh;
+	\my $wfh=$_wfh_ref;#\$self->wfh;
 	\my $on_error=\$self->on_error;
 
 	#\my $ww=\$self->[ww_];

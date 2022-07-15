@@ -18,12 +18,11 @@ field $_reader;
 field $_rfh_ref;
 
 BUILD {
-	$_rfh_ref=\$self->rfh;
+	$_rfh_ref=\$self->fh;
 }
 
 method start :override ($fh=undef) {
 	$$_rfh_ref=$fh if $fh;
-	#$self->rfh=$fh if $fh;
 	$_rw= AE::io $$_rfh_ref, 0, $_reader//=$self->_make_reader;
 	$self;
 }

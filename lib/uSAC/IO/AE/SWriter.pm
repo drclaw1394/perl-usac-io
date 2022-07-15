@@ -15,12 +15,11 @@ field $_ww;		# Actual new variable for sub class
 field $_wfh_ref;
 
 BUILD {
-	$_wfh_ref=\$self->wfh;
+	$_wfh_ref=\$self->fh;
 }
 
 method set_write_handle :override ($wh){
 	$$_wfh_ref=$wh;
-	#$self->wfh=$wh; #Call parent
 	$_ww=undef;
 
 }

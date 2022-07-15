@@ -17,7 +17,7 @@ field $_reader;
 field $_rfh_ref;	#reference to parent
 
 BUILD {
-	$_rfh_ref=\$self->rfh;
+	$_rfh_ref=\$self->fh;
 }
 
 #destroy io watcher, 
@@ -31,7 +31,6 @@ method pause :override {
 
 method start :override ($fh=undef) {
 	$$_rfh_ref=$fh if $fh;
-	#$self->rfh=$fh if $fh;
 	$_rw= AE::io $$_rfh_ref, 0, $_reader//=$self->_make_reader;
 	$self;
 }

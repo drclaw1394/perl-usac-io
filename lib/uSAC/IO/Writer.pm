@@ -11,7 +11,7 @@ use Log::OK;
 use Errno qw(EAGAIN EINTR);
 
 field $_ctx;
-field $_wfh :param :mutator;
+field $_fh :param :mutator;
 field $_time :mutator;
 field $_clock :mutator;
 field $_on_drain;
@@ -21,7 +21,7 @@ field $_writer;
 field @_queue; 
 
 BUILD {
-        fcntl $_wfh, F_SETFL, O_NONBLOCK;
+        fcntl $_fh, F_SETFL, O_NONBLOCK;
 	$_on_drain//=$_on_error//=method{};
 	#$self->[writer_]=undef;
 	#@_queue;
