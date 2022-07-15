@@ -66,7 +66,7 @@ unless($sender=uSAC::IO->socket(AF_INET, SOCK_DGRAM, 0)){
 	die "Error making sending socket";
 }
 
-0 and my $id=uSAC::IO->connect(
+my $id=uSAC::IO->connect(
 	$sender,
 	"224.0.0.251",
 	5353,

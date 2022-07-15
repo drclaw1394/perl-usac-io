@@ -31,12 +31,8 @@ use uSAC::IO::Common;
 my $backend=uSAC::IO::Common::detect_backend;
 
 my $rb=($backend."::IO");
-say $rb;
 
-unless(eval "require $rb"){
-	say "ERROR IN REQUIRE";
-	say $@;
-}
+die "Could not require $rb" unless(eval "require $rb");
 
 
 sub socket {
@@ -73,6 +69,9 @@ sub bind{
 }
 sub connect{
 	my $package=shift;
+	say "CONNECT ".caller;
+	say $package;
+	say "";
 	#say "bind".$_[0];
 	my @stat=stat $_[0];
 	say join ", ",@stat;
@@ -155,6 +154,10 @@ sub connect_unix {
         my ($package, $socket, $path, $on_connect, $on_error)=@_;
         my $addr=pack_sockaddr_un $path;
 	(ref($package)||$rb)->connect($socket, $addr, $on_connect, $on_error);
+}
+sub cancel_connect {
+	my $package=shift;
+	(ref($package)||$rb)->cancel_connect(@_);
 }
 
 

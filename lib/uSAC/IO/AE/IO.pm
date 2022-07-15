@@ -19,12 +19,15 @@ sub bind {
 	$addr;
 }
 
+my %watchers;
+my $id;
 sub connect {
         #A EINPROGRESS is expected due to non block
         my ($package, $socket, $addr, $on_connect, $on_error)=@_;
 
 	say "In connect: ".unpack "H*", $addr;
 	say "socket: $socket";
+	$id++;
 	my $res=CORE::connect $socket, $addr;
         unless($res){
                 #EAGAIN for pipes
@@ -33,7 +36,9 @@ sub connect {
                         my $cw;$cw=AE::io $socket, 1, sub {
                                 #Need to check if the socket has
                                 my $sockaddr=getpeername $socket;
-                                undef $cw;
+
+				delete $watchers{$id};
+
                                 if($sockaddr){
                                         $on_connect->($socket) if $on_connect;
                                 }
@@ -42,6 +47,7 @@ sub connect {
                                         $on_error and $on_error->($!);
                                 }
                         };
+			$watchers{$id}=$cw;
                         return;
                 }
                 else {
@@ -55,5 +61,18 @@ sub connect {
                 return;
         }
         AnyEvent::postpone {$on_connect->($socket)} if $on_connect;
+	$id;
+}
+
+sub cancel_connect{
+	my ($package,$id)=@_;
+	delete $watchers{$id};
+}
+
+sub accept {
+
+}
+sub cancel_accept {
+
 }
 1;
