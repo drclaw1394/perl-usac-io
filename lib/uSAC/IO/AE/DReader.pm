@@ -6,7 +6,7 @@ no warnings qw<experimental uninitialized>;
 
 use AnyEvent;
 use Errno qw(EAGAIN EINTR EINPROGRESS);
-use Socket qw<AF_INET SOCK_STREAM SOCK_DGRAM pack_sockaddr_in inet_aton>;
+use Socket ":all";#qw<AF_INET SOCK_STREAM SOCK_DGRAM pack_sockaddr_in inet_aton>;
 use Fcntl qw(F_GETFL F_SETFL O_NONBLOCK);
 
 use Data::Dumper;
