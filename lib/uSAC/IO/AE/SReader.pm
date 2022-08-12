@@ -8,6 +8,7 @@ no warnings qw<experimental uninitialized>;
 use AnyEvent;
 use Log::ger;
 use Log::OK;
+use IO::FD;
 
 use Errno qw(EAGAIN EINTR);
 use Data::Dumper;
@@ -47,7 +48,7 @@ method _make_reader  :override {
 	$_rw=undef;
 	sub {
 		$time=$clock;
-		$len = sysread($rfh, $buf, $max_read_size, length $buf );
+		$len = IO::FD::sysread($rfh, $buf, $max_read_size, length $buf );
 		$len>0 and return($on_read and $on_read->($buf));
 		$len==0 and return($on_eof and $on_eof->($buf));
 		($! == EAGAIN or $! == EINTR) and return;

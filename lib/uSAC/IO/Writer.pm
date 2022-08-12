@@ -3,9 +3,10 @@ class uSAC::IO::Writer;
 use feature qw<refaliasing current_sub say>;
 no warnings qw<experimental uninitialized>;
 
+use IO::FD;
 use Fcntl qw(F_GETFL F_SETFL O_NONBLOCK);
 
-use AnyEvent;
+#use AnyEvent;
 use Log::ger;
 use Log::OK;
 use Errno qw(EAGAIN EINTR);
@@ -21,7 +22,7 @@ field $_writer;
 field @_queue; 
 
 BUILD {
-        fcntl $_fh, F_SETFL, O_NONBLOCK;
+	IO::FD::fcntl $_fh, F_SETFL, O_NONBLOCK;
 	$_on_drain//=$_on_error//=method{};
 	#$self->[writer_]=undef;
 	#@_queue;

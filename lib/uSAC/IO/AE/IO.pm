@@ -9,15 +9,7 @@ use Errno qw(EAGAIN EINTR EINPROGRESS);
 use parent "uSAC::IO";
 
 use AnyEvent;
-
-sub bind {
-	my ($package, $socket, $addr, $on_bind, $on_error)=@_;
-	unless(CORE::bind $socket, $addr){
-		$on_error->($!) if $on_error;
-	}
-	$on_bind->($socket, $addr) if $on_bind;
-	$addr;
-}
+use IO::FD;
 
 my %watchers;
 my $id;
@@ -26,7 +18,7 @@ sub connect {
         my ($package, $socket, $addr, $on_connect, $on_error)=@_;
 
 	$id++;
-	my $res=CORE::connect $socket, $addr;
+	my $res=IO::FD::connect $socket, $addr;
         unless($res){
                 #EAGAIN for pipes
                 if($! == EAGAIN or $! == EINPROGRESS){
@@ -63,6 +55,26 @@ sub connect {
 sub cancel_connect{
 	my ($package,$id)=@_;
 	delete $watchers{$id};
+}
+
+#take a hostname and resolve it
+my $resolve_watcher;
+sub resolve {
+#####################################################################################
+#         unless($resolve_watcher){                                                 #
+#                                                                                   #
+#                 my $dns = Net::DNS::Native->new(pool => 1, notify_on_begin => 1); #
+# my $handle = $dns->inet_aton("google.com");                                       #
+# my $sel = IO::Select->new($handle);                                               #
+# $sel->can_read(); # wait "begin" notification                                     #
+# sysread($handle, my $buf, 1); # $buf eq "1", $handle is not readable again        #
+# $sel->can_read(); # wait "finish" notification                                    #
+# # resolving done                                                                  #
+# # we can sysread($handle, $buf, 1); again and $buf will be eq "2"                 #
+# # but this is not necessarily                                                     #
+# my $ip = $dns->get_result($handle);                                               #
+#####################################################################################
+	
 }
 
 sub accept {

@@ -5,7 +5,7 @@ class uSAC::IO::Reader;
 use feature qw<refaliasing current_sub say>;
 no warnings qw<experimental uninitialized>;
 
-use AnyEvent;
+#use AnyEvent;
 use Log::ger;
 use Log::OK;
 
@@ -14,6 +14,7 @@ use Fcntl qw(F_GETFL F_SETFL O_NONBLOCK);
 use Data::Dumper;
 use Exporter "import";
 
+use IO::FD;
 #pass in fh, ctx, on_read, on_eof, on_error
 #Returns a method which is called with a buffer, an optional callback and argument
 
@@ -30,7 +31,7 @@ field $_buffer	:mutator;
 		
 	
 BUILD{
-        fcntl $_fh, F_SETFL, O_NONBLOCK;
+	IO::FD::fcntl $_fh, F_SETFL, O_NONBLOCK;
 
 	$_on_read//=sub {$self->pause};
 	$_on_error//= $_on_eof//=sub{};

@@ -3,6 +3,7 @@ use strict;
 use warnings;
 use feature "say";
 
+use Data::Dumper;
 #Datagram
 use uSAC::IO::DReader;
 use uSAC::IO::DWriter;
@@ -12,16 +13,23 @@ use uSAC::IO::SWriter;
 use uSAC::IO::SReader;
 
 use Socket  ":all";
+use IO::FD;
 
 #use IO::Socket::IP '-register';
 
 
+
 use Exporter;# qw<import>;
+
 
 sub import {
 	Socket->export_to_level(1, undef, ":all");
 
 }
+
+use Net::DNS::Native;
+
+our $resolver=Net::DNS::Native->new(pool=>4, notify_on_begin=>1);
 
 #asynchronous bind for tcp, udp, and unix sockets
 
@@ -32,117 +40,116 @@ my $rb=($backend."::IO");
 
 die "Could not require $rb" unless(eval "require $rb");
 
-
+#Create a socket with required family, type an protocol
+#No bound or connected to anything
 sub socket {
 	my ($package, $fam, $type, $proto)=@_;
 	my $socket;
-	CORE::socket $socket,$fam, $type, $proto;
+	IO::FD::socket $socket,$fam, $type, $proto;
 	$socket;
 }
 
+#Bind a socket to a host, port  or unix path. The host and port are strings
+#Which are attmped to be converted to address structures applicable for the
+#socket type Returns the address structure created Does not perform name
+#resolving. you need to to know the address of the interface you wish to use
+#A special case of localhost is resolved to the loopback devices appropriate to
+#the family of the socket
+#my ($package, $socket, $host, $port, $on_bind, $on_error)=@_;
 sub bind{
 	my $package=shift;
+	my ($socket, $host, $port)=@_;
 
-	my @stat=stat $_[0];
-	my $fam= sockaddr_family getsockname $_[0];
+	my $fam= sockaddr_family getsockname $socket;
+
 	die  "Not a socket" unless defined $fam;
-	if($fam==AF_INET){
-		return $package->bind_inet(@_);		
-	}
-	elsif($fam==AF_INET6){
-		return $package->bind_inet6(@_);		
+
+	my $type=unpack "I", getsockopt $socket, SOL_SOCKET, SO_TYPE;
+
+	say "Family is $fam, type is $type";
+	say AF_INET;
+	say SOCK_DGRAM;
+	my $addr;
+
+	if($fam==AF_INET or $fam==AF_INET6){
+		my @addresses;
+		my $error;
+		my $flags=AI_PASSIVE;
+		$flags|=AI_NUMERICHOST if$host eq "localhost";
+			#Convert to address structures. DO NOT do a name lookup
+		($error, @addresses)=getaddrinfo(
+			$host,
+			$port,
+			{
+				flags=>$flags,
+				family=>$fam,
+				type=>$type
+			}
+		);
+
+		die $error if $error;
+
+		my ($target)= grep {
+			$_->{family} == $fam	#Matches INET or INET6
+			#and $_->{socktype} == $type #Stream/dgram
+			} @addresses;
+		$addr=$target->{addr};
 	}
 	elsif($fam==AF_UNIX){
-		return $package->bind_unix(@_);		
+		$addr=pack_sockaddr_un $host;
 	}
 	else {
 		die "Unsupported socket address family";
 	}
+	IO::FD::bind($socket, $addr) and $addr;
 }
+
 sub connect{
 	my $package=shift;
-	my @stat=stat $_[0];
-	my $fam= sockaddr_family getsockname $_[0];
+	my ($socket, $host, $port, $on_connect, $on_error)=@_;
+	#my @stat=stat $_[0];
+	my $fam= sockaddr_family getsockname $socket;
+
 	die  "Not a socket" unless defined $fam;
-	if($fam==AF_INET){
-		return $package->connect_inet(@_);		
-	}
-	elsif($fam=AF_INET6){
-		return $package->connect_inet6(@_);		
+
+	my $type=unpack "I", getsockopt $socket, SOL_SOCKET, SO_TYPE;
+
+	my $error;
+	my @addresses;
+	my $addr;
+
+	if($fam==AF_INET or $fam==AF_INET6){
+		#Convert to address structures. DO NOT do a name lookup
+		($error, @addresses)=getaddrinfo(
+			$host,
+			$port,
+			{
+				flags=>AI_NUMERICHOST,
+				family=>$fam,
+				socktype=>$type
+			}
+		);
+		$addr=$addresses[0]->{addr};
+		
 	}
 	elsif($fam==AF_UNIX){
-		return $package->connect_unix(@_);		
+		$addr=pack_sockaddr_un $host;
 	}
 	else {
 		die "Unsupported socket address family";
 	}
-}
-
-sub bind_inet {
-	my ($package, $socket, $host, $port, $on_bind, $on_error)=@_;
-	#get the socket type
-	my $fam= sockaddr_family getsockname $socket;
-
-	$on_error and !$fam and $on_error->("Socket does not match address family");
-	!$on_error and !$fam and die "Socket does not match address family";
-
-	my $a= inet_pton AF_INET, $host;
-	$on_error and !$a and return $on_error->("Address ill formated");
-	!$on_error and !$a and die "Address ill formated";
-
-	my $addr=pack_sockaddr_in $port,$a;
-	(ref($package)||$rb)->bind($socket, $addr, $on_bind, $on_error);
-}
-
-
-sub bind_inet6 {
-	my ($package, $socket,$host,$port,$scope_id,$flow_info, $on_bind, $on_error)=@_;
-	#get the socket type
-	my $fam= sockaddr_family getsockname $socket;
-	$on_error and !$fam and $on_error->("Socket does not match address family");
-	!$on_error and !$fam and die "Socket does not match address family";
-
-	my $a= inet_pton(AF_INET6, $host);
-	$on_error and !$a and return $on_error->("Address ill formated");
-	!$on_error and !$a and die "Address ill formated";
-
-	my $addr=pack_sockaddr_in6 $port, $a, $scope_id, $flow_info;
-	(ref($package)||$rb)->bind($socket, $addr, $on_bind, $on_error);
-}
-
-
-sub bind_unix {
-	my ($package, $socket,$path, $on_bind, $on_error)=@_;
-	#get the socket type
-	my $fam= sockaddr_family getsockname $socket;
-	$on_error and !$fam and $on_error->("Socket does not match address family");
-	!$on_error and !$fam and die "Socket does not match address family";
-
-	my $addr=pack_sockaddr_un $path;
-	(ref($package)||$rb)->bind($socket, $addr, $on_bind, $on_error);
-}
-
-#CONNECT
-sub connect_inet {
-        my ($package, $socket, $host, $port, $on_connect,$on_error)=@_;
-        my $addr=pack_sockaddr_in $port, inet_pton AF_INET, $host;
 	(ref($package)|| $rb)->connect($socket, $addr, $on_connect, $on_error);
 }
 
-sub connect_inet6 {
-        my ($package, $socket, $host, $port, $on_connect, $on_error)=@_;
-        my $addr=pack_sockaddr_in6 $port, inet_pton AF_INET6, $host;
-	(ref($package)||$rb)->connect($socket, $addr, $on_connect, $on_error);
-}
 
-sub connect_unix {
-        my ($package, $socket, $path, $on_connect, $on_error)=@_;
-        my $addr=pack_sockaddr_un $path;
-	(ref($package)||$rb)->connect($socket, $addr, $on_connect, $on_error);
-}
 sub cancel_connect {
 	my $package=shift;
 	(ref($package)||$rb)->cancel_connect(@_);
+}
+
+#Resolve a hostname to an address, then connect to it
+sub resolve_connect{
+	Net::DNS->resolve;
 }
 
 
@@ -164,6 +171,26 @@ sub swriter {
 	uSAC::IO::SWriter->create(@_);
 }
 
+#Helper function for servers
+
+sub to_address {
+
+}
+sub list_ipv4_interfaces {
+
+	shift;
+	my ($err, @list)=getaddrinfo(shift,undef,{
+			#flags=>AI_CANONNAME,
+		family=>AF_INET6,
+	});
+
+}
+
+sub list_ipv6_interfaces {
+
+}
+
+
 
 
 
@@ -174,7 +201,7 @@ sub writer {
 	if(-p $_[0]){
 		return $package->swriter(@_);		
 	}
-	elsif(-S $_[1]){
+	elsif(-S $_[0]){
 		for(unpack "I", getsockopt $_[0], SOL_SOCKET, SO_TYPE){
 			if($_==SOCK_STREAM){
 				return $package->swriter(@_);		
@@ -241,5 +268,6 @@ sub pipe {
 	();
 	
 }
+
 
 1;

@@ -6,6 +6,8 @@ no warnings qw<experimental uninitialized>;
 use AnyEvent;
 use Log::ger;
 use Log::OK;
+use IO::FD;
+
 use Errno qw(EAGAIN EINTR);
 use parent "uSAC::IO::Writer";
 use uSAC::IO::Writer qw<:fields>;
@@ -65,7 +67,7 @@ method _make_writer {
 		if(!$_ww){
 			#no write watcher so try synchronous write
 			$time=$clock;
-			$offset+=$w = syswrite($wfh, $_[0]);
+			$offset+=$w = IO::FD::syswrite($wfh, $_[0]);
 			$offset==length($_[0]) and return($cb and $cb->($arg));
 
 			if(!defined($w) and $! != EAGAIN and $! != EINTR){
@@ -82,7 +84,7 @@ method _make_writer {
 
 			push @queue,[$_[0], $offset, $cb, $arg];
 			my $entry;
-			$_ww = AE::io $wfh, 1, method {
+			$_ww = AE::io $wfh, 1, sub {
 				unless($wfh){
 					Log::OK::ERROR and log_error "SIO Writer: file handle undef, but write watcher still active";
 					return;
@@ -93,7 +95,7 @@ method _make_writer {
 				\my $cb=\$entry->[2];
 				#\my $arg=\$entry->[3];
 				$time=$clock;
-				$offset+=$w = syswrite $wfh, $buf, length($buf)-$offset, $offset;
+				$offset+=$w = IO::FD::syswrite $wfh, $buf, length($buf)-$offset, $offset;
 				if($offset==length $buf) {
 					shift @queue;
 					undef $_ww unless @queue;
