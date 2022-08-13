@@ -13,6 +13,7 @@ use uSAC::IO::SWriter;
 use uSAC::IO::SReader;
 
 use Socket  ":all";
+#use IO::FD::DWIM ":all";
 use IO::FD;
 
 #use IO::Socket::IP '-register';
@@ -60,11 +61,11 @@ sub bind{
 	my $package=shift;
 	my ($socket, $host, $port)=@_;
 
-	my $fam= sockaddr_family getsockname $socket;
+	my $fam= sockaddr_family IO::FD::getsockname $socket;
 
 	die  "Not a socket" unless defined $fam;
 
-	my $type=unpack "I", getsockopt $socket, SOL_SOCKET, SO_TYPE;
+	my $type=unpack "I", IO::FD::getsockopt $socket, SOL_SOCKET, SO_TYPE;
 
 	say "Family is $fam, type is $type";
 	say AF_INET;
@@ -108,11 +109,11 @@ sub connect{
 	my $package=shift;
 	my ($socket, $host, $port, $on_connect, $on_error)=@_;
 	#my @stat=stat $_[0];
-	my $fam= sockaddr_family getsockname $socket;
+	my $fam= sockaddr_family IO::FD::getsockname $socket;
 
 	die  "Not a socket" unless defined $fam;
 
-	my $type=unpack "I", getsockopt $socket, SOL_SOCKET, SO_TYPE;
+	my $type=unpack "I", IO::FD::getsockopt $socket, SOL_SOCKET, SO_TYPE;
 
 	my $error;
 	my @addresses;
@@ -202,7 +203,7 @@ sub writer {
 		return $package->swriter(@_);		
 	}
 	elsif(-S $_[0]){
-		for(unpack "I", getsockopt $_[0], SOL_SOCKET, SO_TYPE){
+		for(unpack "I", IO::FD::getsockopt $_[0], SOL_SOCKET, SO_TYPE){
 			if($_==SOCK_STREAM){
 				return $package->swriter(@_);		
 			}
@@ -231,7 +232,7 @@ sub reader{
 	}
 	elsif(-S $_[0]){
 
-		for(unpack "I", getsockopt $_[0], SOL_SOCKET, SO_TYPE){
+		for(unpack "I", IO::FD::getsockopt $_[0], SOL_SOCKET, SO_TYPE){
 			if($_ == SOCK_STREAM){
 				return $package->sreader(@_);		
 			}

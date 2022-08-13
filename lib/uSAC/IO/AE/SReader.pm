@@ -8,6 +8,7 @@ no warnings qw<experimental uninitialized>;
 use AnyEvent;
 use Log::ger;
 use Log::OK;
+#use IO::FD::DWIM ":all";
 use IO::FD;
 
 use Errno qw(EAGAIN EINTR);

@@ -6,6 +6,7 @@ no warnings qw<experimental uninitialized>;
 use AnyEvent;
 use Log::ger;
 use Log::OK;
+#use IO::FD::DWIM ":all";
 use IO::FD;
 
 use Errno qw(EAGAIN EINTR);
@@ -52,7 +53,7 @@ method _make_writer {
 	sub {
 		use integer;
 		no warnings "recursion";
-		$_[0]//return;				#undefined input. was a stack reset
+		$wfh//$_[0]//return;				#undefined input. was a stack reset
 		#my $dropper=$on_done;			#default callback
 
 		my $cb= $_[1];
@@ -60,14 +61,18 @@ method _make_writer {
 
 		$offset=0;				#offset allow no destructive
 							#access to input
-		unless($wfh){
-			Log::OK::ERROR and log_error "SIO Writer: file handle undef, but write called from". join ", ", caller;
-			return;
-		}
-		if(!$_ww){
+		#unless($wfh){
+		#	Log::OK::ERROR and log_error "SIO Writer: file handle undef, but write called from". join ", ", caller;
+		#	return;
+		#}
+
+		#Push to queue if watcher is active
+		push @queue, [$_[0],0,$cb,$arg] and return if $_ww;
+
+		#if(!$_ww){
 			#no write watcher so try synchronous write
 			$time=$clock;
-			$offset+=$w = IO::FD::syswrite($wfh, $_[0]);
+			$offset+=$w = IO::FD::syswrite2($wfh, $_[0]);
 			$offset==length($_[0]) and return($cb and $cb->($arg));
 
 			if(!defined($w) and $! != EAGAIN and $! != EINTR){
@@ -95,7 +100,7 @@ method _make_writer {
 				\my $cb=\$entry->[2];
 				#\my $arg=\$entry->[3];
 				$time=$clock;
-				$offset+=$w = IO::FD::syswrite $wfh, $buf, length($buf)-$offset, $offset;
+				$offset+=$w = IO::FD::syswrite4 $wfh, $buf, length($buf)-$offset, $offset;
 				if($offset==length $buf) {
 					shift @queue;
 					undef $_ww unless @queue;
@@ -116,13 +121,15 @@ method _make_writer {
 				}
 			};
 
-			return
-		}
-		else {
-			#watcher existing, add to queue
-			push @queue, [$_[0],0,$cb,$arg];
-			#weaken $queue[$#queue][2];
-		}
+			#return
+                ############################################
+                # }                                        #
+                # else {                                   #
+                #         #watcher existing, add to queue  #
+                #         push @queue, [$_[0],0,$cb,$arg]; #
+                #         #weaken $queue[$#queue][2];      #
+                # }                                        #
+                ############################################
 	};
 }
 1;

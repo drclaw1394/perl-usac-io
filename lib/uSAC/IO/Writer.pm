@@ -3,6 +3,7 @@ class uSAC::IO::Writer;
 use feature qw<refaliasing current_sub say>;
 no warnings qw<experimental uninitialized>;
 
+#use IO::FD::DWIM ":all";
 use IO::FD;
 use Fcntl qw(F_GETFL F_SETFL O_NONBLOCK);
 

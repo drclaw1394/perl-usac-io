@@ -9,7 +9,7 @@ use Errno qw(EAGAIN EINTR EINPROGRESS);
 use parent "uSAC::IO";
 
 use AnyEvent;
-use IO::FD;
+use IO::FD::DWIM ":all";
 
 my %watchers;
 my $id;
@@ -24,7 +24,7 @@ sub connect {
                 if($! == EAGAIN or $! == EINPROGRESS){
                         my $cw;$cw=AE::io $socket, 1, sub {
                                 #Need to check if the socket has
-                                my $sockaddr=getpeername $socket;
+                                my $sockaddr=IO::FD::getpeername $socket;
 
 				delete $watchers{$id};
 

@@ -14,7 +14,9 @@ use Fcntl qw(F_GETFL F_SETFL O_NONBLOCK);
 use Data::Dumper;
 use Exporter "import";
 
+#use IO::FD::DWIM ":all";
 use IO::FD;
+
 #pass in fh, ctx, on_read, on_eof, on_error
 #Returns a method which is called with a buffer, an optional callback and argument
 
@@ -73,7 +75,7 @@ method _make_reader {
 
 }
 
-method pipe  ($writer,$limit=undef){
+method pipe_to ($writer,$limit=undef){
 	my $counter;
 	\my @queue=$writer->queue;
 	$self->on_read= sub {

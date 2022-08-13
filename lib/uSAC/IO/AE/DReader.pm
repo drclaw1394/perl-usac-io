@@ -51,7 +51,7 @@ method _make_reader :override {
 		#$self->[time_]=$Time;	#Update the last access time
 		$time=$clock;
 		my $buf="";
-		my $addr =recv($rfh, $buf, $max_read_size,$flags);
+		my $addr =recv($rfh, $buf, $max_read_size, $flags);
 		defined($addr) and return($on_read and $on_read->($buf, $addr));
 		($! == EAGAIN or $! == EINTR) and return;
 
