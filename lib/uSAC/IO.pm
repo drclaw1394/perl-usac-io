@@ -3,6 +3,8 @@ use strict;
 use warnings;
 use feature "say";
 
+use version; our $VERSION=version->declare("v0.1");
+
 use Data::Dumper;
 #Datagram
 use uSAC::IO::DReader;
