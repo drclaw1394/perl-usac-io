@@ -39,7 +39,7 @@ BUILD{
 	$_on_error//= $_on_eof//=sub{};
 
 	$_max_read_size//=4096;
-	$_buffer="";
+	$_buffer=IO::FD::SV($_max_read_size);#"";
 
 	
 	my $time=0;

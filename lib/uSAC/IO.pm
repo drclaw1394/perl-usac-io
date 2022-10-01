@@ -197,6 +197,7 @@ sub list_ipv6_interfaces {
 
 
 
+#Return a writer based on the type of fileno
 sub writer {
 	my $package=shift;
 

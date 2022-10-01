@@ -6,7 +6,7 @@ no warnings "experimental";
 
 use EV;
 use AnyEvent;
-use uSAC::SIO;
+use uSAC::IO;
 use Time::HiRes qw<time>;
 
 my %results;
@@ -26,16 +26,16 @@ sub do_usac {
 	my $end_time;
 	my $flag=0;
 	my $calls=0;
-	my $reader=uSAC::SIO->new(undef, $fh);
+	my $reader=uSAC::IO->reader(fileno($fh));
 	$reader->max_read_size=$read_size;
 	$reader->on_read=sub {
 		$calls++;
-		$total+=length $_[1];
+		$total+=length $_[0];
 			if($flag){
-				say length $_[1];
+				say length $_[0];
 				$flag=0;
 			}
-		$_[1]="";
+		$_[0]="";
 
 		$end_time=time;
 	};

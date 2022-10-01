@@ -1,47 +1,12 @@
 use strict;
-my $size=1;
+use v5.36;
+my @size=(1, 128, 1024, 2048, 4096, 8192, 16384, 65536, 131072);
 `echo ""> read-results.txt`;
+for my $size(@size){
+	say STDERR "READ SIZE: $size";
 
-`cat /dev/zero | perl -I lib benchmarks/usac-read.pl $size`;
-`cat /dev/zero | perl -I lib benchmarks/ae-read.pl $size`;
-`cat /dev/zero | perl -I lib benchmarks/mojo-read.pl $size`;
+	`cat /dev/zero | perl -I lib benchmarks/usac-read.pl $size`;
+	`cat /dev/zero | perl -I lib benchmarks/ae-read.pl $size`;
+	`cat /dev/zero | perl -I lib benchmarks/mojo-read.pl $size`;
 
-$size=128;
-`cat /dev/zero | perl -I lib benchmarks/usac-read.pl $size`;
-`cat /dev/zero | perl -I lib benchmarks/ae-read.pl $size`;
-`cat /dev/zero | perl -I lib benchmarks/mojo-read.pl $size`;
-
-$size=1024;
-`cat /dev/zero | perl -I lib benchmarks/usac-read.pl $size`;
-`cat /dev/zero | perl -I lib benchmarks/ae-read.pl $size`;
-`cat /dev/zero | perl -I lib benchmarks/mojo-read.pl $size`;
-
-$size=2048;
-`cat /dev/zero | perl -I lib benchmarks/usac-read.pl $size`;
-`cat /dev/zero | perl -I lib benchmarks/ae-read.pl $size`;
-`cat /dev/zero | perl -I lib benchmarks/mojo-read.pl $size`;
-
-$size=4096;
-`cat /dev/zero | perl -I lib benchmarks/usac-read.pl $size`;
-`cat /dev/zero | perl -I lib benchmarks/ae-read.pl $size`;
-`cat /dev/zero | perl -I lib benchmarks/mojo-read.pl $size`;
-
-$size=8192;
-`cat /dev/zero | perl -I lib benchmarks/usac-read.pl $size`;
-`cat /dev/zero | perl -I lib benchmarks/ae-read.pl $size`;
-`cat /dev/zero | perl -I lib benchmarks/mojo-read.pl $size`;
-
-$size=16384;
-`cat /dev/zero | perl -I lib benchmarks/usac-read.pl $size`;
-`cat /dev/zero | perl -I lib benchmarks/ae-read.pl $size`;
-`cat /dev/zero | perl -I lib benchmarks/mojo-read.pl $size`;
-
-$size=65536;
-`cat /dev/zero | perl -I lib benchmarks/usac-read.pl $size`;
-`cat /dev/zero | perl -I lib benchmarks/ae-read.pl $size`;
-`cat /dev/zero | perl -I lib benchmarks/mojo-read.pl $size`;
-
-$size=131072;
-`cat /dev/zero | perl -I lib benchmarks/usac-read.pl $size`;
-`cat /dev/zero | perl -I lib benchmarks/ae-read.pl $size`;
-`cat /dev/zero | perl -I lib benchmarks/mojo-read.pl $size`;
+}

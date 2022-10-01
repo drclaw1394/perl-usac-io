@@ -1,37 +1,13 @@
+use v5.36;
 use strict;
 my $size=1;
+my @size=(1,128, 1024, 2048, 4096, 8192, 16384);
+
 `echo ""> write-results.txt`;
+for my $size(@size){
 
-`perl -I lib benchmarks/usac-write.pl $size`;
-`perl -I lib benchmarks/ae-write.pl $size`;
-`perl -I lib benchmarks/mojo-write.pl $size`;
+	`perl -I lib benchmarks/usac-write.pl $size`;
+	`perl -I lib benchmarks/ae-write.pl $size`;
+	`perl -I lib benchmarks/mojo-write.pl $size`;
 
-$size=128;
-`perl -I lib benchmarks/usac-write.pl $size`;
-`perl -I lib benchmarks/ae-write.pl $size`;
-`perl -I lib benchmarks/mojo-write.pl $size`;
-
-$size=1024;
-`perl -I lib benchmarks/usac-write.pl $size`;
-`perl -I lib benchmarks/ae-write.pl $size`;
-`perl -I lib benchmarks/mojo-write.pl $size`;
-
-$size=2048;
-`perl -I lib benchmarks/usac-write.pl $size`;
-`perl -I lib benchmarks/ae-write.pl $size`;
-`perl -I lib benchmarks/mojo-write.pl $size`;
-
-$size=4096;
-`perl -I lib benchmarks/usac-write.pl $size`;
-`perl -I lib benchmarks/ae-write.pl $size`;
-`perl -I lib benchmarks/mojo-write.pl $size`;
-
-$size=8192;
-`perl -I lib benchmarks/usac-write.pl $size`;
-`perl -I lib benchmarks/ae-write.pl $size`;
-`perl -I lib benchmarks/mojo-write.pl $size`;
-
-$size=16384;
-`perl -I lib benchmarks/usac-write.pl $size`;
-`perl -I lib benchmarks/ae-write.pl $size`;
-`perl -I lib benchmarks/mojo-write.pl $size`;
+}

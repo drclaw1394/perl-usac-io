@@ -3,7 +3,7 @@ use warnings;
 use feature ":all";
 
 use EV;
-use uSAC::SIO;
+use uSAC::IO;
 use AnyEvent;
 use Time::HiRes qw<time>;
 my %results;
@@ -22,7 +22,7 @@ sub do_usac {
 	my $end_time;
 	my $timer;
 
-	my $writer=uSAC::SIO->new(undef, $fh);
+	my $writer=uSAC::IO->writer(fileno $fh);
 
 	$timer=AE::timer 1, 1, sub {
 		say STDERR "TIMER";
