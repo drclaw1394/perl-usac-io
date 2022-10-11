@@ -17,7 +17,8 @@ eval "require $wb";
 
 #Wrapper class method calling backend
 #sub swriter{ shift; $wb->new(@_); }
-sub create{ shift; $wb->new(fh=>@_); }
+#sub create{ shift; $wb->new(fh=>@_); }
+sub create{ shift; $wb->new(@_); }
 1;
 
 

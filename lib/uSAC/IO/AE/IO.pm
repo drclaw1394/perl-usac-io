@@ -9,7 +9,8 @@ use Errno qw(EAGAIN EINTR EINPROGRESS);
 use parent "uSAC::IO";
 
 use AnyEvent;
-use IO::FD::DWIM ":all";
+#use IO::FD::DWIM ":all";
+use IO::FD;
 
 my %watchers;
 my $id;

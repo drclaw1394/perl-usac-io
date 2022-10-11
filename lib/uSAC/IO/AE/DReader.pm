@@ -51,7 +51,7 @@ method _make_reader :override {
 		#$self->[time_]=$Time;	#Update the last access time
 		$time=$clock;
 		my $buf="";
-		my $addr =recv($rfh, $buf, $max_read_size, $flags);
+		my $addr =IO::FD::recv($rfh, $buf, $max_read_size, $flags);
 		defined($addr) and return($on_read and $on_read->($buf, $addr));
 		($! == EAGAIN or $! == EINTR) and return;
 
@@ -61,33 +61,4 @@ method _make_reader :override {
 		return;
 	};
 }
-
-
-#################################################################################
-# sub pipe {                                                                    #
-#         #Argument is a writer                                                 #
-#         my ($self, $writer, $limit)=@_;                                       #
-#         my $counter;                                                          #
-#         \my @queue=$writer->queue;                                            #
-#         $self->on_read= sub {                                                 #
-#                 if(!$limit  or $#queue < $limit){                             #
-#                         #The next write cannot equal the limit so blaze ahead #
-#                         #with no callback,                                    #
-#                         $writer->write($_[0]);                                #
-#                 }                                                             #
-#                 else{                                                         #
-#                         #the next write will equal the limit,                 #
-#                         #use a callback                                       #
-#                         $self->pause;   #Pause the reader                     #
-#                         $writer->write($_[0], sub{                            #
-#                                 #restart the reader                           #
-#                                 $self->start;                                 #
-#                         });                                                   #
-#                 }                                                             #
-#         };                                                                    #
-#         $writer; #Return writer to allow chaining                             #
-# }                                                                             #
-#                                                                               #
-#################################################################################
-
 1;

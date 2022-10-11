@@ -74,21 +74,21 @@ method _make_writer :override {
 			$time=$clock;
 
 			$offset+= $w= $to 
-				? send $wfh, $_[0], $flags, $to
-				: send $wfh, $_[0], $flags;
+				? IO::FD::send $wfh, $_[0], $flags, $to
+				: IO::FD::send $wfh, $_[0], $flags;
 			$offset==length($_[0]) and return($cb and $cb->($to));
 
 			#TODO: DO we need to restructure on ICMP results for a unreachable host, connection refused, etc?
 			if(!defined($w) and $! != EAGAIN and $! != EINTR){
 				#this is actual error
 				warn $! if DEBUG;
-				warn "ERRNO: ".($!+0);
+				warn "ERRNO: ".($!+0) if DEBUG;
 				#actual error		
 				$_ww=undef;
 				@queue=();	#reset queue for session reuse
-				$on_error->($!);
+				say "BEFORE ON ERROR";
+				$on_error->($!) if $on_error;
 				$cb->() if $cb;
-				#uSAC::HTTP::Session::drop $session, "$!";
 				return;
 			}
 
@@ -124,7 +124,7 @@ method _make_writer :override {
 					#actual error		
 					$_ww=undef;
 					@queue=();	#reset queue for session reuse
-					$on_error->($!);
+					$on_error->($!) if $on_error;
 					$cb->();
 					return;
 				}

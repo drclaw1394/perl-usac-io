@@ -12,10 +12,10 @@ use uSAC::IO;
 
 my $cv=AE::cv;
 
-my $reader=uSAC::IO->sreader(\*STDIN);
-my $writer=uSAC::IO->swriter(\*STDOUT);
+my $reader=uSAC::IO->sreader(fh=>fileno \*STDIN);
+my $writer=uSAC::IO->swriter(fh=>fileno \*STDOUT);
 
-$reader->pipe($writer);
+$reader->pipe_to($writer);
 
 #my ($reader,$writer)=uSAC::IO->pipe(\*STDIN, \*STDOUT);
 #say "Reader:  $reader";

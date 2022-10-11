@@ -3,11 +3,9 @@ class uSAC::IO::Writer;
 use feature qw<refaliasing current_sub say>;
 no warnings qw<experimental uninitialized>;
 
-#use IO::FD::DWIM ":all";
 use IO::FD;
 use Fcntl qw(F_GETFL F_SETFL O_NONBLOCK);
 
-#use AnyEvent;
 use Log::ger;
 use Log::OK;
 use Errno qw(EAGAIN EINTR);
@@ -24,7 +22,7 @@ field @_queue;
 
 BUILD {
 	IO::FD::fcntl $_fh, F_SETFL, O_NONBLOCK;
-	$_on_drain//=$_on_error//=method{};
+	$_on_drain//=$_on_error//=sub{};
 	#$self->[writer_]=undef;
 	#@_queue;
 	my $time=0;
@@ -85,4 +83,77 @@ method queue {
 }
 
 1;
+
+__END__
+
+=head1 NAME
+
+uSAC::IO::Writer
+
+=head1 SYNOPSIS
+	use uSAC::IO;
+	my $writer= uSAC::IO->writer(fileno $fh);
+	
+=head1 DESCRIPTION
+
+Main interface for creating a writer object for a file descriptor.  It is a
+parent class to implementation specific writers. As such it isn't intended to
+be instancated directly, but rather using the wrapper.
+
+
+
+
+
+=head1 API
+
+=head2 Methods
+=head3  timing
+
+	$writer->timing($time, $clock);
+
+Calling this method with two references to scalars to use as the time and clock
+for the reader. When a write event is processed by the writer, the C<$clock> is
+derefernced and the value stored into the dereferenced C<$time> variable.
+
+This isolates any timeout logic to outside the reader for optimal performance
+and flexibility
+
+
+=head3 writer
+
+	$writer->writer;
+
+Returns the underlying subroutine ref which performs the writing operation. Creates it if non existant
+
+=head3 write
+
+	$writer->write($data, $cb)
+
+Calls the underlying subroutine ref which performs the writing operation
+
+=head3 pause
+
+	$writer->pause;
+
+Pause the internal queue from processing anymore data. Automatically unpauses on next call to C<write>
+
+=head3 set_write_handle
+
+	$writer->set_write_handle($handle)
+
+Sets the handle the writer will operate on
+
+=head2 Accessors
+
+=head3 on_drain
+
+	$writer->on_drain=sub{...}
+
+lvalue access to the on_drain sub routine callback.
+
+=head3 queue
+
+	$writer->queue;
+
+Returns a reference to internal queue..
 

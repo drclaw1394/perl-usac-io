@@ -16,6 +16,7 @@ die "Could not require $rb" unless(eval "require $rb");
 
 
 #sub dwriter { shift; $rb->new(@_); }
-sub create { shift; $rb->new(fh=>@_); }
+#sub create { shift; $rb->new(fh=>@_); }
+sub create { shift; $rb->new(@_); }
 
 1;

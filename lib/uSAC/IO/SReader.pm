@@ -14,7 +14,8 @@ eval "require $rb";
 
 #Wrapper 
 #sub sreader { shift; $rb->new(@_); }
-sub create { shift; $rb->new(fh=>@_); }
+#sub create { shift; $rb->new(fh=>@_); }
+sub create { shift; $rb->new(@_); }
 1;
 
 

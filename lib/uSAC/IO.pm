@@ -15,10 +15,8 @@ use uSAC::IO::SWriter;
 use uSAC::IO::SReader;
 
 use Socket  ":all";
-#use IO::FD::DWIM ":all";
 use IO::FD;
 
-#use IO::Socket::IP '-register';
 
 
 
@@ -45,10 +43,11 @@ die "Could not require $rb" unless(eval "require $rb");
 
 #Create a socket with required family, type an protocol
 #No bound or connected to anything
+#A wrapper around IO::FD::socket
 sub socket {
 	my ($package, $fam, $type, $proto)=@_;
 	my $socket;
-	IO::FD::socket $socket,$fam, $type, $proto;
+	IO::FD::socket $socket, $fam, $type, $proto;
 	$socket;
 }
 
@@ -110,7 +109,6 @@ sub bind{
 sub connect{
 	my $package=shift;
 	my ($socket, $host, $port, $on_connect, $on_error)=@_;
-	#my @stat=stat $_[0];
 	my $fam= sockaddr_family IO::FD::getsockname $socket;
 
 	die  "Not a socket" unless defined $fam;
@@ -127,7 +125,7 @@ sub connect{
 			$host,
 			$port,
 			{
-				flags=>AI_NUMERICHOST,
+				flags=>$host eq "localhost"? 0 : AI_NUMERICHOST,
 				family=>$fam,
 				socktype=>$type
 			}
@@ -201,11 +199,13 @@ sub list_ipv6_interfaces {
 sub writer {
 	my $package=shift;
 
-	my @stat=stat $_[0];
+	my @stat=IO::FD::stat $_[0];
 	if(-p $_[0]){
+		#Is a pipe
 		return $package->swriter(@_);		
 	}
 	elsif(-S $_[0]){
+		#Is a socket
 		for(unpack "I", IO::FD::getsockopt $_[0], SOL_SOCKET, SO_TYPE){
 			if($_==SOCK_STREAM){
 				return $package->swriter(@_);		
@@ -222,6 +222,7 @@ sub writer {
 		}
 	}
 	else {
+		#OTHER?
 		#TODO: fix this
 		return $package->swriter(@_);		
 	}
@@ -229,12 +230,13 @@ sub writer {
 
 sub reader{
 	my $package=shift;
-	my @stat=stat $_[0];
+	my @stat=IO::FD::stat $_[0];
 	if(-p $_[0]){
+		#PIPE
 		return $package->sreader(@_);		
 	}
 	elsif(-S $_[0]){
-
+		#SOCKET
 		for(unpack "I", IO::FD::getsockopt $_[0], SOL_SOCKET, SO_TYPE){
 			if($_ == SOCK_STREAM){
 				return $package->sreader(@_);		
@@ -251,6 +253,7 @@ sub reader{
 		}
 	}
 	else {
+		#OTHER
 		#TODO: fix this
 		return $package->sreader(@_);		
 	}
@@ -275,3 +278,35 @@ sub pipe {
 
 
 1;
+
+__END__
+
+=head1 NAME
+
+uSAC::IO - Multibackend IO
+
+=head1 SYNOPSIS
+
+	use uSAC::IO;
+
+	my $reader=uSAC::IO->reader(STDIN);
+	my $reader=uSAC::IO->reader($my streaming_socket)
+
+=head1 Description
+
+Provides a streamlined interface for asynchronous IO, using an event loop you
+already use. Implements a common interface between stream and datagram sockets,
+pipes etc.
+
+Think of this module as subclass of IO::Handle  or AnyEvent::Handle etc, but
+has better performance and runs on multiple event loops
+
+Care has been taken in keeping memory usage low and throuput high.
+
+
+=head1 HOW IT WORKS
+
+When this module is loaded, it detects an already loaded IO loop, and
+subsequently loads the appropriate backend to implement the API.
+
+

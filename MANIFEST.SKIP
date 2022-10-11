@@ -1,4 +1,9 @@
 tar\.gz$
+^new$
+^nytprof
+^read-results
+^write-results
+
 #!start included /opt/local/lib/perl5/5.34/ExtUtils/MANIFEST.SKIP
 # Avoid version control files.
 \bRCS\b

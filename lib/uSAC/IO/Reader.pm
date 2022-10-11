@@ -62,6 +62,13 @@ method pump {
 	$_on_read->($_buffer, undef) if $_buffer;
 }
 
+method read {
+	my $size=$_[1]//4096*4;
+	#force a manual read into buffer
+	IO::FD::sysread($_fh, $size, $_buffer);
+	$_on_read->($_buffer, undef) if $_buffer;
+}
+
 
 method start {
 	#method class for backend to override
@@ -101,3 +108,70 @@ method pipe_to ($writer,$limit=undef){
 1;
 
 __END__
+
+=head1 NAME
+
+uSAC::IO::Reader
+
+=head1 SYNOPSIS
+
+	use uSAC::IO;
+	my $reader= uSAC::IO->reader(fileno $fh);
+	
+=head1 DESCRIPTION
+
+Main interface for creating a reader object for a file descriptor.  It is a
+parent class to implementation specific readers. As such it isn't intended to
+be instancated directly, but rather using the wrapper.
+
+
+
+=head1 API
+
+=head2  timing
+
+	timing( $time, $clock)
+
+Calling this method with two references to scalars to use as the time and clock
+for the reader. When a read event is processed by the reader, the C<$clock> is
+derefernced and the value stored into the dereferenced C<$time> variable.
+
+This isolates any timeout logic to outside the reader for optimal performance
+and flexibility
+
+=head2 pump
+	
+	$reader->pump
+
+Manually triggers the processing of data in the reader
+
+
+=head2 read
+	
+	$reader->read($size)
+
+Manually read C<$size> bytes from reader. executes the on_read callback if
+buffer becomes non empty
+
+This really should only be used in limited scenarious where there an event loop
+might not be available. ie testing
+
+=head2 start
+
+	$reader->start
+
+After a reader has been created, it needs to be started to handle read events
+
+
+=head2 pause 
+
+	$reader->pause
+
+Stops a reader for processing any further read events.
+
+
+=head2 pipe_to
+
+	$reader->pipe_to($writer)
+
+Provides an easy way to link a reader to a writer object. Automatically starts the reader

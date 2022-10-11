@@ -4,7 +4,7 @@ use warnings;
 use feature ":all";
 
 use EV;
-use uSAC::SIO;
+#use uSAC::SIO;
 use AnyEvent::Handle;
 use AnyEvent;
 use Time::HiRes qw<time>;

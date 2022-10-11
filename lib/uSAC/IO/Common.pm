@@ -24,3 +24,16 @@ sub detect_backend{
 	$backend;
 }
 1;
+__END__
+
+=head1 NAME
+
+uSAC::IO::Common
+
+=head1 DESCRIPTION
+
+Provides internal functionallity. Currently implements detection of the current
+event loop system. Supported event loops are AnyEvent, IOAsync, and IOMojo
+
+
+
