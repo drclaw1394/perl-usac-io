@@ -23,16 +23,17 @@ use IO::FD;
 field $_ctx;
 field $_fh :param :mutator;
 field $_reader 	:mutator;
-field $_time	:mutator;
-field $_clock	 :mutator;
-field $_on_read :mutator;
-field $_on_eof  :mutator;
-field $_on_error :mutator;
-field $_max_read_size :mutator;
+field $_time	:param :mutator;
+field $_clock	 :param :mutator;
+field $_on_read :param :mutator;
+field $_on_eof  :param :mutator;
+field $_on_error :param :mutator;
+field $_max_read_size :param :mutator;
 field $_buffer	:mutator;
 		
 	
 BUILD{
+	$_fh=fileno $_fh if ref($_fh);	#Ensure we are working with a fd
 	IO::FD::fcntl $_fh, F_SETFL, O_NONBLOCK;
 
 	$_on_read//=sub {$self->pause};

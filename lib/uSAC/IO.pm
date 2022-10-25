@@ -172,24 +172,6 @@ sub swriter {
 	uSAC::IO::SWriter->create(@_);
 }
 
-#Helper function for servers
-
-sub to_address {
-
-}
-sub list_ipv4_interfaces {
-
-	shift;
-	my ($err, @list)=getaddrinfo(shift,undef,{
-			#flags=>AI_CANONNAME,
-		family=>AF_INET6,
-	});
-
-}
-
-sub list_ipv6_interfaces {
-
-}
 
 
 
@@ -275,7 +257,6 @@ sub pipe {
 	();
 	
 }
-
 
 1;
 

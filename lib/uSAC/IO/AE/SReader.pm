@@ -38,6 +38,7 @@ method _make_reader  :override {
 	#
 	\my $on_read=\$self->on_read; #alias cb 
 	\my $on_eof=\$self->on_eof;
+	#say $self->on_eof;
 	\my $on_error=\$self->on_error;
 	#\my $rw=\$self->[rw_];
 	\my $buf=\$self->buffer;

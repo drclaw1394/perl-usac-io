@@ -12,8 +12,8 @@ use uSAC::IO;
 
 my $cv=AE::cv;
 
-my $reader=uSAC::IO->sreader(fh=>fileno \*STDIN);
-my $writer=uSAC::IO->swriter(fh=>fileno \*STDOUT);
+my $reader=uSAC::IO->sreader(fh=>\*STDIN);
+my $writer=uSAC::IO->swriter(fh=>\*STDOUT);
 
 $reader->pipe_to($writer);
 

@@ -12,15 +12,16 @@ use Errno qw(EAGAIN EINTR);
 
 field $_ctx;
 field $_fh :param :mutator;
-field $_time :mutator;
-field $_clock :mutator;
+field $_time :param :mutator;
+field $_clock :param :mutator;
 field $_on_drain;
 field $_on_eof;
-field $_on_error :mutator;
+field $_on_error :param :mutator;
 field $_writer;
 field @_queue; 
 
 BUILD {
+	$_fh=fileno $_fh if ref($_fh);	#Ensure we are working with a fd
 	IO::FD::fcntl $_fh, F_SETFL, O_NONBLOCK;
 	$_on_drain//=$_on_error//=sub{};
 	#$self->[writer_]=undef;
