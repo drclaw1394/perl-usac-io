@@ -43,9 +43,9 @@ BUILD{
 	$_buffer=IO::FD::SV($_max_read_size);#"";
 
 	
-	my $time=0;
-	$_time=\$time;
-	$_clock=\$time;
+  #my $time=0;
+  #$_time=\$time;
+  #$_clock=\$time;
 }
 
 

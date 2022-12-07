@@ -26,10 +26,11 @@ BUILD {
 	$_on_drain//=$_on_error//=sub{};
 	#$self->[writer_]=undef;
 	#@_queue;
-	my $time=0;
+  
+  #my $time=0;
 
-	$_time=\$time;
-	$_clock=\$time;
+  #$_time=\$time;
+  #$_clock=\$time;
 
 }
 
