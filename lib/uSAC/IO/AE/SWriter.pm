@@ -90,8 +90,16 @@ method _make_writer {
   sub {
     use integer;
     no warnings "recursion";
-    $wfh//$_[0]//return;				#undefined input. was a stack reset
+    #$wfh//$_[0]//return;				#undefined input. was a stack reset
     #my $dropper=$on_done;			#default callback
+
+    unless(@_){
+      #No arguments is classed as a stack reset
+      @queue=();
+      $_recursion_counter=0;
+      $_ww=undef;
+      return;
+    }
 
     my $cb= $_[1];
     my $arg=1;#$_[2]//__SUB__;			#is this method unless provided
@@ -104,7 +112,7 @@ method _make_writer {
     #}
 
     #Push to queue if watcher is active or need to do a async call
-    say "Recursion counter is $_recursion_counter";
+    #say "Recursion counter is $_recursion_counter";
     push @queue, [$_[0], 0, $cb, $arg] if($_recursion_counter>RECUSITION_LIMIT or $_ww);
 
 
@@ -124,8 +132,8 @@ method _make_writer {
         $_ww=undef;
         $wfh=undef;
         @queue=();	#reset queue for session reuse
-        $on_error->($!);
         $cb->() if $cb;
+        $on_error->($!);
       }
       else {
         #The write did not send all the data. Queue it for async writing

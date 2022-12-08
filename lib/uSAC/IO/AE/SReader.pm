@@ -25,6 +25,8 @@ BUILD {
 
 method start :override ($fh=undef) {
 	$$_rfh_ref=$fh if $fh;
+  #reset buffer if new fh
+  $self->buffer="" if $fh;
 	$_rw= AE::io $$_rfh_ref, 0, $_reader//=$self->_make_reader;
 	$self;
 }
