@@ -13,7 +13,7 @@ use Errno qw(EAGAIN EINTR);
 use parent "uSAC::IO::Writer";
 use uSAC::IO::Writer qw<:fields>;
 
-use constant RECUSITION_LIMIT=>5;
+use constant RECUSITION_LIMIT=>50;
 
 field $_ww;		# Actual new variable for sub class
 field $_wfh_ref;
@@ -52,6 +52,7 @@ method _make_writer {
 	#do not call again until callback is called
 	#if no callback is provided, the session dropper is called.
 	#
+  my $dummy_cb=sub { };
   my $entry;
   my $sub=sub {
         unless($wfh){
@@ -65,6 +66,7 @@ method _make_writer {
 
         #\my $arg=\$entry->[3];
         $time=$clock;
+        #say "SYSWRITE async: $wfh";
         $offset+=$w = IO::FD::syswrite4 $wfh, $buf, length($buf)-$offset, $offset;
         if($offset==length $buf) {
           #Don't use the ref aliased vars here. not point to the correct thing?
@@ -82,29 +84,39 @@ method _make_writer {
           $_ww=undef;
           $wfh=undef;
           @queue=();	#reset queue for session reuse
-          $on_error->($!);
+          $on_error and $on_error->($!);
           $cb->();
         }
       };
 
   sub {
-    use integer;
-    no warnings "recursion";
+    #use integer;
+    #no warnings "recursion";
     #$wfh//$_[0]//return;				#undefined input. was a stack reset
     #my $dropper=$on_done;			#default callback
 
-    unless(@_){
-      #No arguments is classed as a stack reset
-      @queue=();
+    ###############################################
+    # unless(@_){                                 #
+    #   #No arguments is classed as a stack reset #
+    #   @queue=();                                #
+    #   $_recursion_counter=0;                    #
+    #   $_ww=undef;                               #
+    #   return;                                   #
+    # }                                           #
+    ###############################################
+    unless(@_ and $wfh){
+      Log::OK::TRACE and log_trace "SIO: SWRITE reset stack called";
       $_recursion_counter=0;
       $_ww=undef;
+      @queue=();
       return;
     }
+    
 
-    my $cb= $_[1];
+    my $cb= $_[1]//$dummy_cb;
     my $arg=1;#$_[2]//__SUB__;			#is this method unless provided
 
-    $offset=0;				#offset allow no destructive
+    #$offset=0;				#offset allow no destructive
     #access to input
     #unless($wfh){
     #	Log::OK::ERROR and log_error "SIO Writer: file handle undef, but write called from". join ", ", caller;
@@ -113,17 +125,20 @@ method _make_writer {
 
     #Push to queue if watcher is active or need to do a async call
     #say "Recursion counter is $_recursion_counter";
-    push @queue, [$_[0], 0, $cb, $arg] if($_recursion_counter>RECUSITION_LIMIT or $_ww);
+    push @queue, [$_[0], 0, $cb, $arg] if($_recursion_counter > RECUSITION_LIMIT or $_ww);
 
 
-    if(!$_ww and !@queue){
+    unless($_ww or @queue){
       #Attempt to write immediately when no watcher no queued items
       $_recursion_counter++;
       $time=$clock;
-      $offset+=$w = IO::FD::syswrite2($wfh, $_[0]);
+      #$offset+=
+      #say "SYSWRITE sync $wfh";
+      $w = IO::FD::syswrite2($wfh, $_[0]);
 
-      if( $offset==length($_[0]) ){
-        $cb and $cb->($arg)
+      #if( $offset==length($_[0]) ){
+      if( $w==length($_[0]) ){
+        $cb->($arg)
       }
       elsif(!defined($w) and $! != EAGAIN and $! != EINTR){
         #this is actual error
@@ -132,18 +147,19 @@ method _make_writer {
         $_ww=undef;
         $wfh=undef;
         @queue=();	#reset queue for session reuse
-        $cb->() if $cb;
-        $on_error->($!);
+        $cb->();
+        $on_error and $on_error->($!);
       }
       else {
         #The write did not send all the data. Queue it for async writing
-        push @queue,[$_[0], $offset, $cb, $arg];
+        #push @queue,[$_[0], $offset, $cb, $arg];
+        push @queue,[$_[0], $w, $cb, $arg];
         $_ww = AE::io $wfh, 1, $sub unless $_ww;
       }
     }
     else {
       #Watcher or queue active to ensure its running.
-      $_ww = AE::io $wfh, 1, $sub unless $_ww;
+      $_ww = AE::io $wfh, 1, $sub unless $_ww and $wfh;
     }
   };
 }
