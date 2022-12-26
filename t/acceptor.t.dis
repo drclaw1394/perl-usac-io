@@ -1,0 +1,46 @@
+use warnings;
+use strict;
+use feature ":all";
+
+use Data::Dumper;
+use EV;
+use AnyEvent;
+use IO::FD;
+
+#use uSAC::IO;
+my $cv=AE::cv;
+
+use uSAC::IO::Acceptor;
+
+use Socket qw<AF_INET SOCK_STREAM getaddrinfo AI_NUMERICHOST AI_PASSIVE SOL_SOCKET SO_REUSEADDR>;
+
+die "Could not create socket" unless defined IO::FD::socket my $fd, AF_INET, SOCK_STREAM,0;
+die "Could not set reuseaddr"  unless defined IO::FD::setsockopt $fd, SOL_SOCKET, SO_REUSEADDR, 1;
+
+print "Resolving name\n";
+my ($err,@res)=getaddrinfo("127.0.0.1", 23231, {flags=>AI_NUMERICHOST|AI_PASSIVE, family=>AF_INET, type=>SOCK_STREAM});
+
+say Dumper $res[0];
+print "Resolving name done\n";
+die "Error building name: $err" if $err;
+die "Could not bind" unless defined IO::FD::bind $fd, $res[0]{addr};
+
+die "Could not listen" unless defined IO::FD::listen $fd, 100;
+my $on_accept=sub {
+  say STDERR "on accept called";
+  #Need to clear the array passed
+  say $_[1]->@*;
+  $_[0]->@*=();
+  $_[1]->@*=();
+};
+my $on_error=sub {
+  say STDERR "ON error called";
+};
+
+my $acceptor=uSAC::IO::Acceptor->create(fh=>$fd, on_accept=>$on_accept, on_error=>$on_error);
+
+
+$acceptor->start;
+
+say "waiting for program end";
+$cv->recv;

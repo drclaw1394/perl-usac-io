@@ -6,7 +6,7 @@ WriteMakefile(
     PREREQ_PM         => {
     				enum=>0,
 				AnyEvent=>0,
-				"IO::FD"=>"0.1.3",
+				"IO::FD"=>"v0.2.0",
 				"Log::ger"=>0,
 				"Log::OK"=>0
 			}, 

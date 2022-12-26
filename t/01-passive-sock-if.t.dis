@@ -1,0 +1,117 @@
+use Test::More;
+use Test::Deep;
+use uSAC::IO;
+use Socket ":all";
+use Data::Dumper;
+					#family, #type,   #proto #port, #interface
+
+my @addrs=uSAC::IO->sockaddr_passive(AF_INET, 9999,);
+
+ok scalar(@addrs);
+
+for my $addr(@addrs){
+
+	#say STDERR "unpacked: ", uSAC::IO->unpack_sockaddr($addr);
+	say STDERR Dumper getnameinfo($addr, NI_NUMERICHOST);#{flags=>AI_NUMERICHOST|AI_NUMERICSERV});
+}
+{
+	#No port or no path should give 0 results
+	my @results=uSAC::IO::passive( {
+		});
+	ok @results==0, "No port, no result";
+
+	@results=uSAC::IO::passive( {
+			port=>[]
+		});
+	ok @results==0, "No port, no result";
+	
+	@results=uSAC::IO::passive( {
+			path=>[]
+		});
+
+	ok @results==0, "No path, no result";
+}
+
+{
+	#Test default specifications perform the same as explicit options
+	#This gives all interfaces, AF_INET AF_INET6 and AF_UNIX
+	my @results=uSAC::IO::passive( {
+			path=>["asdf", "path2"],
+			port=>[0,10,12]
+		});
+
+	#Should give same results
+	my @results_family=uSAC::IO::passive( {
+			family=>[AF_INET, AF_INET6, AF_UNIX],
+			path=>["asdf", "path2"],
+			port=>[0,10,12]
+		});
+
+
+	#Should give same results
+	my @results_family_interface=uSAC::IO::passive( {
+			interface=>".*",
+			family=>[AF_INET, AF_INET6, AF_UNIX],
+			path=>["asdf", "path2"],
+			port=>[0,10,12]
+		});
+
+	ok cmp_deeply(\@results, \@results_family),"Family ok";
+	ok cmp_deeply(\@results, \@results_family_interface),"Family  and interface ok";
+
+}
+
+{
+	#Attempt to bind our listeners
+	my $unix_sock_name="test_sock";
+	if( -S $unix_sock_name){
+		unlink $unix_sock_name;
+	}
+	my @results=uSAC::IO::passive( {
+			path=>[$unix_sock_name],
+			port=>[0,0,0]
+	});
+
+	for(@results){
+		die "Could not make socket $!" unless socket my $socket, $_->{family}, SOCK_STREAM, 0;
+		die "Could not bind $!" unless bind $socket, $_->{addr};
+
+		my $name=getsockname($socket);
+		if($_->{family}==AF_UNIX){
+			my $path=unpack_sockaddr_un($name);
+			ok $path eq $unix_sock_name;
+			close $socket;
+			if( -S $unix_sock_name){
+				unlink $unix_sock_name;
+			}
+		}
+		elsif($_->{family} ==AF_INET or  $_->{family}== AF_INET6){
+			#Check whe got a non zero port
+			my($err, $ip, $port)=getnameinfo($name, NI_NUMERICHOST|NI_NUMERICSERV);
+			ok $port != 0, "Non zero port";
+			close $socket;
+
+		}
+		else{
+			
+		}
+		
+	}
+	
+}
+
+#say STDERR "RESULTS: ".Dumper @results;
+
+#Format results for display
+
+my @cols= qw<interface family address port data>;#sort  keys $results[0]->%*;
+my @keys=map { ($_, \"|")} @cols;
+unshift @keys, \"|";
+
+
+use Text::Table;
+my $table=Text::Table->new(@keys);
+$table->load(map { [ $_->@{@cols}] } @results);
+print STDERR $table;
+
+done_testing;
