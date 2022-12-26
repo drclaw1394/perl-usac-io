@@ -8,7 +8,10 @@ WriteMakefile(
 				AnyEvent=>0,
 				"IO::FD"=>"v0.2.0",
 				"Log::ger"=>0,
-				"Log::OK"=>0
+				"Log::OK"=>0,
+				"Object::Pad"=>0,
+				"Net::DNS::Native"=>0
+
 			}, 
     ABSTRACT_FROM     => 'lib/uSAC/IO.pod', 
     AUTHOR            => 'Ruben Westerberg <drclaw@mac.com>',
