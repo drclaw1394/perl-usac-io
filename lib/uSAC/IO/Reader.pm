@@ -30,6 +30,7 @@ field $_on_eof  :param :mutator;
 field $_on_error :param :mutator;
 field $_max_read_size :param :mutator;
 field $_buffer	:mutator;
+field $_sysread :param :mutator;
 		
 	
 BUILD{
@@ -41,6 +42,7 @@ BUILD{
 
 	$_max_read_size//=4096;
 	$_buffer=IO::FD::SV($_max_read_size);#"";
+  $_sysread//=\&IO::FD::sysread;
 
 	
   #my $time=0;
@@ -66,7 +68,8 @@ method pump {
 method read {
 	my $size=$_[1]//4096*4;
 	#force a manual read into buffer
-	IO::FD::sysread($_fh, $size, $_buffer);
+  $_sysread->($_fh, $size, $_buffer);
+  #IO::FD::sysread($_fh, $size, $_buffer);
 	$_on_read->($_buffer, undef) if $_buffer;
 }
 

@@ -19,11 +19,13 @@ field $_on_eof;
 field $_on_error :param :mutator;
 field $_writer;
 field @_queue; 
+field $_syswrite :param :mutator;
 
 BUILD {
 	$_fh=fileno $_fh if ref($_fh);	#Ensure we are working with a fd
 	IO::FD::fcntl $_fh, F_SETFL, O_NONBLOCK;
 	$_on_drain//=$_on_error//=sub{};
+  $_syswrite//=\&IO::FD::syswrite;
 	#$self->[writer_]=undef;
 	#@_queue;
   

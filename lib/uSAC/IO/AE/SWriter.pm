@@ -46,6 +46,7 @@ method _make_writer {
 	\my @queue=$self->queue;
 	\my $time=$self->time;
 	\my $clock=$self->clock;
+  \my $syswrite=\$self->syswrite;
 	my $w;
 	my $offset=0;
 	#Arguments are buffer and callback.
@@ -67,7 +68,8 @@ method _make_writer {
         #\my $arg=\$entry->[3];
         $time=$clock;
         #say "SYSWRITE async: $wfh";
-        $offset+=$w = IO::FD::syswrite4 $wfh, $buf, length($buf)-$offset, $offset;
+        #$offset+=$w = IO::FD::syswrite4 $wfh, $buf, length($buf)-$offset, $offset;
+        $offset+=$w = $syswrite->( $wfh, $buf, length($buf)-$offset, $offset);
         if($offset==length $buf) {
           #Don't use the ref aliased vars here. not point to the correct thing?
           my $e=shift @queue;
@@ -134,7 +136,8 @@ method _make_writer {
       $time=$clock;
       #$offset+=
       #say "SYSWRITE sync $wfh";
-      $w = IO::FD::syswrite2($wfh, $_[0]);
+      #$w = IO::FD::syswrite2($wfh, $_[0]);
+      $w = $syswrite->($wfh, $_[0]);
 
       #if( $offset==length($_[0]) ){
       if( $w==length($_[0]) ){
