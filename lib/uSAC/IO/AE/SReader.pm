@@ -56,8 +56,8 @@ method _make_reader  :override {
     #$len = IO::FD::sysread($rfh, $buf, $max_read_size, length $buf );
 		$len = $sysread->($rfh, $buf, $max_read_size, length $buf );
 		$len>0 and return($on_read and $on_read->($buf));
+		not defined($len) and ($! == EAGAIN or $! == EINTR) and return;
 		$len==0 and return($on_eof and $on_eof->($buf));
-		($! == EAGAIN or $! == EINTR) and return;
 
 		Log::OK::ERROR and log_error "ERROR IN READER: $!";
 		$_rw=undef;

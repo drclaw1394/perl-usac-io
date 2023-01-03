@@ -4,6 +4,7 @@ use warnings;
 use feature qw<say state refaliasing>;
 
 use IO::FD;
+use POSIX qw<EAGAIN>;
 use Net::SSLeay;
 
 
@@ -58,7 +59,6 @@ sub make_sysread {
         if($listen_mode){
           #server listen
           Net::SSLeay::set_fd($ssl, $fd);
-          say "FD for ssl is $fd";
           $state=STATE_ACCEPT;
           redo;
         }
@@ -72,11 +72,13 @@ sub make_sysread {
         if($res<0){
           #Check the if want read or want write is set 
           $res=Net::SSLeay::get_error($ssl, $res);
-          say "ERROR IS $res";
           if($res==SSL_ERROR_WANT_READ){
-            sleep 1; 
-            say "->Want read... waiting for event";
+            $res=undef;
+            $!=EAGAIN;
             last;
+          }
+          elsif($res==SSL_ERROR_NONE){
+            say "ERROR NONE";
           }
           elsif($res==SSL_ERROR_SSL){
             say "ERROR IN SSL ON ACCEPT";
@@ -89,7 +91,6 @@ sub make_sysread {
           }
         }
         elsif($res==1){
-          say "-> Successful accept";
           #successfuly accept
           print "sslecho: Cipher `" . Net::SSLeay::get_cipher($ssl) . "'\n" if $trace;
           $state=STATE_IO;
@@ -100,44 +101,82 @@ sub make_sysread {
           #
           #Ssl failed
           say "->SSL failed. Shuting down";
-          #$r=undef;
-          #IO::FD::close $fd;
+
+
+          #Force an error for the reader/writer
+          $res=undef;
+          $!=0;
           last;
         }
       }
+
       elsif($state==STATE_IO){
-        say "STATE IO: Read";
         ($buffer, $res)=Net::SSLeay::read $ssl;#, $length;
-        if($res>0){
-            #byte count
-            #say "REs is $res";
-            say "Data read: $buffer";
-            return $res;
-            last;
+      
+        last if $res>0;  #Read  was a success! Return byte count
+
+        #some sort of error
+        $res=Net::SSLeay::get_error($ssl, $res);
+        if($res==SSL_ERROR_WANT_READ){
+          #Emulate an EAGAIN error
+          $res=undef;
+           $!=EAGAIN;
+          last;
+        }
+        elsif($res==SSL_ERROR_WANT_WRITE){
+          #Emulate an EAGAIN error?
+          #this would occur if a handshake was required
+          Net::SSLeay::write($ssl, ""); #write no applicaiton data. just force SSL write
+          $res=undef;
+          $!=EAGAIN;
+          last;
+        }
+        elsif($res==SSL_ERROR_ZERO_RETURN){
+          say STDERR "SSL_ERROR_ZERO_RETURN in sysread";
+          say STDERR "CLIENT CLOSED THE CONNECTION";
+          $res=0; #Emulate EOF condition?
+          last;
+        }
+        elsif($res==SSL_ERROR_NONE){
+          say STDERR "SSL_ERROR_NONE in sysread";
+        }
+        elsif($res==SSL_ERROR_SSL){
+          say STDERR "SSL_ERROR_SSL in sysread";
+          $res=undef;
+          $!=0; #TODO set approprate error
+          last;
+        }
+        elsif($res==SSL_ERROR_WANT_X509_LOOKUP){
+          say STDERR "SSL_ERROR_WANT_X509_LOOKUP in sysread";
+          last;
+        }
+        elsif($res== SSL_ERROR_SYSCALL){
+          say STDERR "SSL_ERROR_SYSCALL in sysread";
+          last;
+        }
+        elsif($res== SSL_ERROR_WANT_CONNECT){
+          say STDERR "SSL_ERROR_WANT_CONNECT in sysread";
+          last;
+        }
+        elsif($res== SSL_ERROR_WANT_ACCEPT){
+          say STDERR "SSL_ERROR_WANT_ACCEPT in sysread";
+          last;
         }
         else {
-          #some sort of error
-          say "ERROR IS $res";
-          if($res==SSL_ERROR_WANT_READ){
-            #sleep 1; 
-            say "->Want read... waiting for event";
-            last;
-          }
-          elsif($res==SSL_ERROR_NONE){
-            say "NO ERROR";
-            sleep 5;
-          }
-          else {
-            say "some other error";
-            last;
-          }
+          say STDERR "some other ssl error in sysread";
+          last;
         }
       }
+
+
+
       elsif($state==STATE_IDLE){
       }
       else {
       }
     }
+
+    $res;
   }
 }
 
@@ -184,18 +223,43 @@ sub make_syswrite {
         }
         else {
           #some sort of error
-          say "Write ERROR IS $res";
+          $res=Net::SSLeay::get_error($ssl, $res);
           if($res==SSL_ERROR_WANT_WRITE){
             #sleep 1; 
             say "->Want write... waiting for event";
             last;
           }
+          elsif($res==SSL_ERROR_WANT_READ){
+            Net::SSLeay::read $ssl,0; #force a read by take no data
+          }
           elsif($res==SSL_ERROR_NONE){
-            say "write NO ERROR";
-            sleep 5;
+            say STDERR "SSL_ERROR_NONE in syswrite";
+          }
+          elsif($res==SSL_ERROR_WANT_X509_LOOKUP){
+            say STDERR "SSL_ERROR_WANT_X509_LOOKUP in syswrite";
+            last;
+          }
+          elsif($res== SSL_ERROR_SYSCALL){
+            say STDERR "SSL_ERROR_SYSCALL in syswrite";
+            last;
+          }
+          elsif($res== SSL_ERROR_WANT_CONNECT){
+            say STDERR "SSL_ERROR_WANT_CONNECT in syswrite";
+            last;
+          }
+          elsif($res== SSL_ERROR_WANT_ACCEPT){
+            say STDERR "SSL_ERROR_WANT_ACCEPT in syswrite";
+            last;
+          }
+          elsif($res== SSL_ERROR_ZERO_RETURN){
+            say STDERR "SSL_ERROR_ZERO_RETURN in sysread";
+            say STDERR "CLIENT CLOSED THE CONNECTION";
+            $res=undef;
+            $!=0;
+            last;
           }
           else {
-            say "some other error";
+            say STDERR "some other ssl error in syswrite";
             last;
           }
 
@@ -205,6 +269,7 @@ sub make_syswrite {
       else{
       }
     }
+    $res;
   }
 }
 1;
