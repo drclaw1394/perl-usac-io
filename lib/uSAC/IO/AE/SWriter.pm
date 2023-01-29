@@ -13,7 +13,7 @@ use Errno qw(EAGAIN EINTR);
 use parent "uSAC::IO::Writer";
 use uSAC::IO::Writer qw<:fields>;
 
-use constant RECUSITION_LIMIT=>50;
+use constant RECUSITION_LIMIT=>5;
 
 field $_ww;		# Actual new variable for sub class
 field $_wfh_ref;
@@ -53,7 +53,7 @@ method _make_writer {
 	#do not call again until callback is called
 	#if no callback is provided, the session dropper is called.
 	#
-  my $dummy_cb=sub { };
+  #my $dummy_cb=sub { };
   my $entry;
   my $sub=sub {
         unless($wfh){
@@ -87,25 +87,11 @@ method _make_writer {
           $wfh=undef;
           @queue=();	#reset queue for session reuse
           $on_error and $on_error->($!);
-          $cb->();
+          $cb and $cb->();
         }
       };
 
   sub {
-    #use integer;
-    #no warnings "recursion";
-    #$wfh//$_[0]//return;				#undefined input. was a stack reset
-    #my $dropper=$on_done;			#default callback
-
-    ###############################################
-    # unless(@_){                                 #
-    #   #No arguments is classed as a stack reset #
-    #   @queue=();                                #
-    #   $_recursion_counter=0;                    #
-    #   $_ww=undef;                               #
-    #   return;                                   #
-    # }                                           #
-    ###############################################
     unless(@_ and $wfh){
       Log::OK::TRACE and log_trace "SIO: SWRITE reset stack called";
       $_recursion_counter=0;
@@ -115,33 +101,33 @@ method _make_writer {
     }
     
 
-    my $cb= $_[1]//$dummy_cb;
+    my $cb= $_[1];#//$dummy_cb;
     my $arg=1;#$_[2]//__SUB__;			#is this method unless provided
 
-    #$offset=0;				#offset allow no destructive
-    #access to input
-    #unless($wfh){
-    #	Log::OK::ERROR and log_error "SIO Writer: file handle undef, but write called from". join ", ", caller;
-    #	return;
-    #}
 
     #Push to queue if watcher is active or need to do a async call
     #say "Recursion counter is $_recursion_counter";
-    push @queue, [$_[0], 0, $cb, $arg] if($_recursion_counter > RECUSITION_LIMIT or $_ww);
+    #if($_ww or $_recursion_counter > RECUSITION_LIMIT){
+    if($_recursion_counter > RECUSITION_LIMIT or defined $_ww){
+      push @queue, [$_[0], 0, $cb, $arg];
+      #Watcher or queue active to ensure its running.
+      ($_ww = AE::io($wfh, 1, $sub)) unless ($_ww and $wfh);
+      return();
+    }
+    #else{
+    
 
 
-    unless($_ww or @queue){
+      #unless(@queue){#  or $_ww){
       #Attempt to write immediately when no watcher no queued items
       $_recursion_counter++;
       $time=$clock;
-      #$offset+=
-      #say "SYSWRITE sync $wfh";
-      #$w = IO::FD::syswrite2($wfh, $_[0]);
+
       $w = $syswrite->($wfh, $_[0]);
 
       #if( $offset==length($_[0]) ){
       if( $w==length($_[0]) ){
-        $cb->($arg)
+        $cb and $cb->($arg);
       }
       elsif(!defined($w) and $! != EAGAIN and $! != EINTR){
         #this is actual error
@@ -150,7 +136,7 @@ method _make_writer {
         $_ww=undef;
         $wfh=undef;
         @queue=();	#reset queue for session reuse
-        $cb->();
+        $cb and $cb->();
         $on_error and $on_error->($!);
       }
       else {
@@ -159,11 +145,14 @@ method _make_writer {
         push @queue,[$_[0], $w, $cb, $arg];
         $_ww = AE::io $wfh, 1, $sub unless $_ww;
       }
-    }
-    else {
-      #Watcher or queue active to ensure its running.
-      $_ww = AE::io $wfh, 1, $sub unless $_ww and $wfh;
-    }
+      #}
+    #######################################################
+    # else {                                              #
+    #   #Watcher or queue active to ensure its running.   #
+    #   $_ww = AE::io $wfh, 1, $sub unless $_ww and $wfh; #
+    # }                                                   #
+    #######################################################
+    return ();
   };
 }
 1;

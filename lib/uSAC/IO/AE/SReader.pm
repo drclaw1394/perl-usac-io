@@ -12,7 +12,8 @@ use Log::OK;
 #use IO::FD;
 
 use Errno qw(EAGAIN EINTR);
-use Data::Dumper;
+#use Data::Dumper;
+#use Devel::Peek;
 
 field $_rw;
 field $_reader;
@@ -55,6 +56,7 @@ method _make_reader  :override {
 		$time=$clock;
     #$len = IO::FD::sysread($rfh, $buf, $max_read_size, length $buf );
 		$len = $sysread->($rfh, $buf, $max_read_size, length $buf );
+    #say Devel::Peek::Dump $buf;
 		$len>0 and return($on_read and $on_read->($buf));
 		not defined($len) and ($! == EAGAIN or $! == EINTR) and return;
 		$len==0 and return($on_eof and $on_eof->($buf));
