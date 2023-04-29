@@ -1,11 +1,11 @@
 use Object::Pad;
 package uSAC::IO::DReader;
 class uSAC::IO::DReader :isa(uSAC::IO::Reader);
+
 use feature qw<refaliasing current_sub say>;
 no warnings qw<experimental uninitialized>;
 
 use Errno qw(EAGAIN EINTR);
-use Data::Dumper;
 
 use uSAC::IO::Common;
 
@@ -20,6 +20,6 @@ field $_flags :mutator;
 
 #sub dreader { shift; $rb->new(@_); }
 #sub create { shift; $rb->new(fh=>@_); }
-sub create { shift; $rb->new(@_); }
+sub create {$rb->new(@_); }
 
 1;

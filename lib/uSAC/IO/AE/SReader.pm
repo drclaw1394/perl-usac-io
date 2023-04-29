@@ -52,6 +52,7 @@ method _make_reader  :override {
   \my $sysread=\$self->sysread;
 	my $len;
 	$_rw=undef;
+
 	sub {
 		$time=$clock;
     #$len = IO::FD::sysread($rfh, $buf, $max_read_size, length $buf );

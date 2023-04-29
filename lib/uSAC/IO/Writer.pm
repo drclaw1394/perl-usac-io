@@ -18,6 +18,7 @@ field $_on_drain;
 field $_on_eof;
 field $_on_error :param :mutator;
 field $_writer;
+field $_resetter;
 field @_queue; 
 field $_syswrite :param :mutator;
 
@@ -50,6 +51,10 @@ method writer {
 	$_writer//=$self->_make_writer;
 }
 
+method reset {
+  $_resetter//=$self->_make_reseter;
+}
+
 #OO interface
 method write {
 	&{$_writer};
@@ -80,6 +85,10 @@ method set_write_handle {
 }
 
 method _make_writer {
+}
+
+method _make_reseter {
+
 }
 
 method queue {

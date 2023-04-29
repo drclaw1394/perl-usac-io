@@ -2,7 +2,8 @@ package uSAC::IO::AE::IO;
 
 use strict;
 use warnings;
-use feature "say";
+use feature qw<say try current_sub>;
+no warnings "experimental";
 
 use Socket ":all";#qw<AF_INET AF_INET6 AF_UNIX pack_sockaddr_in pack_sockaddr_in6 pack_sockaddr_un>;
 use Errno qw(EAGAIN EINTR EINPROGRESS);
@@ -12,50 +13,94 @@ use AnyEvent;
 #use IO::FD::DWIM ":all";
 use IO::FD;
 
+
+# Postpone a subroutine call
+my @asap;
+my $asap_timer;
+my $entry;
+
+# Processing sub for asap code refs. Supports recursive asap calls.
+my $asap_sub=sub {
+                        
+  # Call subs with supplied arguments.
+  while($entry=shift @asap){
+    try{
+      &$entry
+    }
+    catch($e){
+        warn "Uncaught execption in asap callback: $e";
+    }
+  }
+  $asap_timer=undef; 
+};
+
+# Schedule a code ref to execute asap on current event system.
+# currently a shared timer.
+#
+sub asap (&){
+    my $c=shift;
+    push @asap, $c;
+    $asap_timer//=AE::timer 0, 0, $asap_sub;
+    1;
+}
+
+my %timer;
+my $timer_id=0;
+sub timer ($$$){
+    my ($offset, $repeat, $sub)=@_;
+    my $id=$timer_id++;
+    $timer{$id}=AE::timer $offset, $repeat, $sub;
+}
+
+sub timer_cancel ($){
+  delete $timer{$_[0]};
+}
+
+
+
+
+
 my %watchers;
 my $id;
-sub connect {
-        #A EINPROGRESS is expected due to non block
-        my ($package, $socket, $addr, $on_connect, $on_error)=@_;
+sub connect_addr {
+  #A EINPROGRESS is expected due to non block
+  my ($socket, $addr, $on_connect, $on_error)=@_;
 
 	$id++;
 	my $res=IO::FD::connect $socket, $addr;
-        unless($res){
-                #EAGAIN for pipes
-                if($! == EAGAIN or $! == EINPROGRESS){
-                        my $cw;$cw=AE::io $socket, 1, sub {
-                                #Need to check if the socket has
-                                my $sockaddr=IO::FD::getpeername $socket;
+  unless($res){
+    #EAGAIN for pipes
+    if($! == EAGAIN or $! == EINPROGRESS){
+      my $cw;$cw=AE::io $socket, 1, sub {
+              #Need to check if the socket has
+              my $sockaddr=IO::FD::getpeername $socket;
 
-				delete $watchers{$id};
+              delete $watchers{$id};
 
-                                if($sockaddr){
-                                        $on_connect->($socket) if $on_connect;
-                                }
-                                else {
-                                        #error
-                                        $on_error and $on_error->($!);
-                                }
-                        };
-			$watchers{$id}=$cw;
-                        return;
-                }
-                else {
-                        warn "Counld not connect to host";
-                        $on_error and AnyEvent::postpone {
-                                $on_error->($!) 
-                        };
-                        return;
-                }
-                return;
-        }
-        AnyEvent::postpone {$on_connect->($socket)} if $on_connect;
+              if($sockaddr){
+                      $on_connect->($socket, $addr) if $on_connect;
+              }
+              else {
+                      #error
+                      $on_error and $on_error->($socket, "$!");
+              }
+      };
+      $watchers{$id}=$cw;
+    }
+    else {
+      # Syncrhonous fail. reshedual
+      $on_error and asap {$on_error->($socket, "$!")};
+    }
+    return;
+  }
+  # Syncrhonous connect. reshedual
+  asap {$on_connect->($socket, $addr)} if $on_connect;
+
 	$id;
 }
 
-sub cancel_connect{
-	my ($package,$id)=@_;
-	delete $watchers{$id};
+sub connect_cancel ($) {
+	delete $watchers{$_[0]};
 }
 
 #take a hostname and resolve it
@@ -84,4 +129,8 @@ sub accept {
 sub cancel_accept {
 
 }
+
+
+
+
 1;

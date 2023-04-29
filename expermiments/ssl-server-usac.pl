@@ -94,15 +94,18 @@ sub setup_client_ssl{
   print "sslecho: Creating SSL session (cxt=`$ctx')...\n" if $trace>1;
   $ssl = Net::SSLeay::new($ctx);
   $ssl or die_now("ssl new ($ssl): $!");
+
   my $sysread=uSAC::IO::Sys::SSL::make_sysread $ssl, 1;
   my $syswrite=uSAC::IO::Sys::SSL::make_syswrite $ssl, 1;
 
+
   my $time=0;
   my $clock=0;
-  my $reader;$reader=uSAC::IO::SReader->create(fh=>$fd,time=>\$time, clock=>\$clock, sysread=>$sysread, max_read_size=>undef, on_error=>undef, on_eof=>sub { $reader->pause}, on_read=> sub {
+  my $reader;$reader=uSAC::IO::SReader->create(fh=>$fd, time=>\$time, clock=>\$clock, sysread=>$sysread, max_read_size=>undef, on_error=>undef, on_eof=>sub { $reader->pause}, on_read=> sub {
         say "ON READ";
         say $_[0];
     });
+
   my $writer=uSAC::IO::SWriter->create(fh=>$fd, time=>\$time, clock=>\$clock, syswrite=>$syswrite, on_error=>undef);
 
   $reader->start;

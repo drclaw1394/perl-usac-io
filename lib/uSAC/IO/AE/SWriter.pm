@@ -1,5 +1,6 @@
 use Object::Pad;
 class uSAC::IO::AE::SWriter :isa(uSAC::IO::SWriter);
+
 use feature qw<refaliasing current_sub say>;
 no warnings qw<experimental uninitialized>;
 
@@ -77,7 +78,8 @@ method _make_writer {
             undef $_ww ;
             $_recursion_counter=0;
           }
-          $e->[2]($e->[3]) if $e->[2];
+          #$e->[2]($e->[3]) if $e->[2];
+          &{$e->[2]} if $e->[2];
         }
         elsif(!defined($w) and $! != EAGAIN and $! != EINTR){
           #this is actual error
@@ -102,14 +104,15 @@ method _make_writer {
     
 
     my $cb= $_[1];#//$dummy_cb;
-    my $arg=1;#$_[2]//__SUB__;			#is this method unless provided
+    #my $arg=1;#$_[2]//__SUB__;			#is this method unless provided
 
 
     #Push to queue if watcher is active or need to do a async call
     #say "Recursion counter is $_recursion_counter";
     #if($_ww or $_recursion_counter > RECUSITION_LIMIT){
     if($_recursion_counter > RECUSITION_LIMIT or defined $_ww){
-      push @queue, [$_[0], 0, $cb, $arg];
+      #push @queue, [$_[0], 0, $cb, $arg];
+      push @queue, [$_[0], 0, $cb];
       #Watcher or queue active to ensure its running.
       ($_ww = AE::io($wfh, 1, $sub)) unless ($_ww and $wfh);
       return();
@@ -127,7 +130,8 @@ method _make_writer {
 
       #if( $offset==length($_[0]) ){
       if( $w==length($_[0]) ){
-        $cb and $cb->($arg);
+        #$cb and $cb->($arg);
+        $cb and &$cb;
       }
       elsif(!defined($w) and $! != EAGAIN and $! != EINTR){
         #this is actual error
@@ -142,7 +146,8 @@ method _make_writer {
       else {
         #The write did not send all the data. Queue it for async writing
         #push @queue,[$_[0], $offset, $cb, $arg];
-        push @queue,[$_[0], $w, $cb, $arg];
+        #push @queue,[$_[0], $w, $cb, $arg];
+        push @queue,[$_[0], $w, $cb];
         $_ww = AE::io $wfh, 1, $sub unless $_ww;
       }
       #}
@@ -155,4 +160,17 @@ method _make_writer {
     return ();
   };
 }
+
+
+method _make_reseter {
+	\my @queue=$self->queue;
+  sub {
+      Log::OK::TRACE and log_trace "SIO: SWRITE reset stack called";
+      $_recursion_counter=0;
+      $_ww=undef;
+      @queue=();
+  }
+
+}
+
 1;

@@ -5,7 +5,6 @@ use feature "say";
 
 use version; our $VERSION=version->declare("v0.1");
 
-use Data::Dumper;
 #Datagram
 use uSAC::IO::DReader;
 use uSAC::IO::DWriter;
@@ -30,7 +29,7 @@ sub import {
 
 use Net::DNS::Native;
 
-our $resolver=Net::DNS::Native->new(pool=>4, notify_on_begin=>1);
+our $resolver=Net::DNS::Native->new(pool=>1, notify_on_begin=>1);
 
 #asynchronous bind for tcp, udp, and unix sockets
 
@@ -41,13 +40,29 @@ my $rb=($backend."::IO");
 
 die "Could not require $rb" unless(eval "require $rb");
 
+no strict "refs";
+
+sub asap (&);   # Schedule sub as soon as async possible
+sub timer ($$$);  # Setup a timer
+sub timer_cancel ($);
+sub connect_cancel ($);
+sub connect_addr;
+
+*asap=\&{$rb."::asap"};
+
+*timer=\&{$rb."::timer"};
+*timer_cancel=\&{$rb."::timer_cancel"};
+
+*connect_cancel=\&{$rb."::connect_cancel"};
+*connect_addr=\&{$rb."::connect_addr"};
+
+use strict "refs";
 #Create a socket with required family, type an protocol
 #No bound or connected to anything
 #A wrapper around IO::FD::socket
 sub socket {
-	my ($package, $fam, $type, $proto)=@_;
 	my $socket;
-	IO::FD::socket $socket, $fam, $type, $proto;
+	IO::FD::socket $socket, @_;
 	$socket;
 }
 
@@ -59,7 +74,6 @@ sub socket {
 #the family of the socket
 #my ($package, $socket, $host, $port, $on_bind, $on_error)=@_;
 sub bind{
-	my $package=shift;
 	my ($socket, $host, $port)=@_;
 
 	my $fam= sockaddr_family IO::FD::getsockname $socket;
@@ -106,12 +120,18 @@ sub bind{
 	IO::FD::bind($socket, $addr) and $addr;
 }
 
+
+
+
 sub connect{
-	my $package=shift;
 	my ($socket, $host, $port, $on_connect, $on_error)=@_;
 	my $fam= sockaddr_family IO::FD::getsockname $socket;
 
-	die  "Not a socket" unless defined $fam;
+  unless(defined $fam){
+    # TODO:  create an exception object
+    $on_error and asap { $on_error->($socket, "Not a socket")};
+    return undef;
+  }
 
 	my $type=unpack "I", IO::FD::getsockopt $socket, SOL_SOCKET, SO_TYPE;
 
@@ -130,23 +150,25 @@ sub connect{
 				socktype=>$type
 			}
 		);
-		$addr=$addresses[0]->{addr};
-		
+    if($error){
+      $on_error and asap { $on_error->($socket, $error)};
+      return undef;
+    }
+    $addr=$addresses[0]{addr};
 	}
 	elsif($fam==AF_UNIX){
 		$addr=pack_sockaddr_un $host;
 	}
 	else {
-		die "Unsupported socket address family";
+    #die "Unsupported socket address family";
+    $on_error and asap sub { $on_error->($socket, "Unsupported socket address family")};
+    return undef;
 	}
-	(ref($package)|| $rb)->connect($socket, $addr, $on_connect, $on_error);
+
+	connect_addr($socket, $addr, $on_connect, $on_error);
 }
 
 
-sub cancel_connect {
-	my $package=shift;
-	(ref($package)||$rb)->cancel_connect(@_);
-}
 
 #Resolve a hostname to an address, then connect to it
 sub resolve_connect{
@@ -155,21 +177,17 @@ sub resolve_connect{
 
 
 sub dreader {
-	shift;
-	uSAC::IO::DReader->create(@_);
+	&uSAC::IO::DReader::create;
 }
 sub sreader {
-	shift;
-	uSAC::IO::SReader->create(@_);
+	&uSAC::IO::SReader::create;
 }
 
 sub dwriter {
-	shift;
-	uSAC::IO::DWriter->create(@_);
+	&uSAC::IO::DWriter::create;
 }
 sub swriter {
-	shift;
-	uSAC::IO::SWriter->create(@_);
+	&uSAC::IO::SWriter::create;
 }
 
 
@@ -179,21 +197,20 @@ sub swriter {
 
 #Return a writer based on the type of fileno
 sub writer {
-	my $package=shift;
 
 	my @stat=IO::FD::stat $_[0];
 	if(-p $_[0]){
 		#Is a pipe
-		return $package->swriter(@_);		
+		return &swriter;
 	}
 	elsif(-S $_[0]){
 		#Is a socket
 		for(unpack "I", IO::FD::getsockopt $_[0], SOL_SOCKET, SO_TYPE){
 			if($_==SOCK_STREAM){
-				return $package->swriter(@_);		
+				return &swriter;
 			}
 			elsif($_==SOCK_DGRAM){
-				return $package->dwriter(@_);		
+				return &dwriter;
 			}
 			elsif($_==SOCK_RAW){
 				die "RAW SOCKET NOT IMPLEMENTED";
@@ -206,25 +223,24 @@ sub writer {
 	else {
 		#OTHER?
 		#TODO: fix this
-		return $package->swriter(@_);		
+		return &swriter;
 	}
 }
 
 sub reader{
-	my $package=shift;
 	my @stat=IO::FD::stat $_[0];
 	if(-p $_[0]){
 		#PIPE
-		return $package->sreader(@_);		
+		return &sreader;
 	}
 	elsif(-S $_[0]){
 		#SOCKET
 		for(unpack "I", IO::FD::getsockopt $_[0], SOL_SOCKET, SO_TYPE){
 			if($_ == SOCK_STREAM){
-				return $package->sreader(@_);		
+				return &sreader;
 			}
 			elsif($_ == SOCK_DGRAM){
-				return $package->dreader(@_);		
+				return &dreader;
 			}
 			elsif($_ == SOCK_RAW){
 				die "RAW SOCKET NOT IMPLEMENTED";
@@ -237,19 +253,19 @@ sub reader{
 	else {
 		#OTHER
 		#TODO: fix this
-		return $package->sreader(@_);		
+		return &sreader;
 	}
 }
 
 sub pair {
-	my ($package, $fh)=@_;
-	my ($r,$w)=($package->reader(fh=>$fh), $package->writer(fh=>$fh));
+	my ($fh)=@_;
+	my ($r,$w)=(reader(fh=>$fh), writer(fh=>$fh));
 	$r and $w ? ($r,$w):();
 }
 
 sub pipe {
-	my ($package, $rfh,$wfh)=@_;
-	my ($r,$w)=($package->reader($rfh), $package->writer($wfh));
+	my ($rfh,$wfh)=@_;
+	my ($r,$w)=(reader($rfh), writer($wfh));
 	if($r and $w){
 		$r->pipe($w);
 		return ($r,$w);	
@@ -257,6 +273,24 @@ sub pipe {
 	();
 	
 }
+
+
+###########################################
+# my %timers;                             #
+# sub timer  {                            #
+#   my ($package, $offset, $interval)=@_; #
+
+# }                                       #
+# sub cancel_timer {                      #
+#   my $id;                               #
+# }                                       #
+###########################################
+
+
+
+
+
+
 
 1;
 
