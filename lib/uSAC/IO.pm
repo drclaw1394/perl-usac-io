@@ -145,15 +145,17 @@ sub connect{
 			$host,
 			$port,
 			{
-				flags=>$host eq "localhost"? 0 : AI_NUMERICHOST,
+        #flags=>$host eq "localhost"? 0 : AI_NUMERICHOST,
 				family=>$fam,
 				socktype=>$type
 			}
 		);
+
     if($error){
       $on_error and asap { $on_error->($socket, $error)};
       return undef;
     }
+
     $addr=$addresses[0]{addr};
 	}
 	elsif($fam==AF_UNIX){
