@@ -12,15 +12,15 @@ use Errno qw(EAGAIN EINTR);
 
 field $_ctx;
 field $_fh :param :mutator;
-field $_time :param :mutator;
-field $_clock :param :mutator;
-field $_on_drain;
-field $_on_eof;
-field $_on_error :param :mutator;
+field $_time :mutator :param = undef;
+field $_clock :mutator :param = undef;
+field $_on_drain :mutator :param =undef;
+field $_on_eof   :mutator :param =undef;
+field $_on_error :mutator :param =undef;
 field $_writer;
 field $_resetter;
 field @_queue; 
-field $_syswrite :param :mutator;
+field $_syswrite :mutator :param = undef;
 
 BUILD {
 	$_fh=fileno $_fh if ref($_fh);	#Ensure we are working with a fd
@@ -30,10 +30,11 @@ BUILD {
 	#$self->[writer_]=undef;
 	#@_queue;
   
-  #my $time=0;
+  my $time=time;
+  my $clock=time;
 
-  #$_time=\$time;
-  #$_clock=\$time;
+  $_time=\$time;
+  $_clock=\$clock;
 
 }
 
@@ -69,9 +70,6 @@ method write {
 ###############################
 
 
-method on_drain : lvalue{
-	$_on_drain;
-}
 
 
 #SUB CLASS SPECIFIC

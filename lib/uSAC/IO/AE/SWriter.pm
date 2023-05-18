@@ -39,7 +39,7 @@ method pause :override {
 
 #internal
 #Aliases variables for (hopefully) faster access in repeated calls
-method _make_writer {
+method _make_writer :override {
 	\my $wfh=$_wfh_ref;#\$self->wfh;	#refalias
 	\my $on_error=\$self->on_error;#$_[3]//method{
 

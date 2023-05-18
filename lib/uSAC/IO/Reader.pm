@@ -23,14 +23,14 @@ use IO::FD;
 field $_ctx;
 field $_fh :param :mutator;
 field $_reader 	:mutator;
-field $_time	:param :mutator;
-field $_clock	 :param :mutator;
-field $_on_read :param :mutator;
-field $_on_eof  :param :mutator;
-field $_on_error :param :mutator;
-field $_max_read_size :param :mutator;
+field $_time	:mutator :param = undef;
+field $_clock	 :mutator :param = undef;
+field $_on_read :mutator :param = undef;
+field $_on_eof  :mutator :param = undef;
+field $_on_error :mutator :param = undef;
+field $_max_read_size :mutator :param = undef;
 field $_buffer	:mutator;
-field $_sysread :param :mutator;
+field $_sysread :mutator :param =undef;
 		
 	
 BUILD{
@@ -45,9 +45,11 @@ BUILD{
   $_sysread//=\&IO::FD::sysread;
 
 	
+  my $time=time;
+  my $clock=time;
   #my $time=0;
-  #$_time=\$time;
-  #$_clock=\$time;
+  $_time=\$time;
+  $_clock=\$clock;
 }
 
 
