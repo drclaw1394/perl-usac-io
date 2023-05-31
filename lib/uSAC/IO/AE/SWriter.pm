@@ -109,7 +109,6 @@ method _make_writer :override {
 
     #Push to queue if watcher is active or need to do a async call
     #say "Recursion counter is $_recursion_counter";
-    #if($_ww or $_recursion_counter > RECUSITION_LIMIT){
     if($_recursion_counter > RECUSITION_LIMIT or defined $_ww){
       #push @queue, [$_[0], 0, $cb, $arg];
       push @queue, [$_[0], 0, $cb];
@@ -117,46 +116,36 @@ method _make_writer :override {
       ($_ww = AE::io($wfh, 1, $sub)) unless ($_ww and $wfh);
       return();
     }
-    #else{
     
 
 
-      #unless(@queue){#  or $_ww){
-      #Attempt to write immediately when no watcher no queued items
-      $_recursion_counter++;
-      $time=$clock;
+    #Attempt to write immediately when no watcher no queued items
+    $_recursion_counter++;
+    $time=$clock;
 
-      $w = $syswrite->($wfh, $_[0]);
+    $w = $syswrite->($wfh, $_[0]);
 
-      #if( $offset==length($_[0]) ){
-      if( $w==length($_[0]) ){
-        #$cb and $cb->($arg);
-        $cb and &$cb;
-      }
-      elsif(!defined($w) and $! != EAGAIN and $! != EINTR){
-        #this is actual error
-        Log::OK::ERROR and log_error "SIO Writer: ERROR IN WRITE NO APPEND $!";
-        #actual error		
-        $_ww=undef;
-        $wfh=undef;
-        @queue=();	#reset queue for session reuse
-        $cb and $cb->();
-        $on_error and $on_error->($!);
-      }
-      else {
-        #The write did not send all the data. Queue it for async writing
-        #push @queue,[$_[0], $offset, $cb, $arg];
-        #push @queue,[$_[0], $w, $cb, $arg];
-        push @queue,[$_[0], $w, $cb];
-        $_ww = AE::io $wfh, 1, $sub unless $_ww;
-      }
-      #}
-    #######################################################
-    # else {                                              #
-    #   #Watcher or queue active to ensure its running.   #
-    #   $_ww = AE::io $wfh, 1, $sub unless $_ww and $wfh; #
-    # }                                                   #
-    #######################################################
+    #if( $offset==length($_[0]) ){
+    if( $w==length($_[0]) ){
+      $cb and &$cb;
+    }
+    elsif(!defined($w) and $! != EAGAIN and $! != EINTR){
+      #this is actual error
+      Log::OK::ERROR and log_error "SIO Writer: ERROR IN WRITE NO APPEND $!";
+      #actual error		
+      $_ww=undef;
+      $wfh=undef;
+      @queue=();	#reset queue for session reuse
+      $cb and $cb->();
+      $on_error and $on_error->($!);
+    }
+    else {
+      #The write did not send all the data. Queue it for async writing
+      #push @queue,[$_[0], $offset, $cb, $arg];
+      #push @queue,[$_[0], $w, $cb, $arg];
+      push @queue,[$_[0], $w, $cb];
+      $_ww = AE::io $wfh, 1, $sub unless $_ww;
+    }
     return ();
   };
 }
