@@ -67,6 +67,7 @@ sub connect_addr {
 
 	$id++;
 	my $res=IO::FD::connect $socket, $addr;
+  say $! unless $res;
   unless($res){
     #EAGAIN for pipes
     if($! == EAGAIN or $! == EINPROGRESS){

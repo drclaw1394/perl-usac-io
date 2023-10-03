@@ -9,7 +9,8 @@ our $VERSION="v0.1.0";
 use Import::These qw<uSAC::IO:: DReader DWriter SWriter SReader>;
 
 
-use Socket  ":all";
+#use Socket  ":all";
+use Socket::More;
 use IO::FD;
 
 
@@ -31,7 +32,7 @@ sub _reexport {
 
 use Net::DNS::Native;
 
-our $resolver=Net::DNS::Native->new(pool=>1, notify_on_begin=>1);
+our $resolver=Net::DNS::Native->new(pool=>5, notify_on_begin=>1);
 
 #asynchronous bind for tcp, udp, and unix sockets
 
@@ -69,12 +70,14 @@ use strict "refs";
 #Create a socket with required family, type an protocol
 #No bound or connected to anything
 #A wrapper around IO::FD::socket
-sub socket {
-	my $socket;
-	IO::FD::socket $socket, @_;
-	$socket;
-}
-
+#######################################
+# sub socket {                        #
+#         my $socket;                 #
+#         IO::FD::socket $socket, @_; #
+#         $socket;                    #
+# }                                   #
+#                                     #
+#######################################
 #Bind a socket to a host, port  or unix path. The host and port are strings
 #Which are attmped to be converted to address structures applicable for the
 #socket type Returns the address structure created Does not perform name
@@ -98,21 +101,23 @@ sub bind{
 
 	if($fam==AF_INET or $fam==AF_INET6){
 		my @addresses;
-		my $error;
+		my $ok;
 		my $flags=AI_PASSIVE;
-		$flags|=AI_NUMERICHOST if$host eq "localhost";
+		$flags|=AI_NUMERICHOST if $host eq "localhost";
 			#Convert to address structures. DO NOT do a name lookup
-		($error, @addresses)=getaddrinfo(
+		  $ok=getaddrinfo(
 			$host,
 			$port,
 			{
 				flags=>$flags,
 				family=>$fam,
 				type=>$type
-			}
+			},
+      @addresses
+
 		);
 
-		die $error if $error;
+		die gai_strerror($!) unless $ok;
 
 		my ($target)= grep {
 			$_->{family} == $fam	#Matches INET or INET6
@@ -144,24 +149,26 @@ sub connect{
 
 	my $type=unpack "I", IO::FD::getsockopt $socket, SOL_SOCKET, SO_TYPE;
 
-	my $error;
+	my $ok;
 	my @addresses;
 	my $addr;
 
 	if($fam==AF_INET or $fam==AF_INET6){
 		#Convert to address structures. DO NOT do a name lookup
-		($error, @addresses)=getaddrinfo(
+		$ok=getaddrinfo(
 			$host,
 			$port,
 			{
         #flags=>$host eq "localhost"? 0 : AI_NUMERICHOST,
 				family=>$fam,
 				socktype=>$type
-			}
+			},
+      @addresses
+
 		);
 
-    if($error){
-      $on_error and asap { $on_error->($socket, $error)};
+    unless($ok){
+      $on_error and asap { $on_error->($socket, gai_strerror $!)};
       return undef;
     }
 
