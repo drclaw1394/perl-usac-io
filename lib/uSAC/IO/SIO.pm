@@ -27,7 +27,14 @@ our @EXPORT=qw<connect_inet>;
 our %EXPORT_TAGS=(fields=>[qw<sreader_ swriter_ writer_ ctx_ on_error_ fh_>]);
 
 
-use enum qw<sreader_ swriter_ writer_ ctx_ on_error_ fh_>;
+use constant::more {
+  sreader_=>0,
+  swriter_=>1, 
+  writer_=>2,
+  ctx_=>3,
+  on_error_=>4,
+  fh_=>5
+};
 
 sub new {
 	my $package=shift//__PACKAGE__;

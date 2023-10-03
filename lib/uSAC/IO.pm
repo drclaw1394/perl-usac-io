@@ -3,15 +3,11 @@ use strict;
 use warnings;
 use feature "say";
 
-use version; our $VERSION=version->declare("v0.1");
+our $VERSION="v0.1.0";
 
 #Datagram
-use uSAC::IO::DReader;
-use uSAC::IO::DWriter;
+use Import::These qw<uSAC::IO:: DReader Dwriter SWriter SReader>;
 
-#Stream
-use uSAC::IO::SWriter;
-use uSAC::IO::SReader;
 
 use Socket  ":all";
 use IO::FD;
@@ -19,12 +15,18 @@ use IO::FD;
 
 
 
-use Exporter;# qw<import>;
+#use Exporter;# qw<import>;
+use Export::These;
 
+######################################################
+# sub import {                                       #
+#         Socket->export_to_level(1, undef, ":all"); #
+#                                                    #
+# }                                                  #
+######################################################
 
-sub import {
-	Socket->export_to_level(1, undef, ":all");
-
+sub _reexport {
+#Socket->import(":all");
 }
 
 use Net::DNS::Native;
@@ -42,19 +44,26 @@ die "Could not require $rb" unless(eval "require $rb");
 
 no strict "refs";
 
+our $Clock=time;
+
+
+
 sub asap (&);   # Schedule sub as soon as async possible
 sub timer ($$$);  # Setup a timer
 sub timer_cancel ($);
 sub connect_cancel ($);
 sub connect_addr;
 
-*asap=\&{$rb."::asap"};
 
+*asap=\&{$rb."::asap"};
 *timer=\&{$rb."::timer"};
 *timer_cancel=\&{$rb."::timer_cancel"};
-
 *connect_cancel=\&{$rb."::connect_cancel"};
 *connect_addr=\&{$rb."::connect_addr"};
+
+# Start a 1 second tick timer. This simply updates the 'clock' used for simple
+# timeout measurements.
+our $Tick_Timer=timer 0, 1, sub { $Clock=time; };
 
 use strict "refs";
 #Create a socket with required family, type an protocol

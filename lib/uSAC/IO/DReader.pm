@@ -9,7 +9,7 @@ use Errno qw(EAGAIN EINTR);
 
 use uSAC::IO::Common;
 
-use constant DEBUG=>0;
+use constant::more DEBUG=>0;
 
 my $backend=uSAC::IO::Common::detect_backend;
 

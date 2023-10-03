@@ -12,8 +12,14 @@ use Net::SSLeay;
 #Generates wrappers to do read and write operations with perl filehandles via SSL
 #Streams only
 
-use enum qw<STATE_NEW STATE_ACCEPT STATE_IO STATE_IDLE>;
-use constant {
+use constant::more {
+  STATE_NEW=>0,
+  STATE_ACCEPT=>1,
+  STATE_IO=>2,
+  STATE_IDLE=>3
+};
+
+use constant::more {
   SSL_ERROR_NONE=>0,
   SSL_ERROR_SSL=>1,
   SSL_ERROR_WANT_READ=>2,

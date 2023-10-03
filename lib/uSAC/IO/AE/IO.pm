@@ -5,12 +5,11 @@ use warnings;
 use feature qw<say try current_sub>;
 no warnings "experimental";
 
-use Socket ":all";#qw<AF_INET AF_INET6 AF_UNIX pack_sockaddr_in pack_sockaddr_in6 pack_sockaddr_un>;
+use Socket ":all";
 use Errno qw(EAGAIN EINTR EINPROGRESS);
 use parent "uSAC::IO";
 
 use AnyEvent;
-#use IO::FD::DWIM ":all";
 use IO::FD;
 
 

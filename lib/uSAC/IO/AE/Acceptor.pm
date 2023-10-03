@@ -5,7 +5,7 @@ package uSAC::IO::AE::Acceptor;
 #Only force a nonblocking setting if needed. ie linux => true
 #     bsd and dawrwin false
 #     others true
-use constant SET_NONBLOCKING=>$^O eq "darwin"? undef: $^Oeq "linux"?1:1;
+use constant::more SET_NONBLOCKING=>$^O eq "darwin"? undef: $^Oeq "linux"?1:1;
 
 use Fcntl qw(F_GETFL F_SETFL O_NONBLOCK);
 use AnyEvent;

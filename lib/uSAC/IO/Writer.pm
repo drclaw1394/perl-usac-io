@@ -30,11 +30,16 @@ BUILD {
 	#$self->[writer_]=undef;
 	#@_queue;
   
-  my $time=time;
-  my $clock=time;
+  unless(ref $_time){
+    # Link to dummy time variable is none provided
+    my $time=time;
+    $_time=\$time;
+  }
 
-  $_time=\$time;
-  $_clock=\$clock;
+  unless(ref $_clock){
+    # always need  a clock
+    $_clock=\$uSAC::IO::Clock;
+  }
 
 }
 

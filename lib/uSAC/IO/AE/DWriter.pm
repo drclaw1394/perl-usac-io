@@ -8,7 +8,7 @@ use AnyEvent;
 use Log::ger;
 use Log::OK;
 use Errno qw(EAGAIN EINTR);
-use constant DEBUG=>1;
+use constant::more DEBUG=>1;
 
 field $_ww;
 field $_wfh_ref;

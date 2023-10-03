@@ -9,7 +9,7 @@ use Errno qw(EAGAIN EINTR EINPROGRESS);
 use Socket ":all";#qw<AF_INET SOCK_STREAM SOCK_DGRAM pack_sockaddr_in inet_aton>;
 use Fcntl qw(F_GETFL F_SETFL O_NONBLOCK);
 
-use constant DEBUG=>0;
+use constant::more DEBUG=>0;
 
 field $_rw;
 field $_reader;

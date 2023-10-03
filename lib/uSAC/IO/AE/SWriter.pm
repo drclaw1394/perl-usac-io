@@ -14,7 +14,7 @@ use Errno qw(EAGAIN EINTR);
 use parent "uSAC::IO::Writer";
 use uSAC::IO::Writer qw<:fields>;
 
-use constant RECUSITION_LIMIT=>5;
+use constant::more RECUSITION_LIMIT=>5;
 
 field $_ww;		# Actual new variable for sub class
 field $_wfh_ref;
