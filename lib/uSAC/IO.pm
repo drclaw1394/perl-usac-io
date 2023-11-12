@@ -16,23 +16,15 @@ use IO::FD;
 
 
 
-#use Exporter;# qw<import>;
 use Export::These;
 
-######################################################
-# sub import {                                       #
-#         Socket->export_to_level(1, undef, ":all"); #
-#                                                    #
-# }                                                  #
-######################################################
 
 sub _reexport {
-#Socket->import(":all");
 }
 
-use Net::DNS::Native;
+#use Net::DNS::Native;
 
-our $resolver=Net::DNS::Native->new(pool=>5, notify_on_begin=>1);
+#our $resolver=Net::DNS::Native->new(pool=>5, notify_on_begin=>1);
 
 #asynchronous bind for tcp, udp, and unix sockets
 
@@ -85,18 +77,20 @@ use strict "refs";
 #A special case of localhost is resolved to the loopback devices appropriate to
 #the family of the socket
 #my ($package, $socket, $host, $port, $on_bind, $on_error)=@_;
-sub bind{
-	my ($socket, $host, $port)=@_;
 
+
+sub bind{
+	my ($socket, $host, $port, $on_bind, $on_error)=@_;
+  $socket=fileno($socket) if ref $socket;
 	my $fam= sockaddr_family IO::FD::getsockname $socket;
 
 	die  "Not a socket" unless defined $fam;
 
 	my $type=unpack "I", IO::FD::getsockopt $socket, SOL_SOCKET, SO_TYPE;
 
-	say "Family is $fam, type is $type";
-	say AF_INET;
-	say SOCK_DGRAM;
+  #say "Family is $fam, type is $type";
+  #say AF_INET;
+  #say SOCK_DGRAM;
 	my $addr;
 
 	if($fam==AF_INET or $fam==AF_INET6){
@@ -113,11 +107,17 @@ sub bind{
 				family=>$fam,
 				type=>$type
 			},
+
       @addresses
 
 		);
 
-		die gai_strerror($!) unless $ok;
+    unless($ok){
+      $on_error and asap { $on_error->($socket, gai_strerror $!)};
+      return;
+    }
+
+    #die gai_strerror($!) unless $ok;
 
 		my ($target)= grep {
 			$_->{family} == $fam	#Matches INET or INET6
@@ -129,9 +129,18 @@ sub bind{
 		$addr=pack_sockaddr_un $host;
 	}
 	else {
-		die "Unsupported socket address family";
+    #die "Unsupported socket address family";
+    $on_error and asap { $on_error->($socket, "Unsupported socket address family")};
 	}
-	IO::FD::bind($socket, $addr) and $addr;
+
+	if(IO::FD::bind($socket, $addr)){
+    say "BIND OK $addr";
+      $on_bind and asap { $on_bind->($socket, $addr)};
+  }
+  else {
+    my $err=$!;
+     $on_error and asap { $on_error->($socket, $err)};
+  }
 }
 
 
@@ -139,6 +148,7 @@ sub bind{
 
 sub connect{
 	my ($socket, $host, $port, $on_connect, $on_error)=@_;
+  $socket=fileno($socket) if ref $socket;
 	my $fam= sockaddr_family IO::FD::getsockname $socket;
 
   unless(defined $fam){
@@ -148,7 +158,6 @@ sub connect{
   }
 
 	my $type=unpack "I", IO::FD::getsockopt $socket, SOL_SOCKET, SO_TYPE;
-
 	my $ok;
 	my @addresses;
 	my $addr;
@@ -239,6 +248,7 @@ sub writer {
 		}
 	}
 	else {
+    say "OTHER SOCKET TYPE";
 		#OTHER?
 		#TODO: fix this
 		return &swriter;

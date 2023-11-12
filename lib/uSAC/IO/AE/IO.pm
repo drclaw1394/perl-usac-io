@@ -2,12 +2,14 @@ package uSAC::IO::AE::IO;
 
 use strict;
 use warnings;
+#use v5.36;
 use feature qw<say try current_sub>;
 no warnings "experimental";
 
-use Socket ":all";
+#use Socket ":all";
+#use Socket::More;
 use Errno qw(EAGAIN EINTR EINPROGRESS);
-use parent "uSAC::IO";
+#use parent "uSAC::IO";
 
 use AnyEvent;
 use IO::FD;
@@ -68,6 +70,7 @@ sub connect_addr {
 	$id++;
 	my $res=IO::FD::connect $socket, $addr;
   say $! unless $res;
+  say "after connect on $socket";
   unless($res){
     #EAGAIN for pipes
     if($! == EAGAIN or $! == EINPROGRESS){

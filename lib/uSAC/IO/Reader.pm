@@ -11,8 +11,8 @@ use Log::OK;
 
 use Errno qw(EAGAIN EINTR);
 use Fcntl qw(F_GETFL F_SETFL O_NONBLOCK);
-use Data::Dumper;
-use Exporter "import";
+#use Data::Dumper;
+#use Exporter "import";
 
 #use IO::FD::DWIM ":all";
 use IO::FD;
@@ -34,7 +34,7 @@ field $_sysread :mutator :param =undef;
 		
 	
 BUILD{
-	$_fh=fileno $_fh if ref($_fh);	#Ensure we are working with a fd
+	$_fh=fileno($_fh) if ref($_fh);	#Ensure we are working with a fd
 	IO::FD::fcntl $_fh, F_SETFL, O_NONBLOCK;
 
 	$_on_read//=sub {$self->pause};

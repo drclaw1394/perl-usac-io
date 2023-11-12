@@ -1,7 +1,7 @@
 package uSAC::IO::Common;
 use strict;
 use warnings;
-use Carp qw<carp>;
+#use Carp qw<carp>;
 
 
 sub detect_backend{
@@ -16,7 +16,7 @@ sub detect_backend{
 		#...
 	}
 	else {
-		carp "No event system detected. defaulting to AE";
+		warn "No event system detected. defaulting to AE";
 		#set default to any event
 		$backend="uSAC::IO::AE";
 	}
