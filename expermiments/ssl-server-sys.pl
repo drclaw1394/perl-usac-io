@@ -27,7 +27,7 @@ Net::SSLeay::randomize();
 my $ctx = Net::SSLeay::CTX_new ();
 $ctx or die_now("CTX_new ($ctx): $!\n");
 Net::SSLeay::CTX_set_cipher_list($ctx,'ALL');
-Net::SSLeay::set_cert_and_key($ctx, $cert_pem, $key_pem) or die "key";
+Net::SSLeay::set_cert_and_key($ctx, $cert_pem, $key_pem) or die "key: $!";
 
 
 

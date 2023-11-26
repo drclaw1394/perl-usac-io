@@ -13,7 +13,7 @@ use uSAC::IO;
 
 use Socket ":all";
 
-sub parse_DNS;
+sub decode_DNS;
 my $cv=AE::cv;
 
 my $port=5353;#5050;
@@ -64,7 +64,7 @@ sub post_bind {
   my $reader=uSAC::IO::reader(fh=>$fh);
   my $writer=uSAC::IO::writer(fh=>\*STDOUT);
 
-  $reader->on_read=\&parse_DNS;
+  $reader->on_read=\&decode_DNS;
   $reader->start;
 
 
@@ -119,23 +119,40 @@ $cv->recv;
 #additional
 
 #https://www.iana.org/assignments/dns-parameters/dns-parameters.xhtml#dns-parameters-2
-my $i=1;
-my %type=((map { ($_,$i++)} qw<A NS MD MF CNAME SOA MB MG MR NULL WKS PTR HINFO MINFO MX TXT>),AAAA=>28);
+my %type;
+my %qtype;
+my %class;
+my %qclass;
+my $i;
+BEGIN{
+  my $i=1;
+  %type=((map { ($_, $i++)} qw<A NS MD MF CNAME SOA MB MG MR NULL WKS PTR HINFO MINFO MX TXT>),AAAA=>28);
+  %qtype=(%type, AFXR=>252, MAILB=>253, MAILA=>254, "*"=>255);
+
+  $i=1;
+  %class=map { ($_,$i++)} qw<IN CS CH HS>;
+  %qclass=(%class, "*"=>255);
+
+
+}
+use constant::more map { ("DNS_RR_TYPE_$_", $type{$_})} keys %type;
+use constant::more map { ("DNS_Q_TYPE_$_", $type{$_})} keys %qtype;
+
+use constant::more map { ("DNS_RR_CLASS_$_", $class{$_})} keys %class;
+use constant::more map { ("DNS_Q_TYPE_$_", $qclass{$_})} keys %qclass;
 
 my $rev_type=reverse %type;
-
-my %qtype=(%type, AFXR=>252, MAILB=>253, MAILA=>254, "*"=>255);
 my %rev_qtype=reverse %qtype;
 
-$i=1;
-my %class=map { ($_,$i++)} qw<IN CS CH HS>;
 my $rev_class=reverse %class;
-
-my %qclass=(%class, "*"=>255);
 my %rev_qclass=reverse %qclass;
 
+my @rr_decoders;
+$rr_decoders[DNS_RR_TYPE_A]=\&decode_A_rr;
+$rr_decoders[DNS_RR_TYPE_CNAME]=\&decode_CNAME_rr;
 
-sub parse_DNS {
+sub decode_DNS {
+  say "PARSE: ".unpack "H*", $_[0];
 	################################################
 	# use Data::Dumper;                            #
   use Net::DNS::Packet;
@@ -146,14 +163,15 @@ sub parse_DNS {
 	################################################
 	say "";
 	say "";
-	my $total_offset=0;
-	\my $buf=\$_[0];
-	my ($id, $details, $qd_count, $an_count, $ns_count, $ar_count)=unpack "n*", substr $buf, 0,12;
-	$total_offset=12;
+  #my $org_message=$_[0]; # Copy for name decoding
+  my $total_offset=0;    # Reset offset
+
+	my ($id, $details, $qd_count, $an_count, $ns_count, $ar_count)=unpack "n6", substr $_[0], $total_offset, 12;
+  $total_offset+=12;
   
-  open my $out, ">", "out.dat";
-  print $out  $buf;
-  close $out;
+  #open my $out, ">", "out.dat";
+  #print $out  $buf;
+  #close $out;
 
 	my ($query, $op_code, $aa, $tc,$rd,$ra,$z, $rcode);
 	$query=$details >> 15;
@@ -173,34 +191,45 @@ sub parse_DNS {
 	say "R count: ",$ar_count;
 
   say "";
+  my $prev;
   say "questions";
   for(1..$qd_count){
-    my $label=decode_name(\$_[0], \$total_offset);
-    my ($type, $class)=unpack "nn", substr $buf, $total_offset;
+    #$prev=$total_offset;
+    my $label=decode_name($_[0], $total_offset);
+    my ($type, $class)=unpack "nn", substr $_[0], $total_offset, 4;
     $total_offset+=4;
+
     say  "Label: $label, type $type, class $class";
     say"";
+    # 
   }
   say "";
   say "Answers:";
   for(1..$an_count){
-    my $label=decode_name(\$_[0], \$total_offset);
-    my ($type, $class, $ttl, $rd_len)=unpack "nnNn", substr $buf, $total_offset;
+    #$prev=$total_offset;
+    my $label=decode_name($_[0], $total_offset);
+    #substr $_[0], 0, $total_offset-$prev, "";
+    say "Total offset: $total_offset";
+    my ($type, $class, $ttl, $rd_len)=unpack "nnNn", substr $_[0], $total_offset, 10;# $total_offset;
     say  "Label: $label, type $type, class $class, ttl $ttl, rd_len: $rd_len";
-
     $total_offset+=10;
-    my $rdata=substr $buf,$total_offset, $rd_len;
+    my $rdata=substr $_[0], 0, $rd_len; #$total_offset, $rd_lenr
     $total_offset+=$rd_len;
+
+    #Lookup type in
+
+
   }
   $_[0]="";
 }
 
+# $_[0] is buffer
+# $_[1] is offset
 sub decode_name {
 say "DECODE NAME";
-  \my $buf=$_[0];
-	\my $overall=$_[1];
 
-	my @stack=($overall);
+  my $prev= $_[1];
+	my @stack=($_[1]);
 
 	my $pos;
   my $pointer;
@@ -211,31 +240,124 @@ say "DECODE NAME";
   while(@stack){
     $pos=pop @stack;
 
-    my ($u, $l)=unpack "CC", substr $buf, $pos;
+    my ($u, $l)=unpack "CC", substr $_[0], $pos;
 
     if(0xC0 == ($u& 0xC0)) {
       $pointer= ($u& 0x3F)<<8;
       $pointer+=$l;
 
-      $overall+=2 unless $seen_ptr;
+      $_[1]+=2 unless $seen_ptr;
       $seen_ptr=1;
       push @stack, $pointer;
     }
     elsif($u) {
       #con
       $pos++;
-      $label=unpack "a*", substr $buf, $pos, $u;
+      $label=unpack "a*", substr $_[0], $pos, $u;
       push @labels, $label;
       $pos+=$u;
-      $overall+=($u+1) unless $seen_ptr;
+      $_[1]+=($u+1) unless $seen_ptr;
       push @stack, $pos;
     }
     else {
       #empty label
-      $overall++ unless $seen_ptr;
+      $_[1]++ unless $seen_ptr;
     }
     #last unless $label;
   }
+  #substr $_[0], 0, $_[2]-$prev, "";
 
   join ".", @labels;
+
 }
+
+sub decode_rr {
+  
+}
+
+
+# supports compression. first argument is original buffer, second buffer is offset
+sub _decode_name { [&decode_name]}
+*decode_CNAME_rr=\*_decode_name;
+*decode_MB_rr=\*_decode_name;
+*decode_MF_rr=\*_decode_name;
+*decode_MG_rr=\*_decode_name;
+
+sub decode_MINFO_rr {
+  my @e=(&decode_name, &decode_name);
+  return undef unless @e==2;
+  \@e;
+}
+
+*decode_MR_rr=\*_decode_name;
+
+sub decode_MX_rr {
+  my @e=unpack "v", substr $_[0], $_[1], 2;
+  $_[1]+=2;
+  push @e, &decode_name;
+  \@e;
+}
+
+# buf, offset, rdata_len
+sub decode_NULL_rr {
+  my @e=substr $_[0], $_[1], $_[2];
+  $_[1]+=$_[2];
+  \@e;
+  
+}
+
+*decode_NS_rr=\*_decode_name;
+*decode_PTR_rr=\*_decode_name;
+
+sub decode_SOA_rr {
+  my @e=( &decode_name &decode_name);
+  push @e, unpack "V5", substr $_[0], $_[0];
+  $_[1]+=20;
+  \@e;
+}
+
+sub decode_TXT_rr {
+  my @e;
+  my $len=0;
+  my $s;
+  while($len<$_[2]){
+    $s=unpack "C/a*", substr $_[0], $_[1]+$len;
+    $len+=length $s;
+    push @e, $s;
+  }
+  $_[1]+=$len;
+  \@e;
+}
+
+sub decode_A_rr {
+  my @e=unpack "V", substr $_[0], $_[1];
+  $_[1]+=4;
+  \@e;
+}
+
+sub decode_WKS_rr {
+  my @e=unpack "VC", substr $_[0], $_[1];
+  $_[1]+=5;
+  push @e, substr $_[0], $_[1],$_[2]-5;
+  $_[1]+=$_[2]-5;
+  \@e;
+}
+
+sub decode_HINFO_rr {
+  my @hc=unpack  "C/a* C/a*", substr $_[0], $_[1];
+  return undef unless @hc==2;
+  my $len=length($hc[0])+length($hc[1])+2;
+  $_[1]+=$len; 
+  #substr $_[0], 0, $len, "";
+  \@hc;
+}
+
+
+#++
+
+sub encode_HINFO_rr {
+  \my $buf=$_[0]; shift;
+  $buf.=pack "v/a* v/a*", $_[0]->@*;
+}
+
+
