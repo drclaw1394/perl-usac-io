@@ -36,10 +36,10 @@ unless(setsockopt $fh, SOL_SOCKET, SO_REUSEPORT, 1){
 
 
 my $addr;
-uSAC::IO::bind($fh, $host, $port,
+uSAC::IO::bind($fh, $host, $port, {},
   \&post_bind,
   sub {
-        die "Could not bind";
+    die "Could not bind";
   }
 );
 
@@ -110,7 +110,6 @@ sub post_bind {
   };
 }
 
-$cv->recv;
 
 #Header
 #question
@@ -141,18 +140,37 @@ use constant::more map { ("DNS_Q_TYPE_$_", $type{$_})} keys %qtype;
 use constant::more map { ("DNS_RR_CLASS_$_", $class{$_})} keys %class;
 use constant::more map { ("DNS_Q_TYPE_$_", $qclass{$_})} keys %qclass;
 
-my $rev_type=reverse %type;
+my %rev_type=reverse %type;
 my %rev_qtype=reverse %qtype;
 
-my $rev_class=reverse %class;
+my %rev_class=reverse %class;
 my %rev_qclass=reverse %qclass;
 
 my @rr_decoders;
-$rr_decoders[DNS_RR_TYPE_A]=\&decode_A_rr;
-$rr_decoders[DNS_RR_TYPE_CNAME]=\&decode_CNAME_rr;
+for my ($k,$v)(
+  DNS_RR_TYPE_A, \&decode_A_rr,
+  DNS_RR_TYPE_NS, \&decode_NS_rr,
+  DNS_RR_TYPE_MD,\&decode_MD_rr,
+  DNS_RR_TYPE_CNAME,\&decode_CNAME_rr,
+  DNS_RR_TYPE_SOA,\&decode_SOA_rr,
+  DNS_RR_TYPE_MB,\&decode_MB_rr,
+  DNS_RR_TYPE_MG,\&decode_MG_rr,
+
+  DNS_RR_TYPE_MR,\&decode_MR_rr,
+  DNS_RR_TYPE_NULL,\&decode_NULL_rr,
+  DNS_RR_TYPE_WKS,\&decode_WKS_rr,
+  DNS_RR_TYPE_PTR,\&decode_PTR_rr,
+  DNS_RR_TYPE_HINFO,\&decode_HINFO_rr,
+  DNS_RR_TYPE_MINFO,\&decode_MINFO_rr,
+  DNS_RR_TYPE_MX,\&decode_MX_rr,
+  DNS_RR_TYPE_TXT,\&decode_TXT_rr,
+  DNS_RR_TYPE_AAAA,\&decode_AAAA_rr,
+){
+  $rr_decoders[$k]=$v;
+}
 
 sub decode_DNS {
-  say "PARSE: ".unpack "H*", $_[0];
+#say "PARSE: ".unpack "H*", $_[0];
 	################################################
 	# use Data::Dumper;                            #
   use Net::DNS::Packet;
@@ -185,10 +203,10 @@ sub decode_DNS {
 	#pack
 	say "ID: ".$id;
 	say "Details: Query: $query, op_code: $op_code, aa: $aa, rd: $rd, ra: $ra, z: $z, rcode: $rcode";
-	say "Q count: ",$qd_count;
-	say "A count: ",$an_count;
-	say "N count: ",$ns_count;
-	say "R count: ",$ar_count;
+	say "Q count: ".$qd_count;
+	say "A count: ".$an_count;
+	say "N count: ".$ns_count;
+	say "R count: ".$ar_count;
 
   say "";
   my $prev;
@@ -204,21 +222,34 @@ sub decode_DNS {
     # 
   }
   say "";
-  say "Answers:";
-  for(1..$an_count){
-    #$prev=$total_offset;
-    my $label=decode_name($_[0], $total_offset);
-    #substr $_[0], 0, $total_offset-$prev, "";
-    say "Total offset: $total_offset";
-    my ($type, $class, $ttl, $rd_len)=unpack "nnNn", substr $_[0], $total_offset, 10;# $total_offset;
-    say  "Label: $label, type $type, class $class, ttl $ttl, rd_len: $rd_len";
-    $total_offset+=10;
-    my $rdata=substr $_[0], 0, $rd_len; #$total_offset, $rd_lenr
-    $total_offset+=$rd_len;
+  my $section=0;
+  my @sections=qw<Answers Authorative Additional>;
+  for my $count($an_count, $ns_count, $ar_count){
+    say "Processing section: $sections[$section] at offset $total_offset (length ".length $_[0];
+    for(1..$count){
+      #$prev=$total_offset;
+      my $label=decode_name($_[0], $total_offset);
+      say "Total offset(after name): $total_offset";
+      my ($type, $class, $ttl, $rd_len)=unpack "nnNn", substr $_[0], $total_offset, 10;# $total_offset;
+      $total_offset+=10;
 
-    #Lookup type in
+      say  "Label: $label, type $type, class $class, ttl $ttl, rd_len: $rd_len";
+      say "REV TYPE: $rev_type{$type}";
 
-
+      my $decoder=$rr_decoders[$type];
+      if($decoder){
+        my $res=$decoder->($_[0], $total_offset, $rd_len);
+        say length $res->[0];
+        use Data::Dumper;
+        say Dumper $res;
+      }
+      else {
+        say "UNSUPPORTED TYPE:  $type ($rev_type{$type})";
+        $total_offset+=$rd_len;
+      }
+      say "Total offset(after r data): $total_offset";
+    }
+    $section++;
   }
   $_[0]="";
 }
@@ -227,8 +258,8 @@ sub decode_DNS {
 # $_[1] is offset
 sub decode_name {
 say "DECODE NAME";
+say "========";
 
-  my $prev= $_[1];
 	my @stack=($_[1]);
 
 	my $pos;
@@ -239,9 +270,17 @@ say "DECODE NAME";
 
   while(@stack){
     $pos=pop @stack;
+    say "";
+  say "Offset: $pos";
+  say "length ".length $_[0];
+  #say "value: ".substr $_[0], $pos;
+
 
     my ($u, $l)=unpack "CC", substr $_[0], $pos;
 
+    #say "TEST: ". unpack "H*", pack "C", 13;
+    say "UPPER: ".unpack "H*",pack "C", $u;
+    say "lower:".unpack "H*", pack "C", $l;
     if(0xC0 == ($u& 0xC0)) {
       $pointer= ($u& 0x3F)<<8;
       $pointer+=$l;
@@ -249,6 +288,10 @@ say "DECODE NAME";
       $_[1]+=2 unless $seen_ptr;
       $seen_ptr=1;
       push @stack, $pointer;
+    }
+    elsif(0x40 ==($u&0xC0)){
+        die "EXTENED DNS LABEL FOUND";
+
     }
     elsif($u) {
       #con
@@ -265,7 +308,6 @@ say "DECODE NAME";
     }
     #last unless $label;
   }
-  #substr $_[0], 0, $_[2]-$prev, "";
 
   join ".", @labels;
 
@@ -322,7 +364,7 @@ sub decode_TXT_rr {
   my $s;
   while($len<$_[2]){
     $s=unpack "C/a*", substr $_[0], $_[1]+$len;
-    $len+=length $s;
+    $len+=length($s)+1;
     push @e, $s;
   }
   $_[1]+=$len;
@@ -330,7 +372,7 @@ sub decode_TXT_rr {
 }
 
 sub decode_A_rr {
-  my @e=unpack "V", substr $_[0], $_[1];
+  my @e=unpack "a4", substr $_[0], $_[1];
   $_[1]+=4;
   \@e;
 }
@@ -353,6 +395,14 @@ sub decode_HINFO_rr {
 }
 
 
+
+
+sub decode_AAAA_rr {
+  my @e=unpack "a16", substr $_[0], $_[1];
+  $_[1]+=16;
+  \@e;
+}
+
 #++
 
 sub encode_HINFO_rr {
@@ -361,3 +411,4 @@ sub encode_HINFO_rr {
 }
 
 
+$cv->recv;

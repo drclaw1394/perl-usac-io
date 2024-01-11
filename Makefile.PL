@@ -5,7 +5,7 @@ WriteMakefile(
     MIN_PERL_VERSION  => '5.24.0',
     PREREQ_PM         => {
 				AnyEvent=>0,
-				"IO::FD"=>"v0.2.0",
+				"IO::FD"=>"v0.3.3",
 				"Log::ger"=>0,
 				"Log::OK"=>0,
 				"Object::Pad"=>0,

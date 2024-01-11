@@ -9,9 +9,10 @@ our $VERSION="v0.1.0";
 use Import::These qw<uSAC::IO:: DReader DWriter SWriter SReader>;
 
 
-#use Socket  ":all";
 use Socket::More;
-use IO::FD;
+use Socket::More::Resolver {}, undef;
+use IO::FD::DWIM ();
+use Fcntl qw(F_GETFL F_SETFL O_NONBLOCK :mode);
 
 
 
@@ -22,9 +23,7 @@ use Export::These;
 sub _reexport {
 }
 
-#use Net::DNS::Native;
 
-#our $resolver=Net::DNS::Native->new(pool=>5, notify_on_begin=>1);
 
 #asynchronous bind for tcp, udp, and unix sockets
 
@@ -41,7 +40,7 @@ our $Clock=time;
 
 
 
-sub asap (&);   # Schedule sub as soon as async possible
+sub asap (*@);   # Schedule sub as soon as async possible
 sub timer ($$$);  # Setup a timer
 sub timer_cancel ($);
 sub connect_cancel ($);
@@ -78,113 +77,216 @@ use strict "refs";
 #the family of the socket
 #my ($package, $socket, $host, $port, $on_bind, $on_error)=@_;
 
-
-sub bind{
-	my ($socket, $host, $port, $on_bind, $on_error)=@_;
-  $socket=fileno($socket) if ref $socket;
-	my $fam= sockaddr_family IO::FD::getsockname $socket;
-
-	die  "Not a socket" unless defined $fam;
-
-	my $type=unpack "I", IO::FD::getsockopt $socket, SOL_SOCKET, SO_TYPE;
-
-  #say "Family is $fam, type is $type";
-  #say AF_INET;
-  #say SOCK_DGRAM;
-	my $addr;
-
-	if($fam==AF_INET or $fam==AF_INET6){
-		my @addresses;
-		my $ok;
-		my $flags=AI_PASSIVE;
-		$flags|=AI_NUMERICHOST if $host eq "localhost";
-			#Convert to address structures. DO NOT do a name lookup
-		  $ok=getaddrinfo(
-			$host,
-			$port,
-			{
-				flags=>$flags,
-				family=>$fam,
-				type=>$type
-			},
-
-      @addresses
-
-		);
-
-    unless($ok){
-      $on_error and asap { $on_error->($socket, gai_strerror $!)};
-      return;
-    }
-
-    #die gai_strerror($!) unless $ok;
-
-		my ($target)= grep {
-			$_->{family} == $fam	#Matches INET or INET6
-			#and $_->{socktype} == $type #Stream/dgram
-			} @addresses;
-		$addr=$target->{addr};
-	}
-	elsif($fam==AF_UNIX){
-		$addr=pack_sockaddr_un $host;
-	}
-	else {
-    #die "Unsupported socket address family";
-    $on_error and asap { $on_error->($socket, "Unsupported socket address family")};
-	}
-
-	if(IO::FD::bind($socket, $addr)){
-    say "BIND OK $addr";
-      $on_bind and asap { $on_bind->($socket, $addr)};
+sub fd_2_fh {
+  my $socket=$_[0];
+  unless(ref $socket){
+    # Convert to a filehandle to work with built in perl test functions
+    open($socket, "<&=", $socket)
   }
   else {
-    my $err=$!;
-     $on_error and asap { $on_error->($socket, $err)};
+    #Assume it is already a perl file handle and 
   }
+  $socket;
+}
+
+sub bind ($$$;$&&) {
+  my ($socket, $host, $port, $spec, $on_bind, $on_error)=@_;
+
+  # TODO: First check if hints is a scalar, and parse into spec
+  my $hints=$spec; 
+  
+  my $fam;
+  my $type;
+  my $protocol;
+
+  if(!defined $socket){
+    my $res=IO::FD::socket $socket, $fam=$hints->{family}, $type=$hints->{type}, $protocol=$hints->{protocol}//0;
+    unless ($res){
+      $on_error && asap $on_error, $!;
+      return;
+    }
+    # set socket to non block mode as we are async library ;)
+    # TODO open a socket with platform specific flags to avoid this extra call
+    $res= IO::FD::fcntl $socket, F_SETFL, O_NONBLOCK;
+    unless (defined $res){
+      $on_error && asap $on_error, $!;
+    }
+  }
+  else {
+    # Get filedescriptor if not  a filedescriptor
+    #$socket=fileno($socket) if ref $socket;
+  }
+
+  
+  #my $fam= sockaddr_family IO::FD::DWIM::getsockname $socket;
+  #die  "Not a socket" unless defined $fam;
+  #my $type=unpack "I", IO::FD::DWIM::getsockopt $socket, SOL_SOCKET, SO_TYPE;
+  my $addr;
+
+  $type=$hints->{socktype}//=unpack "I", IO::FD::DWIM::getsockopt $socket, SOL_SOCKET, SO_TYPE;
+  $fam=$hints->{family}//=sockaddr_family IO::FD::DWIM::getsockname $socket;
+
+  $hints->{port}//=$port;
+  $hints->{address}//=$host;
+  $hints->{type}=$hints->{socktype};
+  use Data::Dumper;
+  say "HINTS: ".Dumper $hints;
+  #IP_RECVIF on mac os?
+  #IP_BOUNDIF
+  #SO_BINDTODEVICE on linux
+  #Create the address strucure we need
+  my @res=Socket::More::sockaddr_passive $hints;
+  say "after";
+  for (@res){
+    say "LOOP: ".$_;
+    say Dumper $_;
+    my $addr=$_->{addr};
+    if(IO::FD::DWIM::bind($socket, $addr)){
+      say "BIND OK $addr";
+      $on_bind and $on_bind->($socket, $addr);
+    }
+    else {
+      say "ERROR: ". $!;
+      my $err=$!;
+       $on_error and $on_error->($socket, $err);
+    }
+  }
+
+  #################################################################################
+  # if($fam==AF_INET or $fam==AF_INET6){                                          #
+  #   my $ok;                                                                     #
+  #   my $flags=AI_PASSIVE;                                                       #
+  #   $flags|=AI_NUMERICHOST if $host eq "localhost";                             #
+  #   #Convert to address structures. DO NOT do a name lookup                     #
+  #   $ok=Socket::More::Resolver::getaddrinfo(                                    #
+  #     $host,                                                                    #
+  #     $port,                                                                    #
+  #     {                                                                         #
+  #       flags=>$flags,                                                          #
+  #       family=>$fam,                                                           #
+  #       type=>$type                                                             #
+  #     },                                                                        #
+  #                                                                               #
+  #     sub {                                                                     #
+  #       my ($target)= grep {                                                    #
+  #         $_->{family} == $fam  #Matches INET or INET6                          #
+  #         #and $_->{socktype} == $type #Stream/dgram                            #
+  #       } @_;                                                                   #
+  #                                                                               #
+  #       $addr=$target->{addr};                                                  #
+  #       if(IO::FD::DWIM::bind($socket, $addr)){                                 #
+  #         say "BIND OK $addr";                                                  #
+  #           $on_bind and $on_bind->($socket, $addr);                            #
+  #       }                                                                       #
+  #       else {                                                                  #
+  #         my $err=$!;                                                           #
+  #          $on_error and $on_error->($socket, $err);                            #
+  #       }                                                                       #
+  #     },                                                                        #
+  #                                                                               #
+  #     sub {                                                                     #
+  #         $on_error and $on_error->($socket, gai_strerror $!);                  #
+  #     }                                                                         #
+  #   );                                                                          #
+  # }                                                                             #
+  # elsif($fam==AF_UNIX){                                                         #
+  #   $addr=pack_sockaddr_un $host;                                               #
+  #   if(IO::FD::DWIM::bind($socket, $addr)){                                     #
+  #     say "BIND OK $addr";                                                      #
+  #       $on_bind and asap $on_bind, $socket, $addr;                             #
+  #   }                                                                           #
+  #   else {                                                                      #
+  #     my $err=$!;                                                               #
+  #      $on_error and asap $on_error, $socket, $err;                             #
+  #   }                                                                           #
+  # }                                                                             #
+  # else {                                                                        #
+  #   #die "Unsupported socket address family";                                   #
+  #   $on_error and asap $on_error, $socket, "Unsupported socket address family"; #
+  #################################################################################
+  #}
+
 }
 
 
 
+# TODO: allow a string as a spec to be used instead of hints? Only valid when host is undef.
+# TODO: allow host and port (addr and po ) in spec when host and port are undef for spec processing
+sub connect ($$$$;\[&$]\[&$]){
 
-sub connect{
-	my ($socket, $host, $port, $on_connect, $on_error)=@_;
-  $socket=fileno($socket) if ref $socket;
-	my $fam= sockaddr_family IO::FD::getsockname $socket;
-
-  unless(defined $fam){
-    # TODO:  create an exception object
-    $on_error and asap { $on_error->($socket, "Not a socket")};
-    return undef;
+	my ($socket, $host, $port, $hints, $on_connect, $on_error)=@_;
+  #If socket is not defined, we attempt to create one
+  my $fam;
+  my $type;
+  my $protocol;
+  if(!defined $socket){
+    my $res=IO::FD::socket $socket, $fam=$hints->{family}, $type=$hints->{type}, $protocol=$hints->{protocol}//0;
+    unless ($res){
+      say $!;
+      $on_error && asap $on_error, $!;
+      return;
+    }
+    # set socket to non block mode as we are async library ;)
+    # TODO open a socket with platform specific flags to avoid this extra call
+    $res= IO::FD::fcntl $socket, F_SETFL, O_NONBLOCK;
+    unless (defined $res){
+      $on_error && asap { $on_error->($!)};
+    }
+  }
+  else {
+    # Get filedescriptor if not  a filedescriptor
+    #$socket=fileno($socket) if ref $socket;
   }
 
-	my $type=unpack "I", IO::FD::getsockopt $socket, SOL_SOCKET, SO_TYPE;
+  #my $fam= sockaddr_family IO::FD::DWIM::getsockname $socket;
+
+  #################################################################
+  # unless(defined $fam){                                         #
+  #   # TODO:  create an exception object                         #
+  #   $on_error and asap { $on_error->($socket, "Not a socket")}; #
+  #   return undef;                                               #
+  # }                                                             #
+  #################################################################
+
+  #my $type=unpack "I", IO::FD::DWIM::getsockopt $socket, SOL_SOCKET, SO_TYPE;
 	my $ok;
-	my @addresses;
 	my $addr;
 
+
+  # If the type and  family hasn't been specified with hints, extract from socket info
+  $type=$hints->{socktype}//=unpack "I", IO::FD::DWIM::getsockopt $socket, SOL_SOCKET, SO_TYPE;
+  $fam=$hints->{family}//=sockaddr_family IO::FD::DWIM::getsockname $socket;
+
+  say STDERR sock_to_string $type;
+  say STDERR family_to_string $fam;
+
+
+  say STDERR time;
 	if($fam==AF_INET or $fam==AF_INET6){
 		#Convert to address structures. DO NOT do a name lookup
-		$ok=getaddrinfo(
+		$ok=Socket::More::Resolver::getaddrinfo(
 			$host,
 			$port,
-			{
-        #flags=>$host eq "localhost"? 0 : AI_NUMERICHOST,
-				family=>$fam,
-				socktype=>$type
-			},
-      @addresses
+      $hints,
+      sub {
+        my @addresses=@_;
+        $addr=$addresses[0]{addr};
+	      connect_addr($socket, $addr, $on_connect, $on_error);
+        say STDERR time;
+
+      },
+
+      sub{
+        $on_error and $on_error->($socket, gai_strerror $!);
+      }
 
 		);
 
-    unless($ok){
-      $on_error and asap { $on_error->($socket, gai_strerror $!)};
-      return undef;
-    }
 
-    $addr=$addresses[0]{addr};
 	}
 	elsif($fam==AF_UNIX){
 		$addr=pack_sockaddr_un $host;
+	  connect_addr($socket, $addr, $on_connect, $on_error);
 	}
 	else {
     #die "Unsupported socket address family";
@@ -192,15 +294,10 @@ sub connect{
     return undef;
 	}
 
-	connect_addr($socket, $addr, $on_connect, $on_error);
 }
 
 
 
-#Resolve a hostname to an address, then connect to it
-sub resolve_connect{
-	Net::DNS->resolve;
-}
 
 
 sub dreader {
@@ -221,18 +318,19 @@ sub swriter {
 
 
 
-
 #Return a writer based on the type of fileno
 sub writer {
 
-	my @stat=IO::FD::stat $_[0];
-	if(-p $_[0]){
+  my $socket=$_[0];
+  my @stat=IO::FD::DWIM::stat $socket;
+  my $mode=$stat[2];
+	if(S_ISFIFO $mode){
 		#Is a pipe
 		return &swriter;
 	}
-	elsif(-S $_[0]){
+	elsif(S_ISSOCK $mode){
 		#Is a socket
-		for(unpack "I", IO::FD::getsockopt $_[0], SOL_SOCKET, SO_TYPE){
+		for(unpack "I", IO::FD::DWIM::getsockopt $socket, SOL_SOCKET, SO_TYPE){
 			if($_==SOCK_STREAM){
 				return &swriter;
 			}
@@ -256,14 +354,17 @@ sub writer {
 }
 
 sub reader{
-	my @stat=IO::FD::stat $_[0];
-	if(-p $_[0]){
+  my $socket=$_[0];
+  my @stat=IO::FD::DWIM::stat $socket;
+  my $mode=$stat[2];
+
+	if(S_ISFIFO $mode){
 		#PIPE
 		return &sreader;
 	}
-	elsif(-S $_[0]){
+	elsif(S_ISSOCK $mode){
 		#SOCKET
-		for(unpack "I", IO::FD::getsockopt $_[0], SOL_SOCKET, SO_TYPE){
+		for(unpack "I", IO::FD::DWIM::getsockopt $socket, SOL_SOCKET, SO_TYPE){
 			if($_ == SOCK_STREAM){
 				return &sreader;
 			}
@@ -287,7 +388,7 @@ sub reader{
 
 sub pair {
 	my ($fh)=@_;
-	my ($r,$w)=(reader(fh=>$fh), writer(fh=>$fh));
+	my ($r, $w)=(reader(fh=>$fh), writer(fh=>$fh));
 	$r and $w ? ($r,$w):();
 }
 
@@ -299,7 +400,6 @@ sub pipe {
 		return ($r,$w);	
 	}
 	();
-	
 }
 
 

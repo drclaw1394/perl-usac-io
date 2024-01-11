@@ -17,6 +17,7 @@ use IO::FD;
 
 # Postpone a subroutine call
 my @asap;
+my @asap_args;
 my $asap_timer;
 my $entry;
 
@@ -24,9 +25,12 @@ my $entry;
 my $asap_sub=sub {
                         
   # Call subs with supplied arguments.
+  my $entry;
+  my $args;
   while($entry=shift @asap){
+    $args=shift @asap_args;
     try{
-      &$entry
+      $entry->(@$args);
     }
     catch($e){
         warn "Uncaught execption in asap callback: $e";
@@ -38,9 +42,10 @@ my $asap_sub=sub {
 # Schedule a code ref to execute asap on current event system.
 # currently a shared timer.
 #
-sub asap (&){
-    my $c=shift;
+sub asap (*@){
+    my ($c, @args)=@_;#shift;
     push @asap, $c;
+    push @asap_args, \@args;
     $asap_timer//=AE::timer 0, 0, $asap_sub;
     1;
 }
@@ -69,8 +74,10 @@ sub connect_addr {
 
 	$id++;
 	my $res=IO::FD::connect $socket, $addr;
-  say $! unless $res;
-  say "after connect on $socket";
+  say STDERR "Socket is $socket";
+  say STDERR "Address to connect to $addr len: @{[length $addr]}";
+  say STDERR $! unless $res;
+  say STDERR "after connect on $socket";
   unless($res){
     #EAGAIN for pipes
     if($! == EAGAIN or $! == EINPROGRESS){
@@ -92,12 +99,13 @@ sub connect_addr {
     }
     else {
       # Syncrhonous fail. reshedual
-      $on_error and asap {$on_error->($socket, "$!")};
+      say 'Synchronous fail';
+      $on_error and asap $on_error, $socket, "$!";
     }
     return;
   }
   # Syncrhonous connect. reshedual
-  asap {$on_connect->($socket, $addr)} if $on_connect;
+  asap $on_connect, $socket, $addr if $on_connect;
 
 	$id;
 }
