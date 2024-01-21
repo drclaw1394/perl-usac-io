@@ -39,9 +39,15 @@ no strict "refs";
 our $Clock=time;
 
 
-
+# Must return 1
+# Takes a sub as first argument, remaining arguments are passed to sub
 sub asap (*@);   # Schedule sub as soon as async possible
+
+# Must return an integer key for the timer.
 sub timer ($$$);  # Setup a timer
+
+# Must delete the timer from store
+# Must use alias of argument to make undef
 sub timer_cancel ($);
 sub connect_cancel ($);
 sub connect_addr;
@@ -212,7 +218,7 @@ sub bind ($$$;$&&) {
 
 # TODO: allow a string as a spec to be used instead of hints? Only valid when host is undef.
 # TODO: allow host and port (addr and po ) in spec when host and port are undef for spec processing
-sub connect ($$$$;\[&$]\[&$]){
+sub connect ($$$$;**){
 
 	my ($socket, $host, $port, $hints, $on_connect, $on_error)=@_;
   #If socket is not defined, we attempt to create one
@@ -220,7 +226,7 @@ sub connect ($$$$;\[&$]\[&$]){
   my $type;
   my $protocol;
   if(!defined $socket){
-    my $res=IO::FD::socket $socket, $fam=$hints->{family}, $type=$hints->{type}, $protocol=$hints->{protocol}//0;
+    my $res=IO::FD::socket $socket, $fam=$hints->{family}, $type=$hints->{socktype}, $protocol=$hints->{protocol}//0;
     unless ($res){
       say $!;
       $on_error && asap $on_error, $!;

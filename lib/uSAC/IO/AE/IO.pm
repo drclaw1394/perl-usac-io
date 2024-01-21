@@ -43,7 +43,7 @@ my $asap_sub=sub {
 # currently a shared timer.
 #
 sub asap (*@){
-    my ($c, @args)=@_;#shift;
+    my ($c, @args)=@_;
     push @asap, $c;
     push @asap_args, \@args;
     $asap_timer//=AE::timer 0, 0, $asap_sub;
@@ -51,15 +51,17 @@ sub asap (*@){
 }
 
 my %timer;
-my $timer_id=0;
+my $timer_id=1;  #Start at a true value
 sub timer ($$$){
     my ($offset, $repeat, $sub)=@_;
     my $id=$timer_id++;
     $timer{$id}=AE::timer $offset, $repeat, $sub;
+    $id;
 }
 
 sub timer_cancel ($){
   delete $timer{$_[0]};
+  $_[0]=undef; 
 }
 
 
