@@ -5,7 +5,7 @@ my @size=(1, 128, 1024, 2048, 4096, 8192, 16384, 65536, 131072);
 for my $size(@size){
 	say STDERR "READ SIZE: $size";
 
-	`cat /dev/zero | perl -I lib benchmarks/usac-read.pl $size`;
+	`cat /dev/zero | usac -I lib --backend AnyEvent ./benchmarks/usac-read.pl $size`;
 	`cat /dev/zero | perl -I lib benchmarks/ae-read.pl $size`;
 	`cat /dev/zero | perl -I lib benchmarks/mojo-read.pl $size`;
 

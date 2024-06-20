@@ -5,7 +5,7 @@ package uSAC::IO::AE::Acceptor;
 #Only force a nonblocking setting if needed. ie linux => true
 #     bsd and dawrwin false
 #     others true
-use constant::more SET_NONBLOCKING=>$^O eq "darwin"? undef: $^Oeq "linux"?1:1;
+use constant::more SET_NONBLOCKING=>$^O =~ "darwin"? 1 : $^O =~ "linux"?1:1;
 
 use Fcntl qw(F_GETFL F_SETFL O_NONBLOCK);
 use AnyEvent;
@@ -47,8 +47,8 @@ method _make_acceptor :override {
       if(SET_NONBLOCKING){ 
         IO::FD::fcntl $_, F_SETFL, O_NONBLOCK for @new;
       }
-      #execute the callback with the array refs
-      $on_accept->($new, $peers);
+      #execute the callback with the array refs and the actuall listening fd
+      $on_accept->($new, $peers, $afh);
     }
     else {
       $on_error->($!);

@@ -21,6 +21,35 @@ my @asap_args;
 my $asap_timer;
 my $entry;
 
+
+my $CV;
+# Code to setup event loop before it starts
+sub _pre_loop {
+  #print "CALLING PRE LOOP\n";
+  # Create a cv; 
+  $CV=AE::cv;
+  return;
+}
+
+sub _post_loop {
+  #print "POST LOOP CALLED\n";
+  $CV->recv;
+}
+
+sub _shutdown_loop {
+  #print "SHUTDOWN LOOP CALLED\n";
+  $CV->send;
+}
+
+sub _exit {
+  # Do any cleanup before exiting 
+  _shutdown_loop;
+}
+
+
+
+
+
 # Processing sub for asap code refs. Supports recursive asap calls.
 my $asap_sub=sub {
                         
@@ -28,6 +57,7 @@ my $asap_sub=sub {
   my $entry;
   my $args;
   while($entry=shift @asap){
+    #print "ASAP WHILE LOOP\n";
     $args=shift @asap_args;
     try{
       $entry->(@$args);
@@ -55,12 +85,26 @@ my $timer_id=1;  #Start at a true value
 sub timer ($$$){
     my ($offset, $repeat, $sub)=@_;
     my $id=$timer_id++;
-    $timer{$id}=AE::timer $offset, $repeat, $sub;
+    $timer{$id}=AE::timer $offset, $repeat, sub{$sub->($id)};
     $id;
 }
 
 sub timer_cancel ($){
   delete $timer{$_[0]};
+  $_[0]=undef; 
+}
+
+my %signal;
+my $signal_id=1;
+sub signal ($$){
+  my ($name, $sub)=@_;
+  my $id=$signal_id++;
+  $signal{$id}=AE::signal $name, sub { $sub->($id)};
+  $id;
+}
+
+sub signal_cancel ($){
+  delete $signal{$_[0]};
   $_[0]=undef; 
 }
 
@@ -76,10 +120,6 @@ sub connect_addr {
 
 	$id++;
 	my $res=IO::FD::connect $socket, $addr;
-  say STDERR "Socket is $socket";
-  say STDERR "Address to connect to $addr len: @{[length $addr]}";
-  say STDERR $! unless $res;
-  say STDERR "after connect on $socket";
   unless($res){
     #EAGAIN for pipes
     if($! == EAGAIN or $! == EINPROGRESS){
@@ -101,7 +141,7 @@ sub connect_addr {
     }
     else {
       # Syncrhonous fail. reshedual
-      say 'Synchronous fail';
+      #say 'Synchronous fail';
       $on_error and asap $on_error, $socket, "$!";
     }
     return;
@@ -139,11 +179,10 @@ sub resolve {
 sub accept {
 
 }
+
 sub cancel_accept {
 
 }
-
-
 
 
 1;

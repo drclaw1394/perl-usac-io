@@ -9,7 +9,7 @@ sub detect_backend{
 	if(exists $main::{"AnyEvent::"}){
 		$backend="uSAC::IO::AE";
 	}
-	elsif(exists $main::{"IOASync::"}){
+	elsif(exists $main::{"IO::"}{"Async::"}){
 		#...
 	}
 	elsif(exists $main::{"IOMojo::"}){

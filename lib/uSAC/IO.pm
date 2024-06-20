@@ -17,7 +17,7 @@ use Fcntl qw(F_GETFL F_SETFL O_NONBLOCK :mode);
 
 
 
-use Export::These;
+use Export::These qw{asap timer timer_cancel connect connect_cancel connect_addr bind pipe pair dreader dwriter reader writer sreader swriter signal};
 
 
 sub _reexport {
@@ -46,18 +46,35 @@ sub asap (*@);   # Schedule sub as soon as async possible
 # Must return an integer key for the timer.
 sub timer ($$$);  # Setup a timer
 
+sub signal ($$);  #Assign a signal handler to a signal
+
 # Must delete the timer from store
 # Must use alias of argument to make undef
 sub timer_cancel ($);
 sub connect_cancel ($);
 sub connect_addr;
+sub _pre_loop;
+sub _post_loop;
+sub _shutdown_loop;
 
 
-*asap=\&{$rb."::asap"};
-*timer=\&{$rb."::timer"};
-*timer_cancel=\&{$rb."::timer_cancel"};
-*connect_cancel=\&{$rb."::connect_cancel"};
-*connect_addr=\&{$rb."::connect_addr"};
+*asap=\&{$rb."::asap"};                         # Schedual code to run as soon as possible (next tick)
+*signal=\&{$rb."::signal"};                         # Schedual code to run as soon as possible (next tick)
+*signal_cancel=\&{$rb."::signal_cancel"};                         # Schedual code to run as soon as possible (next tick)
+*timer=\&{$rb."::timer"};                       # Create a timer, with offset, and repeat, returns ref
+*timer_cancel=\&{$rb."::timer_cancel"};         # cancel a timer
+*connect_cancel=\&{$rb."::connect_cancel"};     # Cancel a connect
+*connect_addr=\&{$rb."::connect_addr"};         # Connect via address structure
+
+
+*CORE::GLOBAL::exit=\&{$rb."::_exit"};          # Make global exit shutdown the loop 
+
+
+*_pre_loop=\&{$rb."::_pre_loop"};               # Internal
+*_post_loop=\&{$rb."::_post_loop"};             # Internal
+*_shutdown_loop=\&{$rb."::_shutdown_loop"};     # Internal
+
+
 
 # Start a 1 second tick timer. This simply updates the 'clock' used for simple
 # timeout measurements.
@@ -263,11 +280,11 @@ sub connect ($$$$;**){
   $type=$hints->{socktype}//=unpack "I", IO::FD::DWIM::getsockopt $socket, SOL_SOCKET, SO_TYPE;
   $fam=$hints->{family}//=sockaddr_family IO::FD::DWIM::getsockname $socket;
 
-  say STDERR sock_to_string $type;
-  say STDERR family_to_string $fam;
+  #say STDERR sock_to_string $type;
+  #say STDERR family_to_string $fam;
 
 
-  say STDERR time;
+  #say STDERR time;
 	if($fam==AF_INET or $fam==AF_INET6){
 		#Convert to address structures. DO NOT do a name lookup
 		$ok=Socket::More::Resolver::getaddrinfo(
@@ -278,7 +295,7 @@ sub connect ($$$$;**){
         my @addresses=@_;
         $addr=$addresses[0]{addr};
 	      connect_addr($socket, $addr, $on_connect, $on_error);
-        say STDERR time;
+        #say STDERR time;
 
       },
 
@@ -332,16 +349,16 @@ sub writer {
   my $mode=$stat[2];
 	if(S_ISFIFO $mode){
 		#Is a pipe
-		return &swriter;
+		return swriter fh=>$socket;
 	}
 	elsif(S_ISSOCK $mode){
 		#Is a socket
 		for(unpack "I", IO::FD::DWIM::getsockopt $socket, SOL_SOCKET, SO_TYPE){
 			if($_==SOCK_STREAM){
-				return &swriter;
+				return swriter fh=>$socket;
 			}
 			elsif($_==SOCK_DGRAM){
-				return &dwriter;
+				return dwriter fh=>$socket;
 			}
 			elsif($_==SOCK_RAW){
 				die "RAW SOCKET NOT IMPLEMENTED";
@@ -355,7 +372,7 @@ sub writer {
     say "OTHER SOCKET TYPE";
 		#OTHER?
 		#TODO: fix this
-		return &swriter;
+		return swriter fh=>$socket;
 	}
 }
 
@@ -366,16 +383,16 @@ sub reader{
 
 	if(S_ISFIFO $mode){
 		#PIPE
-		return &sreader;
+		return sreader fh=>$socket;
 	}
 	elsif(S_ISSOCK $mode){
 		#SOCKET
 		for(unpack "I", IO::FD::DWIM::getsockopt $socket, SOL_SOCKET, SO_TYPE){
 			if($_ == SOCK_STREAM){
-				return &sreader;
+				return sreader fh=>$socket
 			}
 			elsif($_ == SOCK_DGRAM){
-				return &dreader;
+				return dreader fh=>$socket;
 			}
 			elsif($_ == SOCK_RAW){
 				die "RAW SOCKET NOT IMPLEMENTED";
@@ -388,7 +405,7 @@ sub reader{
 	else {
 		#OTHER
 		#TODO: fix this
-		return &sreader;
+		return sreader fh=>$socket;
 	}
 }
 
@@ -407,6 +424,7 @@ sub pipe {
 	}
 	();
 }
+
 
 
 ###########################################

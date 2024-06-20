@@ -2,9 +2,6 @@ use strict;
 use warnings;
 use feature ":all";
 
-use EV;
-use uSAC::IO;
-use AnyEvent;
 use Time::HiRes qw<time>;
 my %results;
 
@@ -15,21 +12,27 @@ my $results=$ARGV[1]//"write-results.txt";
 
 sub do_usac {
 	my $label=shift;
-	my $cv=AE::cv;
 	my $total=0;
 	my $start_time=time;
 	my $counter=5;
 	my $end_time;
 	my $timer;
 
-	my $writer=uSAC::IO->writer(fileno $fh);
+	my $writer=uSAC::IO::writer(fileno $fh);
 
-	$timer=AE::timer 1, 1, sub {
+  uSAC::IO::timer 1, 1, sub {
 		say STDERR "TIMER";
 		unless ($counter--){
 			$writer->pause;	
-			$timer=undef;
-			$cv->send;
+      &uSAC::IO::timer_cancel;
+      my $rate=$total/($end_time-$start_time);
+      $results{$label}=$rate;
+
+      say STDERR "bytes per second: ", $rate;
+      if(open my $output, ">>", $results){
+        say $output "$label $rate ".length($data);
+      }
+      exit;
 		}
 		else {
 
@@ -52,14 +55,6 @@ sub do_usac {
 
 	#$writer->start;
 
-	$cv->recv;
-	my $rate=$total/($end_time-$start_time);
-	$results{$label}=$rate;
-
-	say STDERR "bytes per second: ", $rate;
-	if(open my $output, ">>", $results){
-		say $output "$label $rate ".length($data);
-	}
 
 }
 

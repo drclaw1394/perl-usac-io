@@ -1,0 +1,99 @@
+#!/usr/bin/env perl
+ 
+my $backend=$ENV{uSAC_IO_Backend};
+
+
+# Strip out first instance of backend
+#
+my $i=0;
+my $found;
+
+for(@ARGV){
+  
+  if($ARGV[$i] =~/-{1,2}backend/){
+    $found=$i;
+    last 
+  }
+  $i++;
+}
+
+if(defined $found){
+  # This overrides the envrionment setting
+  (undef, $backend)=splice @ARGV, $found, 2;
+}
+
+
+die "No backend specified. Use environment or --backend" unless $backend;
+
+
+
+# NOTE: perl will consume any arguments BEFORE the argument we use for the do
+# script (in _main) It will also not run when an unsupported switch is
+# provided.  Therefore the first item in @ARGV in the uSAC::Main::_main
+# function will be the script we want to execute
+#
+my @list=($^X,"-M$backend", "-MuSAC::Main", "-e", "uSAC::Main::_main", @ARGV);
+print "@list";
+print "\n";
+exec @list;
+
+=pod
+
+=head1 NAME
+
+usac - Clean event driven Perl wrapper
+
+=head2 SYNOPSIS
+
+
+  usac --backend BACKEND your_async_event_script ....
+
+
+
+=head1 DESCRIPTION
+
+Creates a event processing run loop (of your choosing) behind the scenes so
+your L<uSAC::IO> scripts work without needing any event system knowledge.
+
+Normally you would need to set up either a run loop, and manually execute it or
+setup condition variables to depending on whay event system you use.
+
+uSAC removes this completely. This is best illustrated with an example:
+
+Instead of:
+  
+    use AnyEvent;
+
+    my $cv=AE::cv;
+
+    my $timer;
+
+    $timer=AE::timer 1, 0 , sub {
+      say "Hello"
+      $timer=undef;
+    };
+
+    $cv->recv;
+
+
+
+You do this:
+
+  use uSAC::IO;
+
+  timer 1, 0, sub {
+    say "Hello"
+    &timer_cancel;
+  };
+
+
+The event loop system is completely abstracted away.
+
+
+This makes the run loop behave similar to node.js in that to loop is always
+running and waiting for an event. If you don't have any events, it will wait
+indefinately.
+
+
+
+
