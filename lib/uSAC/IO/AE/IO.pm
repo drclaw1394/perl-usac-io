@@ -63,7 +63,9 @@ my $asap_sub=sub {
       $entry->(@$args);
     }
     catch($e){
-        warn "Uncaught execption in asap callback: $e";
+      use Error::Show;
+      die Error::Show::context message=>$e;
+      #warn "Uncaught execption in asap callback: $e";
     }
   }
   $asap_timer=undef; 
@@ -81,10 +83,11 @@ sub asap (*@){
 }
 
 my %timer;
-my $timer_id=1;  #Start at a true value
+#my $timer_id=1;  #Start at a true value
 sub timer ($$$){
     my ($offset, $repeat, $sub)=@_;
-    my $id=$timer_id++;
+    my $s;#\1;#$timer_id++;
+    my $id=\$s;
     $timer{$id}=AE::timer $offset, $repeat, sub{$sub->($id)};
     $id;
 }
@@ -98,7 +101,8 @@ my %signal;
 my $signal_id=1;
 sub signal ($$){
   my ($name, $sub)=@_;
-  my $id=$signal_id++;
+  my $s;
+  my $id=\$s;#$signal_id++;
   $signal{$id}=AE::signal $name, sub { $sub->($id)};
   $id;
 }
@@ -113,12 +117,14 @@ sub signal_cancel ($){
 
 
 my %watchers;
-my $id;
+#my $id;
 sub connect_addr {
   #A EINPROGRESS is expected due to non block
   my ($socket, $addr, $on_connect, $on_error)=@_;
 
-	$id++;
+  #$id++;
+  my $s;
+  my $id=\$s;
 	my $res=IO::FD::connect $socket, $addr;
   unless($res){
     #EAGAIN for pipes
@@ -130,7 +136,8 @@ sub connect_addr {
               delete $watchers{$id};
 
               if($sockaddr){
-                      $on_connect->($socket, $addr) if $on_connect;
+                      $on_connect and $on_connect->($socket, $addr);
+              say STDERR  "IN socket connect callback: ", $on_connect;
               }
               else {
                       #error

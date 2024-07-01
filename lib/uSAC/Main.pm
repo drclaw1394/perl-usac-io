@@ -91,6 +91,9 @@ sub _main {
           #die "NO script to run" unless -e $script;
             local $@=undef;
             local $!=undef;
+            # A relative path must have "./" prepended to it to run
+            # like normal perl
+            $script="./$script" if($scrpt!~m{^/} and $script!~m{^\./});
             my $res=do $script;
             if(!defined $res and $@){
               # Compile error

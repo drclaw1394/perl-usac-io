@@ -6,7 +6,7 @@ no warnings "experimental";
 
 use Time::HiRes qw<time>;
 
-use uSAC::IO;
+#use uSAC::IO;
 my %results;
 
 my $read_size=$ARGV[0]//4096;

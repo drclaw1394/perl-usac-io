@@ -1,7 +1,9 @@
 package uSAC::IO;
 use strict;
 use warnings;
+
 use feature "say";
+use feature "current_sub";
 
 our $VERSION="v0.1.0";
 
@@ -14,6 +16,7 @@ use Socket::More::Resolver {}, undef;
 use IO::FD::DWIM ();
 use Fcntl qw(F_GETFL F_SETFL O_NONBLOCK :mode);
 
+use Data::Dumper;
 
 
 
@@ -81,17 +84,63 @@ sub _shutdown_loop;
 our $Tick_Timer=timer 0, 1, sub { $Clock=time; };
 
 use strict "refs";
-#Create a socket with required family, type an protocol
-#No bound or connected to anything
-#A wrapper around IO::FD::socket
-#######################################
-# sub socket {                        #
-#         my $socket;                 #
-#         IO::FD::socket $socket, @_; #
-#         $socket;                    #
-# }                                   #
-#                                     #
-#######################################
+
+
+# Create a socket from hints and call the indicated callback ( or override when done)
+# 
+sub _create_socket {
+  # Hints are in first argument
+  my ($socket, $hints, $override)=@_;
+  return undef if defined $socket;
+
+  say STDERR "_create_socket called";
+  for($hints){
+    my $on_error=$_->{data}{on_error};
+    my $on_socket=$override//$_->{data}{on_socket};
+
+    if(defined IO::FD::socket $socket, $_->{family}, $_->{socktype}, $_->{protocol}//0){
+      # set socket to non block mode as we are async library ;)
+      # TODO open a socket with platform specific flags to avoid this extra call
+      my $res= IO::FD::fcntl $socket, F_SETFL, O_NONBLOCK;
+      unless (defined $res){
+        say STDERR "ERROR in fcntl";
+        $on_error && asap $on_error, $socket, $!;
+        return;
+      }
+      $on_socket and asap $on_socket, $socket, $_;
+    }
+    else {
+      # First argument is a socket that doesnt exist
+      $on_error and asap $on_error, undef, $!;
+    }
+  }
+
+  # ensure a true return value
+  #
+  return 1;
+}
+
+# Create sockets based on specs
+#  spec, and callbacks
+#
+sub socket_stage ($$){
+  my ($spec, $next)=@_;
+
+  if(!ref $spec){
+    # Assume string which needs parsing
+    $spec=parse_passive_spec $spec;
+  }
+
+  #TODO merge spec with merge items
+  
+  # Generate a list of hints from the spec 
+  my @res=sockaddr_passive $spec;
+
+  # Start of the stages by creating a socket and calling on_socket
+  _create_socket undef, $_, $next for(@res);
+}
+
+
 #Bind a socket to a host, port  or unix path. The host and port are strings
 #Which are attmped to be converted to address structures applicable for the
 #socket type Returns the address structure created Does not perform name
@@ -112,122 +161,52 @@ sub fd_2_fh {
   $socket;
 }
 
-sub bind ($$$;$&&) {
-  my ($socket, $host, $port, $spec, $on_bind, $on_error)=@_;
+# Take a socket and the hints associated with it, binds to info from hints
+# If socket doesn't exitst, one is created and this function recalled
+# The socket and hints are passed to the callback on_bind
+sub bind ($$) {
 
-  # TODO: First check if hints is a scalar, and parse into spec
-  my $hints=$spec; 
-  
+  say STDERR "BIND CALLED";
+  my ($socket, $hints)=@_;
+
+  _create_socket $socket, $hints, __SUB__  and return;
+
   my $fam;
   my $type;
   my $protocol;
-
-  if(!defined $socket){
-    my $res=IO::FD::socket $socket, $fam=$hints->{family}, $type=$hints->{type}, $protocol=$hints->{protocol}//0;
-    unless ($res){
-      $on_error && asap $on_error, $!;
-      return;
-    }
-    # set socket to non block mode as we are async library ;)
-    # TODO open a socket with platform specific flags to avoid this extra call
-    $res= IO::FD::fcntl $socket, F_SETFL, O_NONBLOCK;
-    unless (defined $res){
-      $on_error && asap $on_error, $!;
-    }
-  }
-  else {
-    # Get filedescriptor if not  a filedescriptor
-    #$socket=fileno($socket) if ref $socket;
-  }
-
   
-  #my $fam= sockaddr_family IO::FD::DWIM::getsockname $socket;
-  #die  "Not a socket" unless defined $fam;
-  #my $type=unpack "I", IO::FD::DWIM::getsockopt $socket, SOL_SOCKET, SO_TYPE;
   my $addr;
 
+  my $on_bind=$hints->{data}{on_bind};
+  my $on_error=$hints->{data}{on_error};
+  say STDERR "SOcket is: $socket";
   $type=$hints->{socktype}//=unpack "I", IO::FD::DWIM::getsockopt $socket, SOL_SOCKET, SO_TYPE;
   $fam=$hints->{family}//=sockaddr_family IO::FD::DWIM::getsockname $socket;
 
-  $hints->{port}//=$port;
-  $hints->{address}//=$host;
-  $hints->{type}=$hints->{socktype};
-  use Data::Dumper;
-  say "HINTS: ".Dumper $hints;
-  #IP_RECVIF on mac os?
-  #IP_BOUNDIF
-  #SO_BINDTODEVICE on linux
-  #Create the address strucure we need
-  my @res=Socket::More::sockaddr_passive $hints;
-  say "after";
-  for (@res){
-    say "LOOP: ".$_;
-    say Dumper $_;
-    my $addr=$_->{addr};
+  for ($hints){
+    my %copy=%$_; # Copy the spec?
+    my $addr=$copy{addr};
     if(IO::FD::DWIM::bind($socket, $addr)){
-      say "BIND OK $addr";
-      $on_bind and $on_bind->($socket, $addr);
+      my $name=IO::FD::DWIM::getsockname $socket;
+      $copy{addr}=$name;
+
+      # Reify the port number now that a bind has taken place
+      if($copy{family}==AF_INET or $copy{family}==AF_INET6){
+          my $ok=Socket::More::Lookup::getnameinfo($name, my $host="", my $port="", NI_NUMERICHOST|NI_NUMERICSERV);
+          if(defined $ok){
+            $copy{port}=$port;
+          }
+      }
+      say STDERR "Call on_bind", $on_bind;
+      $on_bind and $on_bind->($socket, \%copy);
     }
     else {
-      say "ERROR: ". $!;
+      say STDERR "ERROR: ". $!;
       my $err=$!;
        $on_error and $on_error->($socket, $err);
     }
   }
 
-  #################################################################################
-  # if($fam==AF_INET or $fam==AF_INET6){                                          #
-  #   my $ok;                                                                     #
-  #   my $flags=AI_PASSIVE;                                                       #
-  #   $flags|=AI_NUMERICHOST if $host eq "localhost";                             #
-  #   #Convert to address structures. DO NOT do a name lookup                     #
-  #   $ok=Socket::More::Resolver::getaddrinfo(                                    #
-  #     $host,                                                                    #
-  #     $port,                                                                    #
-  #     {                                                                         #
-  #       flags=>$flags,                                                          #
-  #       family=>$fam,                                                           #
-  #       type=>$type                                                             #
-  #     },                                                                        #
-  #                                                                               #
-  #     sub {                                                                     #
-  #       my ($target)= grep {                                                    #
-  #         $_->{family} == $fam  #Matches INET or INET6                          #
-  #         #and $_->{socktype} == $type #Stream/dgram                            #
-  #       } @_;                                                                   #
-  #                                                                               #
-  #       $addr=$target->{addr};                                                  #
-  #       if(IO::FD::DWIM::bind($socket, $addr)){                                 #
-  #         say "BIND OK $addr";                                                  #
-  #           $on_bind and $on_bind->($socket, $addr);                            #
-  #       }                                                                       #
-  #       else {                                                                  #
-  #         my $err=$!;                                                           #
-  #          $on_error and $on_error->($socket, $err);                            #
-  #       }                                                                       #
-  #     },                                                                        #
-  #                                                                               #
-  #     sub {                                                                     #
-  #         $on_error and $on_error->($socket, gai_strerror $!);                  #
-  #     }                                                                         #
-  #   );                                                                          #
-  # }                                                                             #
-  # elsif($fam==AF_UNIX){                                                         #
-  #   $addr=pack_sockaddr_un $host;                                               #
-  #   if(IO::FD::DWIM::bind($socket, $addr)){                                     #
-  #     say "BIND OK $addr";                                                      #
-  #       $on_bind and asap $on_bind, $socket, $addr;                             #
-  #   }                                                                           #
-  #   else {                                                                      #
-  #     my $err=$!;                                                               #
-  #      $on_error and asap $on_error, $socket, $err;                             #
-  #   }                                                                           #
-  # }                                                                             #
-  # else {                                                                        #
-  #   #die "Unsupported socket address family";                                   #
-  #   $on_error and asap $on_error, $socket, "Unsupported socket address family"; #
-  #################################################################################
-  #}
 
 }
 
@@ -235,77 +214,47 @@ sub bind ($$$;$&&) {
 
 # TODO: allow a string as a spec to be used instead of hints? Only valid when host is undef.
 # TODO: allow host and port (addr and po ) in spec when host and port are undef for spec processing
-sub connect ($$$$;**){
-
-	my ($socket, $host, $port, $hints, $on_connect, $on_error)=@_;
-  #If socket is not defined, we attempt to create one
+sub connect ($$){
+  say STDERR "Connect called";
+	my ($socket, $hints)=@_;
   my $fam;
   my $type;
   my $protocol;
-  if(!defined $socket){
-    my $res=IO::FD::socket $socket, $fam=$hints->{family}, $type=$hints->{socktype}, $protocol=$hints->{protocol}//0;
-    unless ($res){
-      say $!;
-      $on_error && asap $on_error, $!;
-      return;
-    }
-    # set socket to non block mode as we are async library ;)
-    # TODO open a socket with platform specific flags to avoid this extra call
-    $res= IO::FD::fcntl $socket, F_SETFL, O_NONBLOCK;
-    unless (defined $res){
-      $on_error && asap { $on_error->($!)};
-    }
-  }
-  else {
-    # Get filedescriptor if not  a filedescriptor
-    #$socket=fileno($socket) if ref $socket;
-  }
 
-  #my $fam= sockaddr_family IO::FD::DWIM::getsockname $socket;
+  my $on_connect=$hints->{data}{on_connect};
+  my $on_error=$hints->{data}{on_error};
 
-  #################################################################
-  # unless(defined $fam){                                         #
-  #   # TODO:  create an exception object                         #
-  #   $on_error and asap { $on_error->($socket, "Not a socket")}; #
-  #   return undef;                                               #
-  # }                                                             #
-  #################################################################
+  my $host=$hints->{address};
+  my $port=$hints->{port};
 
-  #my $type=unpack "I", IO::FD::DWIM::getsockopt $socket, SOL_SOCKET, SO_TYPE;
 	my $ok;
 	my $addr;
 
+  _create_socket $socket, $hints, __SUB__ and return;
 
   # If the type and  family hasn't been specified with hints, extract from socket info
   $type=$hints->{socktype}//=unpack "I", IO::FD::DWIM::getsockopt $socket, SOL_SOCKET, SO_TYPE;
   $fam=$hints->{family}//=sockaddr_family IO::FD::DWIM::getsockname $socket;
 
-  #say STDERR sock_to_string $type;
-  #say STDERR family_to_string $fam;
-
-
-  #say STDERR time;
 	if($fam==AF_INET or $fam==AF_INET6){
 		#Convert to address structures. DO NOT do a name lookup
 		$ok=Socket::More::Resolver::getaddrinfo(
 			$host,
 			$port,
-      $hints,
+      undef, #$hints,
       sub {
+        say STDERR "LOOKUP callback"; 
         my @addresses=@_;
         $addr=$addresses[0]{addr};
 	      connect_addr($socket, $addr, $on_connect, $on_error);
-        #say STDERR time;
-
+        say STDERR time;
       },
 
       sub{
+        say STDERR "LOOKUP ERROR"; 
         $on_error and $on_error->($socket, gai_strerror $!);
       }
-
 		);
-
-
 	}
 	elsif($fam==AF_UNIX){
 		$addr=pack_sockaddr_un $host;
@@ -313,14 +262,53 @@ sub connect ($$$$;**){
 	}
 	else {
     #die "Unsupported socket address family";
-    $on_error and asap sub { $on_error->($socket, "Unsupported socket address family")};
-    return undef;
+    $on_error and asap $on_error, $socket, "Unsupported socket address family";
 	}
+}
+
+sub listen ($$){
+  say STDERR "Listen called";
+  my ($socket, $hints)=@_;
+
+  _create_socket $socket, $hints, \&bind and return;
+
+  say STDERR $socket;
+  say STDERR "IS ref? ", ref $hints;
+  my $on_listen=$hints->{data}{on_listen}//=\&accept; # Default is to call accept immediately
+  my $on_error=$hints->{data}{on_error};
+
+  if(defined IO::FD::DWIM::listen($socket, $hints->{backlog}//1024)){
+    say STDERR "Listen ok";
+    $on_listen and asap $on_listen , $socket, $hints;
+  }
+  else {
+    $on_error and asap $on_error, $socket, $!;
+  }
 
 }
 
+sub accept($$){
+  my ($socket, $hints)=@_;
 
+  say STDERR "Accept called";
+  say STDERR Dumper $hints;
+  _create_socket $socket, $hints, \&bind and return;
 
+  use uSAC::IO::Acceptor;
+  my $a;
+  $a=uSAC::IO::Acceptor->create(
+    fh=>$socket, 
+    on_accept=>sub {
+      $hints->{acceptor}=$a;    #Add reference to prevent destruction
+      say STDERR "INTERNAL CALLBACK FOR ACCEPT";
+      # Call the on_accept with new fds ref, peers, ref, listening fd and listening hints
+      $hints->{data}{on_accept}->(@_, $hints);
+    },
+    on_error=> $hints->{data}{on_error}
+  );
+  $a->start;
+  
+}
 
 
 sub dreader {
