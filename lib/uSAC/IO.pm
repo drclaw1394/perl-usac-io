@@ -8,6 +8,7 @@ use feature "current_sub";
 our $VERSION="v0.1.0";
 
 #Datagram
+use constant::more qw<r_CIPO=0 w_CIPO r_COPI w_COPI r_CEPI w_CEPI>;
 use Import::These qw<uSAC::IO:: DReader DWriter SWriter SReader>;
 
 use Import::These qw<Socket::More:: Constants Interface>;
@@ -124,42 +125,50 @@ sub _create_socket {
   return 1;
 }
 
-# Create sockets based on specs
-#  spec, and callbacks
+# Create sockets based on specs provided
+# Can be a single spec (hash ) or an array ref or specs
+# Or a test needing to be parsed
+#
+# Also optionall can override the default on_spec callback stored (or not)
+# in the resulting spec
 #
 sub socket_stage($$){
   say "asdf";
   my ($spec, $next)=@_;
-  my $copy;
+  my @specs;
   if(!ref $spec){
     # Assume string which needs parsing
-    $copy=parse_passive_spec $spec;
+    push @specs, parse_passive_spec $spec;
+  }
+  elsif(ref($spec) eq "ARRAY") {
+      # array of hash specs
+      for(@$spec){
+        my $copy;
+        %$copy=%$_;
+        push @specs, $copy;
+      }
   }
   else {
+    # Hash spec
     # copy
+    my $copy;
     %$copy=%$spec;
+    push @specs, $copy;
+
   }
 
   #TODO merge spec with merge items
   
   # Override an undefined on_spec function to create a socket
-  my $on_spec=$copy->{data}{on_spec}//sub { 
+  my $on_spec=$specs[0]{data}{on_spec}//sub { 
     _create_socket undef, $_[1], $next if $_[1];
   };
 
-  _prep_spec($copy, $on_spec);
+  
+  _prep_spec($_, $on_spec) for @specs;
 
   1;
 
-  ####################################################################
-  # # Generate a list of hints from the spec                         #
-  # say Dumper $spec;                                                #
-  # my @res=sockaddr_passive $spec;                                  #
-  # say "sdfasdf";                                                   #
-  # say Dumper @res;                                                 #
-  # # Start of the stages by creating a socket and calling on_socket #
-  # _create_socket undef, $_, $next for(@res);                       #
-  ####################################################################
 }
 
 
@@ -788,6 +797,69 @@ sub pipe {
 ###########################################
 
 
+# Internal for and of fork/exec
+# Creates pipes for communicating to child processes
+sub _sub_process ($;$$$$){
+  my ($cmd, $on_CIPO, $on_COPI, $on_CEPI, $on_error)=@_;
+
+  my @pipes;
+  # Create pipes?
+  IO::FD::pipe $pipes[r_CIPO], $pipes[w_CIPO];    # Create pipe for input to child
+  IO::FD::pipe $pipes[r_COPI], $pipes[w_COPI];    # Create pipe for input to parent
+  IO::FD::pipe $pipes[r_CEPI], $pipes[w_CEPI];    # Create pipe for input to parent
+
+  # Fork and then exec? . Or do we use a template process
+  my $pid=fork;
+  if($pid){
+    # parent
+    # Close the ends of the pipe not needed
+    IO::FD::close $pipes[r_CIPO];
+    IO::FD::close $pipes[w_COPI];
+    IO::FD::close $pipes[w_CEPI];
+
+    # store for later refernce
+    #
+    #
+    my $c={pid=>$pid, pipes=>\@pipes};
+    return $pid;
+  }
+  else {
+    # child
+    # Close parent ends
+    IO::FD::close $pipes[w_CIPO];
+    IO::FD::close $pipes[r_COPI];
+    IO::FD::close $pipes[r_CEPI];
+    
+    # Duplicate the fds to stdin, stdout and stderr
+    IO::FD::dup2 $pipes[r_CIPO], 0;  
+    IO::FD::dup2 $pipes[w_COPI], 1;  
+    IO::FD::dup2 $pipes[w_CEPI], 2;  
+
+    # Close originals
+    IO::FD::close $pipes[r_CIPO];
+    IO::FD::close $pipes[w_COPI];
+    IO::FD::close $pipes[w_CEPI];
+
+    # Do it!
+    if($cmd){
+      exec $cmd;
+    }
+  }
+}
+
+# Run another command, linking stdio
+#
+sub system ($;$$$$){
+
+}
+
+# Fork this process. Add an additional channel for comms but leave STDIO? 
+sub worker {
+
+}
+
+sub log {
+}
 
 
 
