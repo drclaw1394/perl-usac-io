@@ -1,11 +1,324 @@
-=head1 TITLE
+=head1 NAME
 
-uSAC::IO - Async/Non blocking IO
+uSAC::IO - Streamlined non blocking Socket/Pipe/FIFO IO Library
+
+=head1 SYNOPSIS
+
+	use uSAC::SIO;
+
+	#Existing file handle my $fh=open_nonblocking_socket_or_pipe_somehow();
+	#ctx my $ctx={could_be=>"any user defined scalar/object"};
+	
+	#Create a new sio object with the nominated context and file handle my
+	$sio=uSAC::SIO->new($ctx, $fh);
+
+	#Event accessors are read/write lvalues. Makes for neat and efficient
+	code $sio->on_error=sub {}; $sio->on_read=sub {}; $sio->on_eof=sub {};
+
+
+	#Start reading events $sio->start;
+	
+	#queuing write with no callback $sio->write("hello world");
+
+	#queuing write with callback $sio->write("hello again", sub { say
+	"Write complete" });
+
+
+	#pause the event hanlding from the fh #Call start to renable events
+	$sio->pause;
+
 
 =head1 DESCRIPTION
 
-TBA
+L<uSAC::IO> is an IO library for constructing asynchronous Perl programs. It
+relies on external event systems to implement event processing, and rather
+focuses on making interfacing to these systems cleaner and easier. When used
+with the L<usac> program, it makes writing portable event programs easy and
+very tidy!
+
+It provides subroutines to create reader, writer, timer etc, objects, without
+the user needing to know how to use the underliying event loop, or even setup
+an event loop (when using L<usac>)
+
+
+=head1 MOTIVATION
+
+1. Cleaning up Perl event based prgrams
+2. making them easier to write and improving performance
+3. Boosting IO throughput
+4. Reducing memory usage
 
 
 
+=head1 API
 
+=head2 Constructors
+
+=head3 C<new>
+	
+	uSAC::SIO->new($ctx, $fh);
+
+Creates a new C<uSAC::SIO> instance.
+
+C<$ctx> is required but can be C<undef>. It is passed to callback functions and
+is defined by the user.
+
+C<$fh> is a file handle already opened and will be setup for non blocking
+operation. It is assumed to be both readable and writable. 
+
+Event watcher for read and write events are setup (via L<uSAC::SReader> and
+L<uSAC::SWriter>
+
+
+=head2 Stream IO
+
+=head3 C<start>
+
+	$sio->start;
+
+Sets up read event watcher to call C<on_read> callback when data is available
+
+
+=head3 Implementing C<on_read> callbacks
+
+The internal read buffer is accumulating. New data from the file handle is
+append to the end of it. The C<on_read> callback is responsible for consuming
+the buffer from the begining, otherwise memory will grow until the file handle
+is eof or the C<pause> method is called.
+
+The C<on_read> callback is passed the ctx in C<$_[0]> and the buffer in
+C<$_[1]>.
+
+The C<on_read> callback MUST consume data from the alias, not a copy. Using
+signatures or the usual C<shift> operation will make your day bad. This is
+highlighted the following examples of processing the first 5 bytes in the read
+buffer:
+
+	#DO NOT DO THIS
+	use feature qw<signatures>;
+
+	$sio->on_read=sub ($ctx, $buf){
+	
+		# Consume and process the first 5 bytes of the buffer
+		# The problem is that $buf is a COPY of the read buffer
+		# so the bytes were not consumed.
+
+		my $data=substr($_[1],0, 5, "");
+	};
+
+	#DO NOT DO THIS
+
+	$sio->on_read=sub {
+		my ($ctx,$buf)=shift;
+		# Same problems as above
+		# $buf is still a copy
+
+		my $data=substr($_[1],0, 5, "");
+	};
+
+
+Instead the following code consume from the internal buffer via an alias:
+
+	#DO THIS
+	$sio->on_read=sub {
+		# Consume/process the first 5 bytes of the buffer
+		# The interla read buffer is correctly modified
+		my $data=substr($_[1],0, 5, "");
+	};
+
+
+
+For complex subs use perl's experimental 'refaliasing' to give the buffer a
+named alias:
+
+	#use feature qw<refaliasing>;
+
+	$sio->on_read=sub {
+		\my $buf=\$_[1];	# $buf is now an alias (not a copy)
+
+		# Consume/process the first 5 bytes of the buffer
+		# The internal read buffer is correctly modified
+		my $data=substr($buf,0, 5, "");
+	};
+
+
+
+=head3 C<write>
+
+	$sio->write($data,$cb, $arg);
+
+Attempt to write data immediately. If successful, the callback is called with
+the argument
+
+If the only partial data could be written, the callback and data offset is
+stored in a write queue.
+
+At this point a writable watcher is created to service the queue whenever the
+queue has data remaining.
+
+If another write call is issued while a write watcher is active, the data is
+queued.
+
+Data is aliased to prevent copying of data. Do not change the data until the
+callback has been called.
+
+=head3 Implementing write callbacks
+
+Each call to the C<write> method can take an optional callback and an argument
+to pass to that callback.
+	
+
+For fire and forget writing, simply call write with the data:
+
+	$sio->write("data to write");
+
+If you want to know when the data was actually written, then provide a
+callback:
+
+	$sio->write("data to write", sub{
+		
+		#called when data is actuall written.
+		
+	},
+	$arg);
+
+The C<$arg> parameter is also optional. If it isn't supplied, a ref to the
+C<writer> sub is used.
+
+The purpose of the argument, is to allow channing of writes with different
+writer subs.
+
+
+=head3 pause
+
+	$sio->pause;
+
+Stops watching for read and write events. Any data in write queue will not be
+processed until another write call is issued
+
+=head3 pump
+
+Forces a manual call of the C<on_read> callback if any data remains in the read
+buffer.  If the reader as C<pause> called, the C<on_read> will not be called
+even if there is data remaining in the read buffer.
+
+Useful when if changes to the C<on_read> have been made and no new events are
+arriving.
+
+=head3 timimg
+
+	my ($read_sample,$write_sample,$clock);
+	$sio->timing(\$read_sample, \$write_sample, \$clock);
+
+
+Sets the references to variables to use as a clock and to store a sample of the
+clock when read and write events occur.
+
+Every time a C<sysread> is about to be called, the value or C<$clock> is
+sampled and stored in C<$read_sample>.
+
+In a similar fashion, each time C<syswrite> is about to be called, C<$clock> is
+sampled and stored in C<$write_sample>.
+
+
+=head2 Accessors
+
+=head3 writer
+
+	my $wr=$sio->writer;
+
+Read only
+
+Returns the anonymous sub  which actually performs the writing under the hood
+of a C<write> call. The writer is created if it doesn't already exist.
+
+Use this directly if you want to avoid the OO interface for a little more
+throughput
+
+=head3 ctx
+
+	my $ctx=$sio->ctx;		#read $sio->ctx="value";
+	#write
+
+Read/Write
+
+Returns the ctx shared for the reader and the writer. The C<ctx> is used as the
+first argument to the event callbacks.
+
+To set a new value of ctx, use it as an lvalue
+
+=head3 fh
+
+	my $fh=$sio->fh;		#return filehandle 
+
+Read only
+
+Returns the file handle
+
+=head3 on_error
+
+	my $e=$sio->on_error;		#return current on_error handler
+	$sio->on_error=sub {};		#Assign new on_error handler
+
+Read/Write
+
+Returns the current on_error handler
+
+=head3 on_read
+
+	my $e=$sio->on_read;		#return current on_read handler
+	$sio->on_read=sub {};		#Assign new on_read handler
+
+Read/Write
+
+Returns the current on_read handler
+
+=head3 on_eof
+
+	my $e=$sio->on_eof;		#return current on_eof handler
+	$sio->on_eof=sub {};		#Assign new on_eof handler
+
+Read/Write
+
+Returns the current on_eof handler
+
+
+
+=head2 COOKBOOK
+
+TODO
+
+=head2 PERFORMANCE
+
+Benchmarks are a work in progress. Yet to be completed.
+
+=head2 KNOWN ISSUES
+
+The perl implementation the AnyEvent event loop seems to limit the read
+performance, even through cpu time is still available.
+
+=head1 AUTHOR
+
+Ruben Westerberg, E<lt>drclaw@mac.comE<gt>
+
+=head1 REPOSITORTY and BUGS
+
+Please report any bugs via git hub:
+
+L<http://github.com/drclaw1394/perl-usac-io>
+
+
+=head1 COPYRIGHT AND LICENSE
+
+Copyright (C) 2024 by Ruben Westerberg
+
+This library is free software; you can redistribute it and/or modify it under
+the same terms as Perl or the MIT license.
+
+=head1 DISCLAIMER OF WARRANTIES
+
+THIS PACKAGE IS PROVIDED "AS IS" AND WITHOUT ANY EXPRESS OR IMPLIED WARRANTIES,
+INCLUDING, WITHOUT LIMITATION, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND
+FITNESS FOR A PARTICULAR PURPOSE.
+
+=cut

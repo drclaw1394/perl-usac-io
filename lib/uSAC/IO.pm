@@ -7,6 +7,7 @@ use feature "current_sub";
 
 our $VERSION="v0.1.0";
 
+use constant::more DEBUG=>0;
 #Datagram
 use constant::more qw<r_CIPO=0 w_CIPO r_COPI w_COPI r_CEPI w_CEPI>;
 use Import::These qw<uSAC::IO:: DReader DWriter SWriter SReader>;
@@ -98,7 +99,7 @@ sub _create_socket {
   my ($socket, $hints, $override)=@_;
   return undef if defined $socket;
 
-  say STDERR "_create_socket called";
+  DEBUG and say STDERR "_create_socket called";
   for($hints){
     my $on_error=$_->{data}{on_error};
     my $on_socket=$override//$_->{data}{on_socket};
@@ -108,10 +109,11 @@ sub _create_socket {
       # TODO open a socket with platform specific flags to avoid this extra call
       my $res= IO::FD::fcntl $socket, F_SETFL, O_NONBLOCK;
       unless (defined $res){
-        say STDERR "ERROR in fcntl";
+        DEBUG and say STDERR "ERROR in fcntl";
         $on_error && asap $on_error, $socket, $!;
         return;
       }
+      DEBUG and say STDERR "ON socket", $on_socket;
       $on_socket and asap $on_socket, $socket, $_;
     }
     else {
@@ -133,7 +135,6 @@ sub _create_socket {
 # in the resulting spec
 #
 sub socket_stage($$){
-  say "asdf";
   my ($spec, $next)=@_;
   my @specs;
   if(!ref $spec){
@@ -164,8 +165,9 @@ sub socket_stage($$){
     _create_socket undef, $_[1], $next if $_[1];
   };
 
-  
+  DEBUG and say STDERR "about to prepar specs";
   _prep_spec($_, $on_spec) for @specs;
+  DEBUG and say STDERR "after to prepar specs";
 
   1;
 
@@ -197,7 +199,7 @@ sub fd_2_fh {
 # The socket and hints are passed to the callback on_bind
 sub bind ($$) {
 
-  say STDERR "BIND CALLED";
+  DEBUG and say STDERR "BIND CALLED";
   my ($socket, $hints)=@_;
 
   _create_socket $socket, $hints, __SUB__  and return;
@@ -210,7 +212,7 @@ sub bind ($$) {
 
   my $on_bind=$hints->{data}{on_bind};
   my $on_error=$hints->{data}{on_error};
-  say STDERR "SOcket is: $socket";
+  DEBUG and say STDERR "SOcket is: $socket";
   $type=$hints->{socktype}//=unpack "I", IO::FD::DWIM::getsockopt $socket, SOL_SOCKET, SO_TYPE;
   $fam=$hints->{family}//=sockaddr_family IO::FD::DWIM::getsockname $socket;
 
@@ -228,11 +230,11 @@ sub bind ($$) {
             $copy{port}=$port;
           }
       }
-      say STDERR "Call on_bind", $on_bind;
+      DEBUG and say STDERR "Call on_bind", $on_bind;
       $on_bind and $on_bind->($socket, \%copy);
     }
     else {
-      say STDERR "ERROR: ". $!;
+      DEBUG and say STDERR "ERROR: ". $!;
       my $err=$!;
        $on_error and $on_error->($socket, $err);
     }
@@ -246,7 +248,7 @@ sub bind ($$) {
 # TODO: allow a string as a spec to be used instead of hints? Only valid when host is undef.
 # TODO: allow host and port (addr and po ) in spec when host and port are undef for spec processing
 sub connect ($$){
-  say STDERR "Connect called";
+  DEBUG and say STDERR "Connect called";
 	my ($socket, $hints)=@_;
   my $fam;
   my $type;
@@ -261,7 +263,9 @@ sub connect ($$){
 	my $ok;
 	my $addr;
 
+  DEBUG and say STDERR "CONNECT before";
   _create_socket $socket, $hints, __SUB__ and return;
+  DEBUG and say STDERR "CONNECT after";
 
   # If the type and  family hasn't been specified with hints, extract from socket info
   $type=$hints->{socktype}//=unpack "I", IO::FD::DWIM::getsockopt $socket, SOL_SOCKET, SO_TYPE;
@@ -274,16 +278,16 @@ sub connect ($$){
 			$port,
       $hints,
       sub {
-        say STDERR "LOOKUP callback"; 
+        DEBUG and say STDERR "LOOKUP callback"; 
         my @addresses=@_;
         $addr=$addresses[0]{addr};
 	      connect_addr($socket, $addr, $on_connect, $on_error);
-        say STDERR time;
+        DEBUG and say STDERR time;
       },
 
       sub{
-        say STDERR "LOOKUP ERROR"; 
-        say STDERR Dumper $hints;
+        DEBUG and say STDERR "LOOKUP ERROR"; 
+        DEBUG and say STDERR Dumper $hints;
         $on_error and $on_error->($socket, gai_strerror $!);
       }
 		);
@@ -299,18 +303,18 @@ sub connect ($$){
 }
 
 sub listen ($$){
-  say STDERR "Listen called";
+  DEBUG and say STDERR "Listen called";
   my ($socket, $hints)=@_;
 
   _create_socket $socket, $hints, \&bind and return;
 
-  say STDERR $socket;
-  say STDERR "IS ref? ", ref $hints;
+  DEBUG and say STDERR $socket;
+  DEBUG and say STDERR "IS ref? ", ref $hints;
   my $on_listen=$hints->{data}{on_listen}//=\&accept; # Default is to call accept immediately
   my $on_error=$hints->{data}{on_error};
 
   if(defined IO::FD::DWIM::listen($socket, $hints->{backlog}//1024)){
-    say STDERR "Listen ok";
+    DEBUG and say STDERR "Listen ok";
     $on_listen and asap $on_listen , $socket, $hints;
   }
   else {
@@ -322,8 +326,8 @@ sub listen ($$){
 sub accept($$){
   my ($socket, $hints)=@_;
 
-  say STDERR "Accept called";
-  say STDERR Dumper $hints;
+  DEBUG and say STDERR "Accept called";
+  DEBUG and say STDERR Dumper $hints;
   _create_socket $socket, $hints, \&bind and return;
 
   use uSAC::IO::Acceptor;
@@ -332,7 +336,7 @@ sub accept($$){
     fh=>$socket, 
     on_accept=>sub {
       $hints->{acceptor}=$a;    #Add reference to prevent destruction
-      say STDERR "INTERNAL CALLBACK FOR ACCEPT";
+      DEBUG and say STDERR "INTERNAL CALLBACK FOR ACCEPT";
       # Call the on_accept with new fds ref, peers, ref, listening fd and listening hints
       $hints->{data}{on_accept}->(@_, $hints);
     },
@@ -349,6 +353,9 @@ sub accept($$){
 sub _prep_spec{
 	require Scalar::Util;
 	my ($spec, $on_spec)=@_;
+
+  DEBUG and say STDERR "_prep_spec_call";
+  DEBUG and say STDERR Dumper $spec;
 
   $on_spec//=$spec->{data}{on_spec};
   my $on_error=$spec->{data}{on_error};
@@ -494,7 +501,7 @@ sub _prep_spec{
 
 	#Handle localhost
 	if(grep /localhost/, @$address){
-		@$address=('^127.0.0.1$','^::1$');
+		@$address=('127.0.0.1');#,'::1');
 		$r->{interface}=[".*"];
 	}
 
@@ -502,9 +509,11 @@ sub _prep_spec{
 
   $r->{address}=$address;
 
+  DEBUG and say STDERR Dumper $r;
 	#Generate combinations
 	my $result=Data::Combination::combinations $r;
 	
+  DEBUG and say STDERR Dumper $result;
 
 	#Retrieve the interfaces from the os
 	#@interfaces=(make_unix_interface, Socket::More::getifaddrs);
@@ -528,11 +537,14 @@ sub _prep_spec{
 
   #Total number of probable combinations
   my $count=@interfaces*@results;
-
+  my $at_least_1=0;
 	for my $interface (@interfaces){
+    DEBUG and say STDERR "======INTERFACE";
 		my $fam= sockaddr_family($interface->{addr});
+    DEBUG and say STDERR "family is $fam";
 		for(@results){
 
+      DEBUG and say STDERR "Result family", Dumper $_;
 			next if $fam != $_->{family};
 
 			#Filter out any families which are not what we asked for straight up
@@ -553,6 +565,8 @@ sub _prep_spec{
 			next;
 
 	CLONE:
+      # Used to see if a spec matched at all before async lookup
+      $at_least_1++;
 			my %clone=$_->%*;			
 			my $clone=\%clone;
 			$clone{data}=$spec->{data};
@@ -571,6 +585,7 @@ sub _prep_spec{
       $clone->{flags}=$flags;
 
 
+      DEBUG and say STDERR Dumper $clone;
       if($fam == AF_UNIX){
         # Assume no lookup is needed for this
         my $suffix=$_->{socktype}==SOCK_STREAM?"_S":"_D";
@@ -586,8 +601,10 @@ sub _prep_spec{
       elsif(!exists $_->{address} or $_->{address} eq ".*"){
         # No address to look up, assuming the binary addr field is set
         #
-        say  "Address needs to be filled";
+        DEBUG and say STDERR "address does not exist or is wild $_->{address}";
+        DEBUG and say  STDERR "Address needs to be filled";
         if($fam == AF_INET){
+          DEBUG and say STDERR "DOING IPv4";
           my (undef, $ip)=unpack_sockaddr_in($interface->{addr});
           Socket::More::Lookup::getnameinfo($interface->{addr}, my $host="", my $port="", NI_NUMERICHOST|NI_NUMERICSERV);
 
@@ -600,6 +617,7 @@ sub _prep_spec{
         }
 
         elsif($fam == AF_INET6){
+          DEBUG and say STDERR "DOING IPv6";
           my(undef, $ip, $scope, $flow_info)=unpack_sockaddr_in6($interface->{addr});
           Socket::More::Lookup::getnameinfo($interface->{addr}, my $host="", my $port="", NI_NUMERICHOST|NI_NUMERICSERV);
           $clone->{address}=$host;
@@ -641,6 +659,8 @@ sub _prep_spec{
           my @results;
           Socket::More::Lookup::getaddrinfo($_->{address},$_->{port},$_, @results);
           $clone->{addr}=$results[0]{addr};
+          DEBUG and say STDERR "RESULTS ", Dumper @results;
+          DEBUG and say STDERR "spec ", Dumper $_;
 
           Socket::More::Resolver::getaddrinfo($_->{address},$_->{port},$_, 
             sub {
@@ -667,14 +687,21 @@ sub _prep_spec{
 
             },
 
-            $on_error    # Use on error
+            sub {
+             DEBUG and say STDERR "getaddrinfo error", "@_", gai_strerror($_[0]);
+            $on_error->()    # Use on error
+          }
           );
       }
     }
   }
 
+  # Call error callback if the specification don't actuall match anything
+  $on_error and asap $on_error, undef, "No results" unless $at_least_1;
+
   # Send end message
   #$on_spec and asap $on_spec, undef, undef;
+
 }
 
 
@@ -727,7 +754,7 @@ sub writer {
 		}
 	}
 	else {
-    say "OTHER SOCKET TYPE";
+    DEBUG and say STDERR "OTHER SOCKET TYPE";
 		#OTHER?
 		#TODO: fix this
 		return swriter fh=>$socket;
@@ -858,7 +885,9 @@ sub worker {
 
 }
 
+# Write message to non blocking file handle. Never a file.
 sub log {
+
 }
 
 

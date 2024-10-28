@@ -122,7 +122,7 @@ sub _main {
 
 =head1 DESCRIPTION
 
-Used by the L<uSAC> script, this prepares the backround run loop and
+Used by the L<usac> script, this prepares the backround run loop and
 the funs the users script in the loop.
 
 

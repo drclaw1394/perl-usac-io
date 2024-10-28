@@ -41,7 +41,7 @@ exec @list;
 
 =head1 NAME
 
-usac - Clean event driven Perl wrapper
+usac - Cleaner Event Driven Perl,less Boilerplate, more diagnostics
 
 =head2 SYNOPSIS
 
@@ -52,16 +52,26 @@ usac - Clean event driven Perl wrapper
 
 =head1 DESCRIPTION
 
-Creates a event processing run loop (of your choosing) behind the scenes so
-your L<uSAC::IO> scripts work without needing any event system knowledge.
+Perl had no built in event loop system like Node.js for example. This gives
+great flexibilty in it's usage, but does lends it self to a little mess when
+trying to support multitple event loops.
 
-Normally you would need to set up either a run loop, and manually execute it or
-setup condition variables to depending on whay event system you use.
 
-uSAC removes this completely. This is best illustrated with an example:
+Packages like L<AnyEvent> for example, address this with wrapping other event
+systems into a common API interface. L<uSAC::IO>  does this too, (but with a
+difference approach).  However, you still need to 'setup the run loop' before
+you have a functional program.
 
-Instead of:
+
+L<usac> is a special program which wraps Perl itself, to automaticall create an
+event processing run loop (of your choosing) behind the scenes. This means your
+L<uSAC::IO> scripts work without needing any event system run loop knowledge.
+
+
+For example instead of:
   
+    #!/usr/bin/env perl
+    #
     use AnyEvent;
 
     my $cv=AE::cv;
@@ -77,8 +87,12 @@ Instead of:
 
 
 
+
+
 You do this:
 
+  #!/usr/bin/env usac --backend AnyEvent
+  #
   use uSAC::IO;
 
   timer 1, 0, sub {
@@ -87,13 +101,43 @@ You do this:
   };
 
 
-The event loop system is completely abstracted away.
+It also supports L<Error::Show> to better display and trace errors when running
+perl code!
+
+=head1 USAGE
+
+The L<usac> script, wraps the perl executable, passing all command line
+arguments as is to perl. IT adds support for an additional command line
+argument called C<--backend>. This is the package name of the Event system to
+use.
 
 
-This makes the run loop behave similar to node.js in that to loop is always
-running and waiting for an event. If you don't have any events, it will wait
-indefinately.
+  usac --backend BACKEND  [perl arguments]
 
 
+=head1 AUTHOR
 
+Ruben Westerberg, E<lt>drclaw@mac.comE<gt>
+
+=head1 REPOSITORTY and BUGS
+
+Please report any bugs via git hub:
+
+L<http://github.com/drclaw1394/perl-usac-io>
+
+
+=head1 COPYRIGHT AND LICENSE
+
+Copyright (C) 2024 by Ruben Westerberg
+
+This library is free software; you can redistribute it and/or modify it under
+the same terms as Perl or the MIT license.
+
+=head1 DISCLAIMER OF WARRANTIES
+
+THIS PACKAGE IS PROVIDED "AS IS" AND WITHOUT ANY EXPRESS OR IMPLIED WARRANTIES,
+INCLUDING, WITHOUT LIMITATION, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND
+FITNESS FOR A PARTICULAR PURPOSE.
+
+=cut
 
