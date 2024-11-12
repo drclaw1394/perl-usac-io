@@ -1,0 +1,32 @@
+#!/usr/bin/env -S usac -Ilib --backend AnyEvent
+# read input and execute
+use feature ":all";
+use uSAC::IO;
+use Data::Dump::Color;
+use Error::Show;
+
+my $reader= uSAC::IO::reader fileno(STDIN); 
+my $line="";
+
+$reader->on_read=sub {
+  local $@="";
+  my @res=eval $_[0];
+
+  if($@){
+    # handle syntax errors
+    say STDERR "ERROR: $@";
+    say STDERR Error::Show::context error=>$@, program=>$_[0];
+  }
+  else {
+    # Print results
+    dd @res;
+  }
+
+  # Consume input buffer
+  $_[0]="";
+};
+
+
+#Start reader
+$reader->start;
+1;
