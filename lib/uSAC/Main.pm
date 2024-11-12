@@ -79,9 +79,15 @@ sub _main {
   use feature "try";
   
   ##print "LOOP\n";
-  #print "ARGV in MAIN: @ARGV\n";
+  print "ARGV in MAIN: @ARGV\n";
   # Perl has consumed all the switches it wants. So the first item is the script
   $script=shift @ARGV;
+  my $p=`which usac-repl`;
+  chomp($p);
+  $script//= $p;
+
+
+  #print STDERR "WORKING WITH script $script\n";
   $0=$script;
 
   while($restart_loop--){
@@ -101,15 +107,17 @@ sub _main {
             my $res=do $script;
             if(!defined $res and $@){
               # Compile error
+              print  STDERR "COMPILE ERROR";
               print STDERR Error::Show::context error=>$@;
               exit;
             }
             elsif(!defined $res and $!){
               # Access error
-             print STDERR "$script: $!\n"; 
+             print STDERR "error $script: $!\n"; 
              exit;  # This stops the loop
             }
             else {
+              print  STDERR "No script file. Entering REPL\n";
             }
       }
     );    # Call user code in a schedualled fashion
@@ -122,7 +130,7 @@ sub _main {
 =pod
 =head1 NAME
   
-  uSAC::Main - Implement the main behinde the scenes event loop
+  uSAC::Main - Implement the main behind the scenes event loop
 
 =head1 DESCRIPTION
 

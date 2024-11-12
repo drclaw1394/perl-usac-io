@@ -2,6 +2,8 @@
  
 my $backend=$ENV{uSAC_IO_Backend};
 
+# Fallback to AnyEvent
+$backend//="AnyEvent";
 
 # Strip out first instance of back end
 #

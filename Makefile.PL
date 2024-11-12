@@ -3,7 +3,10 @@ WriteMakefile(
     NAME              => 'uSAC::IO',
     VERSION_FROM      => 'lib/uSAC/IO.pm',
     MIN_PERL_VERSION  => '5.36.0',
-    EXE_FILES         => ["script/usac"],
+    EXE_FILES         => [
+                          "script/usac",
+                          "script/usac-repl"
+    ],
     PREREQ_PM         => {
 				AnyEvent=>0,
 				"IO::FD"=>"v0.3.7",
