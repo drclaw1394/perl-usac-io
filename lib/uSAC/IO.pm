@@ -895,35 +895,3 @@ sub log {
 
 
 1;
-
-__END__
-
-=head1 NAME
-
-uSAC::IO - Multibackend IO
-
-=head1 SYNOPSIS
-
-	use uSAC::IO;
-
-	my $reader=uSAC::IO->reader(STDIN);
-	my $reader=uSAC::IO->reader($my streaming_socket)
-
-=head1 Description
-
-Provides a streamlined interface for asynchronous IO, using an event loop you
-already use. Implements a common interface between stream and datagram sockets,
-pipes etc.
-
-Think of this module as subclass of IO::Handle  or AnyEvent::Handle etc, but
-has better performance and runs on multiple event loops
-
-Care has been taken in keeping memory usage low and throuput high.
-
-
-=head1 HOW IT WORKS
-
-When this module is loaded, it detects an already loaded IO loop, and
-subsequently loads the appropriate backend to implement the API.
-
-

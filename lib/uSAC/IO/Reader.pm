@@ -11,10 +11,7 @@ use Log::OK;
 
 use Errno qw(EAGAIN EINTR);
 use Fcntl qw(F_GETFL F_SETFL O_NONBLOCK);
-#use Data::Dumper;
-#use Exporter "import";
 
-#use IO::FD::DWIM ":all";
 use IO::FD;
 
 #pass in fh, ctx, on_read, on_eof, on_error
@@ -123,6 +120,7 @@ uSAC::IO::Reader
 
 	use uSAC::IO;
 	my $reader= uSAC::IO->reader(fileno $fh);
+  # $reader will automaticall be a stream or datagram reader
 	
 =head1 DESCRIPTION
 

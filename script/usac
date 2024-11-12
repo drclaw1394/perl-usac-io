@@ -3,7 +3,7 @@
 my $backend=$ENV{uSAC_IO_Backend};
 
 
-# Strip out first instance of backend
+# Strip out first instance of back end
 #
 my $i=0;
 my $found;
@@ -18,7 +18,7 @@ for(@ARGV){
 }
 
 if(defined $found){
-  # This overrides the envrionment setting
+  # This overrides the environment setting
   (undef, $backend)=splice @ARGV, $found, 2;
 }
 
@@ -41,7 +41,7 @@ exec @list;
 
 =head1 NAME
 
-usac - Cleaner Event Driven Perl,less Boilerplate, more diagnostics
+usac - Cleaner Event Driven Perl. Less Boilerplate. More diagnostics
 
 =head2 SYNOPSIS
 
@@ -52,24 +52,13 @@ usac - Cleaner Event Driven Perl,less Boilerplate, more diagnostics
 
 =head1 DESCRIPTION
 
-Perl had no built in event loop system like Node.js for example. This gives
-great flexibilty in it's usage, but does lends it self to a little mess when
-trying to support multitple event loops.
-
-
-Packages like L<AnyEvent> for example, address this with wrapping other event
-systems into a common API interface. L<uSAC::IO>  does this too, (but with a
-difference approach).  However, you still need to 'setup the run loop' before
-you have a functional program.
-
-
-L<usac> is a special program which wraps Perl itself, to automaticall create an
+L<usac> is a special program which wraps Perl itself, to automatically create an
 event processing run loop (of your choosing) behind the scenes. This means your
 L<uSAC::IO> scripts work without needing any event system run loop knowledge.
 
+Essentially it hides away and abstract the loop setup and tear down from the
+main program. For example instead of:
 
-For example instead of:
-  
     #!/usr/bin/env perl
     #
     use AnyEvent;
@@ -84,8 +73,6 @@ For example instead of:
     };
 
     $cv->recv;
-
-
 
 
 
@@ -104,15 +91,30 @@ You do this:
 It also supports L<Error::Show> to better display and trace errors when running
 perl code!
 
+=head1 MOTIVATION
+
+Perl had no built in event loop system like Node.js for example. This gives
+great flexibility in it's usage, but does lends it self to a little mess when
+trying to support multiple event loops.
+
+Packages like L<AnyEvent> for example, attempts to address this with wrapping
+other event systems into a common API. However the run loop itself still needs
+to be setup correctly. This takes the next step and removes the run loop setup
+responsibility from the user.
+
+  
+
 =head1 USAGE
 
 The L<usac> script, wraps the perl executable, passing all command line
-arguments as is to perl. IT adds support for an additional command line
+arguments as is to perl. It adds support for an additional command line
 argument called C<--backend>. This is the package name of the Event system to
 use.
 
 
   usac --backend BACKEND  [perl arguments]
+
+This is stripped from the arguments before being passed to Perl
 
 
 =head1 AUTHOR
