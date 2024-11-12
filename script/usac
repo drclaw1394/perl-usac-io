@@ -33,8 +33,8 @@ die "No backend specified. Use environment or --backend" unless $backend;
 # function will be the script we want to execute
 #
 my @list=($^X,"-M$backend", "-MuSAC::Main", "-e", "uSAC::Main::_main", @ARGV);
-print "@list";
-print "\n";
+#print "@list";
+#print "\n";
 exec @list;
 
 =pod
