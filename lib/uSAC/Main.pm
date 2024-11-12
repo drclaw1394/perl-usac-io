@@ -79,7 +79,7 @@ sub _main {
   use feature "try";
   
   ##print "LOOP\n";
-  print "ARGV in MAIN: @ARGV\n";
+  #print "ARGV in MAIN: @ARGV\n";
   # Perl has consumed all the switches it wants. So the first item is the script
   $script=shift @ARGV;
   my $p=`which usac-repl`;
