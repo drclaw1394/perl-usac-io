@@ -84,7 +84,10 @@ sub _main {
   $script=shift @ARGV;
   my $p=`which usac-repl`;
   chomp($p);
-  $script//= $p;
+  unless($script){
+    print  STDERR "No script file given. Entering REPL\n";
+    $script= $p;
+  }
 
 
   #print STDERR "WORKING WITH script $script\n";
@@ -117,7 +120,7 @@ sub _main {
              exit;  # This stops the loop
             }
             else {
-              print  STDERR "No script file. Entering REPL\n";
+              #print  STDERR "No script file. Entering REPL\n";
             }
       }
     );    # Call user code in a schedualled fashion
