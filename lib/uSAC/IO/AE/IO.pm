@@ -23,6 +23,7 @@ my $entry;
 
 
 my $CV;
+my $will_exit;
 # Code to setup event loop before it starts
 sub _pre_loop {
   #print "CALLING PRE LOOP\n";
@@ -32,17 +33,19 @@ sub _pre_loop {
 }
 
 sub _post_loop {
-  #print "POST LOOP CALLED\n";
-  $CV->recv;
+  # Only execute run loop if exit hasn't been called
+  !$will_exit and $CV and $CV->recv;
 }
 
 sub _shutdown_loop {
   #print "SHUTDOWN LOOP CALLED\n";
-  $CV->send;
+  $CV and $CV->send;
 }
 
 sub _exit {
   # Do any cleanup before exiting 
+  # Mark with will_exit to prevent blocking on undefined $CV
+  $will_exit=1;
   _shutdown_loop;
 }
 

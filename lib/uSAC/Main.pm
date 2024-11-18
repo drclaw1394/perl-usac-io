@@ -2,8 +2,6 @@
 
 package uSAC::Main;
 no warnings "experimental";
-#use Getopt::Std;
-#use AnyEvent;
 
 
 use uSAC::IO ();
