@@ -75,11 +75,13 @@ my $script=$0;
 
 sub _main {
   use feature "try";
+  my $script=shift;
   
   ##print "LOOP\n";
   #print "ARGV in MAIN: @ARGV\n";
   # Perl has consumed all the switches it wants. So the first item is the script
-  $script=shift @ARGV;
+  $script//=shift @ARGV;
+
   my $p=`which usac-repl`;
   chomp($p);
   unless($script){
@@ -101,11 +103,18 @@ sub _main {
 
             # A relative path must have "./" prepended to it to run
             # like normal perl do to the 'do script'
-	    # Let absolute paths and ../ types alone
-	    if(($script!~m{^/}) and ($script!~m{^\.{1,2}/})){
-            	$script="./$script"
-	    }
-            my $res=do $script;
+            # Let absolute paths and ../ types alone
+            my $res;
+            if(ref($script) eq ""){
+              if(($script!~m{^/}) and ($script!~m{^\.{1,2}/})){
+                $script="./$script"
+              }
+              $res=do $script;
+            }
+            else {
+              #assume a code reference
+              $res=$script->();
+            }
             if(!defined $res and $@){
               # Compile error
               print  STDERR "COMPILE ERROR";
