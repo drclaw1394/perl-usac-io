@@ -15,7 +15,8 @@ WriteMakefile(
 				"Object::Pad"=>0,
         "Socket::More::Resolver"=>0,
         "Socket::More"=>0,
-        "Error::Show"=>0
+        "Error::Show"=>0,
+	"Data::Dump::Color"=>0
 
 			}, 
     ABSTRACT_FROM     => 'lib/uSAC/IO.pod', 
