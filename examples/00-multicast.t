@@ -1,114 +1,150 @@
+#!/usr/bin/env usac --backend AnyEvent
 use strict;
 use warnings;
+no warnings "experimental";
 use feature ":all";
+use Data::Dumper;
 
 
-use Time::HiRes qw<sleep>;
 use Test::More;
 
-use EV;
-use AnyEvent;
 
 use uSAC::IO;		
 
 use Socket ":all";
 
 sub decode_DNS;
-my $cv=AE::cv;
 
 my $port=5353;#5050;
 my $host="224.0.0.251";
 
 #$host="ff02::fb";
 
-#Create a nonblocking socket
-socket(my $fh, AF_INET, SOCK_DGRAM, 0) or die "Error making socket";
+my @list;
+sub on_spec {
+  say STDERR "ONSPEC";
+  #Create a nonblocking socket
+  my $fh;
+  socket($fh, AF_INET, SOCK_DGRAM, 0) or die "Error making socket";
 
-#set socket options
-unless(setsockopt $fh, SOL_SOCKET, SO_REUSEADDR, 1){
-        say "ERROR SETTING membership SOCKET OPTIONS";
-        say $!;
-}
-unless(setsockopt $fh, SOL_SOCKET, SO_REUSEPORT, 1){
-        say "ERROR SETTING membership SOCKET OPTIONS";
-        say $!;
-}
-
-
-my $addr;
-uSAC::IO::bind($fh, $host, $port, {},
-  \&post_bind,
-  sub {
-    die "Could not bind";
+  #set socket options
+  unless(setsockopt $fh, SOL_SOCKET, SO_REUSEADDR, 1){
+    say STDERR "ERROR SETTING membership SOCKET OPTIONS";
+    say STDERR $!;
   }
-);
 
-#my ($sock,$addr)=@_;
-#Socket bound
-#my $multicast=pack_sockaddr_in 5050, 
-#
-my $sender;
+  unless(setsockopt $fh, SOL_SOCKET, SO_REUSEPORT, 1){
+    say STDERR "ERROR SETTING membership SOCKET OPTIONS";
+    say STDERR $!;
+  }
+
+  push @list, $fh; # retain the sockets
+
+  #shift @_;
+  #unshift @_, $fh;
+  
+  uSAC::IO::bind $fh, $_[1];
+}
+
 sub post_bind {
-    my (undef, $addr)=@_;
-    say "POST BIND: ".$addr;
+  say STDERR "POST BIND";
+  #my (undef, $addr)=@_;
+    my ($sock, $spec)=@_;
+    say STDERR fileno $sock;
+    my $addr=$spec->{addr};
+
   my $multicast=inet_aton "224.0.0.251";
-  say $multicast;
-  say "ANY: ", unpack "H*", INADDR_ANY;
+
   my $m=pack_ip_mreq $multicast, INADDR_ANY;
-  unless(setsockopt $fh, IPPROTO_IP, IP_ADD_MEMBERSHIP , $m){
-    say "ERROR SETTING membershipSOCKET OPTIONS";
-    say $!;
+
+  unless(setsockopt $sock, IPPROTO_IP, IP_ADD_MEMBERSHIP , $m){
+    say STDERR "ERROR SETTING membershipSOCKET OPTIONS";
+    say STDERR $!;
   }
 
-  say "My filehandle is: $fh";
-  my $reader=uSAC::IO::reader(fh=>$fh);
-  my $writer=uSAC::IO::writer(fh=>\*STDOUT);
+  say STDERR "My filehandle is: ".fileno $sock;
+  #say "Other is  ". fileno $fh;
+  my $reader=uSAC::IO::reader($sock);
+  my $writer=uSAC::IO::writer(\*STDOUT);
 
   $reader->on_read=\&decode_DNS;
   $reader->start;
 
 
+my $sender;
   #Create a nonblocking socket
   unless(socket($sender, AF_INET, SOCK_DGRAM, 0)){
     die "Error making sending socket";
   }
 
-  say "Sneder is ".fileno $sender;
-  my $id=uSAC::IO::connect(
-    $sender,
-    "224.0.0.251",
-    5353,
-    sub {
-      say "CONNECT CALLBACK : $_[0]";
-      my $output=uSAC::IO::dwriter(fh=>$_[0]);
-      say $output;
-      my $query=Net::DNS::Packet->new("rmbp.local", "A", "IN")->encode;
-      #my $query=Net::DNS::Packet->new("google.com")->encode;
-      #say unpack "H*", $query;
-      $output->write($query, sub {say "Done"});
-      #
-      #my $res=send $sender, $query, 0;
-      #say "RES is $res";
-      
-      #my $res =IO::FD::send $_[0], $query, 0;
-      #say "RES is $res";
-    }
-    ,sub {
-      say "error"
-    }
-  );
+  my $id;
+  my %spec=%$spec; #Copy
+  $spec{data}{on_connect}= sub {
+          say STDERR "CONNECT CALLBACK : $_[0]";
+          my $output=uSAC::IO::dwriter(fh=>$_[0]);
+          say STDERR $output;
+          my $query=Net::DNS::Packet->new("rmbp.local", "A", "IN")->encode;
+          #my $query=Net::DNS::Packet->new("google.com")->encode;
+          #say STDERR unpack "H*", $query;
+          $output->write($query, sub {say STDERR "Done"; uSAC::IO::connect_cancel $id; $id=undef;});
+        };
+  say STDERR "Sneder is ".fileno $sender;
 
-  my $t;$t=AE::timer 5, 0, sub {
-    try {
-      die "connection id: $id";
+  $id=uSAC::IO::connect( $sender, \%spec);
+  ###############################################################################################
+  #   {                                                                                         #
+  #     address=>"224.0.0.251",                                                                 #
+  #     port=>5353,                                                                             #
+  #     data=>{                                                                                 #
+  #       on_connect=>sub {                                                                     #
+  #         say "CONNECT CALLBACK : $_[0]";                                                     #
+  #         my $output=uSAC::IO::dwriter(fh=>$_[0]);                                            #
+  #         say $output;                                                                        #
+  #         my $query=Net::DNS::Packet->new("rmbp.local", "A", "IN")->encode;                   #
+  #         #my $query=Net::DNS::Packet->new("google.com")->encode;                             #
+  #         say unpack "H*", $query;                                                            #
+  #         $output->write($query, sub {say "Done"; uSAC::IO::connect_cancel $id; $id=undef;}); #
+  #       },                                                                                    #
+  #       on_error=>sub {                                                                       #
+  #         say "error"                                                                         #
+  #       }                                                                                     #
+  #   },                                                                                        #
+  # }                                                                                           #
+  ###############################################################################################
+#);
+
+  #my $t;$t=AE::timer 5, 0, sub {
+  my $t;$t=uSAC::IO::timer 5, 0, sub {
+    if(defined $id){
+      uSAC::IO::connect_cancel($id);
+      undef $t;
     }
-    catch ($e){
-      say "Caught exception";
-    }
-    uSAC::IO::connect_cancel($id);
-    undef $t;
   };
 }
+
+
+my $addr;
+my $hints={
+  address=>$host,
+  port=>$port,
+  socktype=>SOCK_DGRAM, protocol=>IPPROTO_UDP, flags=>0,
+
+  data=>{
+    on_error=>sub { say STDERR "ERROR HANDLER", "@_"},
+    on_bind=>\&post_bind,
+    on_spec=>\&on_spec
+  }
+};
+
+#my ($sock,$addr)=@_;
+#Socket bound
+#my $multicast=pack_sockaddr_in 5050, 
+#
+
+say STDERR "Calling stage";
+uSAC::IO::socket_stage( $hints, undef);#, \&uSAC::IO::bind);
+
+say STDERR "AFTER Calling stage";
 
 
 #Header
@@ -170,18 +206,11 @@ for my ($k,$v)(
 }
 
 sub decode_DNS {
-#say "PARSE: ".unpack "H*", $_[0];
-	################################################
-	# use Data::Dumper;                            #
+  #say STDERR "PARSE: ".unpack "H*", $_[0];
   use Net::DNS::Packet;
-  #my $packet=Net::DNS::Packet->decode(\$_[0]);
-  #$packet->print;
-  #
-  #return;
-	################################################
-	say "";
-	say "";
-  #my $org_message=$_[0]; # Copy for name decoding
+	say STDERR "";
+	say STDERR "";
+
   my $total_offset=0;    # Reset offset
 
 	my ($id, $details, $qd_count, $an_count, $ns_count, $ar_count)=unpack "n6", substr $_[0], $total_offset, 12;
@@ -201,53 +230,52 @@ sub decode_DNS {
 	$z= 		(0b0000000001110000 & $details)>>4;
 	$rcode= 	(0b0000000000001111 & $details);
 	#pack
-	say "ID: ".$id;
-	say "Details: Query: $query, op_code: $op_code, aa: $aa, rd: $rd, ra: $ra, z: $z, rcode: $rcode";
-	say "Q count: ".$qd_count;
-	say "A count: ".$an_count;
-	say "N count: ".$ns_count;
-	say "R count: ".$ar_count;
+	say STDERR "ID: ".$id;
+	say STDERR "Details: Query: $query, op_code: $op_code, aa: $aa, rd: $rd, ra: $ra, z: $z, rcode: $rcode";
+	say STDERR "Q count: ".$qd_count;
+	say STDERR "A count: ".$an_count;
+	say STDERR "N count: ".$ns_count;
+	say STDERR "R count: ".$ar_count;
 
-  say "";
+  say STDERR "";
   my $prev;
-  say "questions";
+  say STDERR "questions";
   for(1..$qd_count){
     #$prev=$total_offset;
     my $label=decode_name($_[0], $total_offset);
     my ($type, $class)=unpack "nn", substr $_[0], $total_offset, 4;
     $total_offset+=4;
 
-    say  "Label: $label, type $type, class $class";
-    say"";
+    say STDERR  "Label: $label, type $type, class $class";
+    say STDERR "";
     # 
   }
-  say "";
+  say STDERR "";
   my $section=0;
   my @sections=qw<Answers Authorative Additional>;
   for my $count($an_count, $ns_count, $ar_count){
-    say "Processing section: $sections[$section] at offset $total_offset (length ".length $_[0];
+    say STDERR "Processing section: $sections[$section] at offset $total_offset (length ".length $_[0];
     for(1..$count){
       #$prev=$total_offset;
       my $label=decode_name($_[0], $total_offset);
-      say "Total offset(after name): $total_offset";
+      say STDERR "Total offset(after name): $total_offset";
       my ($type, $class, $ttl, $rd_len)=unpack "nnNn", substr $_[0], $total_offset, 10;# $total_offset;
       $total_offset+=10;
 
-      say  "Label: $label, type $type, class $class, ttl $ttl, rd_len: $rd_len";
-      say "REV TYPE: $rev_type{$type}";
+      say  STDERR "Label: $label, type $type, class $class, ttl $ttl, rd_len: $rd_len";
+      say STDERR "REV TYPE: $rev_type{$type}";
 
       my $decoder=$rr_decoders[$type];
       if($decoder){
         my $res=$decoder->($_[0], $total_offset, $rd_len);
-        say length $res->[0];
-        use Data::Dumper;
-        say Dumper $res;
+        #say length $res->[0];
+        say STDERR Dumper [map unpack("H*", $_), @$res];#$res;
       }
       else {
-        say "UNSUPPORTED TYPE:  $type ($rev_type{$type})";
+        say STDERR "UNSUPPORTED TYPE:  $type ($rev_type{$type})";
         $total_offset+=$rd_len;
       }
-      say "Total offset(after r data): $total_offset";
+      say STDERR "Total offset(after r data): $total_offset";
     }
     $section++;
   }
@@ -257,8 +285,8 @@ sub decode_DNS {
 # $_[0] is buffer
 # $_[1] is offset
 sub decode_name {
-say "DECODE NAME";
-say "========";
+say STDERR "DECODE NAME";
+say STDERR "========";
 
 	my @stack=($_[1]);
 
@@ -270,17 +298,17 @@ say "========";
 
   while(@stack){
     $pos=pop @stack;
-    say "";
-  say "Offset: $pos";
-  say "length ".length $_[0];
+    say STDERR "";
+  say STDERR "Offset: $pos";
+  say STDERR "length ".length $_[0];
   #say "value: ".substr $_[0], $pos;
 
 
     my ($u, $l)=unpack "CC", substr $_[0], $pos;
 
     #say "TEST: ". unpack "H*", pack "C", 13;
-    say "UPPER: ".unpack "H*",pack "C", $u;
-    say "lower:".unpack "H*", pack "C", $l;
+    say STDERR "UPPER: ".unpack "H*",pack "C", $u;
+    say STDERR "lower:".unpack "H*", pack "C", $l;
     if(0xC0 == ($u& 0xC0)) {
       $pointer= ($u& 0x3F)<<8;
       $pointer+=$l;
@@ -410,5 +438,3 @@ sub encode_HINFO_rr {
   $buf.=pack "v/a* v/a*", $_[0]->@*;
 }
 
-
-$cv->recv;

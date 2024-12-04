@@ -13,6 +13,7 @@ use Errno qw(EAGAIN EINTR EINPROGRESS);
 
 use AnyEvent;
 use IO::FD;
+use IO::FD::DWIM;
 
 
 # Postpone a subroutine call
@@ -128,7 +129,7 @@ sub connect_addr {
   #$id++;
   my $s;
   my $id=\$s;
-	my $res=IO::FD::connect $socket, $addr;
+	my $res=IO::FD::connect IO::FD::DWIM::fileno($socket), $addr;
   unless($res){
     #EAGAIN for pipes
     if($! == EAGAIN or $! == EINPROGRESS){

@@ -2,6 +2,12 @@
 
 package uSAC::Main;
 no warnings "experimental";
+use Log::ger;
+use Log::ger::Output "Screen";
+use Log::OK {
+  lvl=> "info",
+  opt=>"verbose"
+};
 
 
 use uSAC::IO ();

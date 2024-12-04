@@ -12,11 +12,12 @@ use constant::more DEBUG=>0;
 use constant::more qw<r_CIPO=0 w_CIPO r_COPI w_COPI r_CEPI w_CEPI>;
 use Import::These qw<uSAC::IO:: DReader DWriter SWriter SReader>;
 
+use Socket::More;
 use Import::These qw<Socket::More:: Constants Interface>;
 use constant::more  IPV4_ANY=>"0.0.0.0",
                     IPV6_ANY=>"::";
 
-use Socket::More;
+
 use Socket::More::Resolver {}, undef;
 use IO::FD::DWIM ();
 use Fcntl qw(F_GETFL F_SETFL O_NONBLOCK :mode);
