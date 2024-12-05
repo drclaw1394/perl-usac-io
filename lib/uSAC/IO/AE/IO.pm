@@ -187,9 +187,11 @@ sub resolve {
 	
 }
 
-sub accept {
-
-}
+################
+# sub accept { #
+#              #
+# }            #
+################
 
 sub cancel_accept {
 
