@@ -29,6 +29,7 @@ method start :override ($fh=undef) {
   #reset buffer if new fh
   $self->buffer="" if $fh;
 	$_rw= AE::io $$_rfh_ref, 0, $_reader//=$self->_make_reader;
+  $uSAC::IO::AE::IO::watchers{$self}=$_rw;
 	$self;
 }
 
@@ -73,6 +74,7 @@ method _make_reader  :override {
 #events
 method pause :override {
 	undef $_rw;
+  delete $uSAC::IO::AE::IO::watchers{$self};
 	$self;
 }
 

@@ -15,6 +15,8 @@ use AnyEvent;
 use IO::FD;
 use IO::FD::DWIM;
 
+our %watchers;
+our %sig_watchers;
 
 # Postpone a subroutine call
 my @asap;
@@ -25,18 +27,8 @@ my $entry;
 
 my $CV;
 my $will_exit;
-# Code to setup event loop before it starts
-sub _pre_loop {
-  #print "CALLING PRE LOOP\n";
-  # Create a cv; 
-  $CV=AE::cv;
-  return;
-}
+my $tick_timer_raw;
 
-sub _post_loop {
-  # Only execute run loop if exit hasn't been called
-  !$will_exit and $CV and $CV->recv;
-}
 
 sub _shutdown_loop {
   #print "SHUTDOWN LOOP CALLED\n";
@@ -46,11 +38,18 @@ sub _shutdown_loop {
 sub _exit {
   # Do any cleanup before exiting 
   # Mark with will_exit to prevent blocking on undefined $CV
+  $tick_timer_raw=undef;
   $will_exit=1;
   _shutdown_loop;
 }
 
 
+sub cancel ($){
+  my $w=delete $watchers{$_[0]};
+  $_[0]=undef; 
+  say "cancel called";
+  say %watchers+0;
+}
 
 
 
@@ -86,41 +85,64 @@ sub asap (*@){
     1;
 }
 
-my %timer;
-#my $timer_id=1;  #Start at a true value
 sub timer ($$$){
-    my ($offset, $repeat, $sub)=@_;
-    my $s;#\1;#$timer_id++;
+    my ($offset, $repeat, $sub, $no_save)=@_;
+    my $s;
     my $id=\$s;
-    $timer{$id}=AE::timer $offset, $repeat, sub{$sub->($id)};
+    $watchers{$id}=AE::timer $offset, $repeat, sub{
+      say "WATCHERS: ",%watchers;
+      delete $watchers{$id} unless($repeat);
+      $sub->($id)
+    };
     $id;
 }
 
-sub timer_cancel ($){
-  delete $timer{$_[0]};
-  $_[0]=undef; 
-}
 
-my %signal;
-my $signal_id=1;
+##############################
+# sub timer_cancel ($){      #
+#   delete $watchers{$_[0]}; #
+#   $_[0]=undef;             #
+# }                          #
+##############################
+
+*timer_cancel=\&cancel;
+
 sub signal ($$){
   my ($name, $sub)=@_;
   my $s;
-  my $id=\$s;#$signal_id++;
-  $signal{$id}=AE::signal $name, sub { $sub->($id)};
+  my $id=\$s;
+  $sig_watchers{$id}=AE::signal $name, sub { $sub->(@_, $id)};
   $id;
 }
 
 sub signal_cancel ($){
-  delete $signal{$_[0]};
-  $_[0]=undef; 
+  delete $sig_watchers{$_[0]};
+  $_[0]=undef;
 }
 
+#*signal_cancel=\&cancel;
+
+sub child ($$){
+  my ($pid, $sub)=@_;
+  my $s;
+  $watchers{$pid}=AE::child $pid, sub {
+    delete $watchers{$_[0]};
+    &$sub;
+  }
+}
+
+##############################
+# sub child_cancel ($){      #
+#   delete $watchers{$_[0]}; #
+#   $_[0]=undef;             #
+# }                          #
+##############################
+*child_cancel=\&cancel;
 
 
 
 
-my %watchers;
+
 #my $id;
 sub connect_addr {
   #A EINPROGRESS is expected due to non block
@@ -140,8 +162,8 @@ sub connect_addr {
               delete $watchers{$id};
 
               if($sockaddr){
+                      say STDERR  "IN socket connect callback: ", $on_connect;
                       $on_connect and $on_connect->($socket, $addr);
-              say STDERR  "IN socket connect callback: ", $on_connect;
               }
               else {
                       #error
@@ -195,6 +217,32 @@ sub resolve {
 
 sub cancel_accept {
 
+}
+
+# Code to setup event loop before it starts
+sub _pre_loop {
+  #print "CALLING PRE LOOP\n";
+  # Create a cv; 
+  $CV=AE::cv;
+  return;
+}
+
+sub _post_loop {
+  # Create a tick timer, which isn't part of the normal watcher list
+  # When no watchers are present, 
+  unless($tick_timer_raw){
+    $tick_timer_raw=1; # Synchronous true until asap is called
+    asap sub {
+      my $id=timer 0, 1, sub {
+        $uSAC::IO::Clock=time;
+        _exit unless %watchers;
+      };
+
+      $tick_timer_raw=delete $watchers{$id};
+    };
+  }
+  # Only execute run loop if exit hasn't been called
+  !$will_exit and $CV and $CV->recv;
 }
 
 

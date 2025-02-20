@@ -142,17 +142,18 @@ sub path {
   
   if(ref($_[0]) eq "SCALAR" or !defined $_[0]){
     $prefix=dirname abs2rel rel2abs $frame->[1];
-    
-    $p=$_[0]->$*;
 
     #Create the root as a relative path to current working dir
-    if($p){
+    
+    if($_[0]){
+      # Defined scalar refererence. Dereference it
+      $p=$_[0]->$*;
       return $p if $p =~ m|^/|;
-      #$p=catfile($prefix, $p);
       $p="$prefix/$p";
     }
     else{
-      # No suffix specified, don't join
+      # Undefined input, use caller dir only
+      # No prefix specified, don't join
       $p=$prefix;
     }
   }

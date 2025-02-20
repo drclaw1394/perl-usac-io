@@ -2,12 +2,14 @@ package uSAC::IO;
 use strict;
 use warnings;
 
+no warnings "experimental";
+
 use feature "say";
 use feature "current_sub";
 
 our $VERSION="v0.1.0";
 
-use constant::more DEBUG=>0;
+use constant::more DEBUG=>1;
 #Datagram
 use constant::more qw<r_CIPO=0 w_CIPO r_COPI w_COPI r_CEPI w_CEPI>;
 use Import::These qw<uSAC::IO:: DReader DWriter SWriter SReader>;
@@ -24,13 +26,20 @@ use Fcntl qw(F_GETFL F_SETFL O_NONBLOCK :mode);
 
 use Data::Dumper;
 use Data::Cmp qw<cmp_data>;
+use uSAC::FastPack::Broker;
+
+# The broker node
+#
+my $node=uSAC::FastPack::Broker::Default;
+my $broadcaster=$node->get_broadcaster;
 
 
 
-use Export::These qw{asap timer timer_cancel connect connect_cancel connect_addr bind pipe pair dreader dwriter reader writer sreader swriter signal};
+use Export::These qw{asap timer timer_cancel connect connect_cancel connect_addr bind pipe pair dreader dwriter reader writer sreader swriter signal socket_stage};
 
 
 sub _reexport {
+  uSAC::FastPack::Broker->import;
 }
 
 
@@ -58,6 +67,9 @@ sub timer ($$$);  # Setup a timer
 
 sub signal ($$);  #Assign a signal handler to a signal
 
+sub child ($$);
+sub cancel ($);
+
 # Must delete the timer from store
 # Must use alias of argument to make undef
 sub timer_cancel ($);
@@ -71,11 +83,14 @@ sub _shutdown_loop;
 *asap=\&{$rb."::asap"};                         # Schedual code to run as soon as possible (next tick)
 *signal=\&{$rb."::signal"};                         # Schedual code to run as soon as possible (next tick)
 *signal_cancel=\&{$rb."::signal_cancel"};                         # Schedual code to run as soon as possible (next tick)
+*child=\&{$rb."::child"};                         # Schedual code to run as soon as possible (next tick)
+*child_cancel=\&{$rb."::child_cancel"};                         # Schedual code to run as soon as possible (next tick)
 *timer=\&{$rb."::timer"};                       # Create a timer, with offset, and repeat, returns ref
 *timer_cancel=\&{$rb."::timer_cancel"};         # cancel a timer
 *connect_cancel=\&{$rb."::connect_cancel"};     # Cancel a connect
 *connect_addr=\&{$rb."::connect_addr"};         # Connect via address structure
 
+*cancel=\&{$rb."::cancel"};
 
 *CORE::GLOBAL::exit=\&{$rb."::_exit"};          # Make global exit shutdown the loop 
 
@@ -85,10 +100,11 @@ sub _shutdown_loop;
 *_shutdown_loop=\&{$rb."::_shutdown_loop"};     # Internal
 
 
-
+#sub _tick_timer;
+#*_tick_timer=\&{$rb."::_tick_timer"};                       # Create a timer, with offset, and repeat, returns ref
 # Start a 1 second tick timer. This simply updates the 'clock' used for simple
 # timeout measurements.
-our $Tick_Timer=timer 0, 1, sub { $Clock=time; };
+
 
 use strict "refs";
 
@@ -163,12 +179,13 @@ sub socket_stage($$){
   
   # Override an undefined on_spec function to create a socket
   my $on_spec=$specs[0]{data}{on_spec}//sub { 
+    
     _create_socket undef, $_[1], $next if $_[1];
   };
 
-  DEBUG and say STDERR "about to prepar specs";
+  DEBUG and say STDERR "about to prepare specs";
   _prep_spec($_, $on_spec) for @specs;
-  DEBUG and say STDERR "after to prepar specs";
+  DEBUG and say STDERR "after to prepare specs";
 
   1;
 
@@ -220,6 +237,10 @@ sub bind ($$) {
   for ($hints){
     my %copy=%$_; # Copy the spec?
     my $addr=$copy{addr};
+
+	  IO::FD::setsockopt($socket, SOL_SOCKET, SO_REUSEADDR, pack "i", 1) if $copy{data}{reuse_addr};
+		IO::FD::setsockopt($socket, SOL_SOCKET, SO_REUSEPORT, pack "i", 1) if $copy{data}{reuse_port};
+
     if(IO::FD::DWIM::bind($socket, $addr)){
       my $name=IO::FD::DWIM::getsockname $socket;
       $copy{addr}=$name;
@@ -824,11 +845,11 @@ sub pipe {
 # }                                       #
 ###########################################
 
-
+my %procs;
 # Internal for and of fork/exec
 # Creates pipes for communicating to child processes
 sub _sub_process ($;$$$$){
-  my ($cmd, $on_CIPO, $on_COPI, $on_CEPI, $on_error)=@_;
+  my ($cmd, $on_error)=@_;
 
   my @pipes;
   # Create pipes?
@@ -848,8 +869,30 @@ sub _sub_process ($;$$$$){
     # store for later refernce
     #
     #
-    my $c={pid=>$pid, pipes=>\@pipes};
-    return $pid;
+
+    my $writer=uSAC::IO::writer $pipes[w_CIPO];
+    my $reader=uSAC::IO::reader $pipes[r_COPI];
+    my $error=uSAC::IO::reader $pipes[r_CEPI];
+    
+
+
+    my $c={pid=>$pid, pipes=>\@pipes, reader=>$reader, error=>$error};
+    $procs{$pid}=$c;
+    say "created child $pid";
+    uSAC::IO::child $pid, sub {
+      my ($ppid, $status)=@_;
+        my $dc=delete $procs{$ppid}; 
+        # Close pipes
+        IO::FD::close $_ for $dc->{pipes}->@*;
+        
+        # remove the watchers
+        $reader->pause;
+        $error->pause;
+        $on_error and  $on_error->($status, $ppid); #Status first to match perl system command
+      say "AFTER WHILE $ppid";
+    };
+
+    return ($pid, $writer, $reader, $error);
   }
   else {
     # child
@@ -870,10 +913,112 @@ sub _sub_process ($;$$$$){
 
     # Do it!
     if($cmd){
-      exec $cmd;
+      say "asldkjfalskdjfalskdjflaksdjf";
+      exec $cmd or say STDERR $! and exit;
+    }
+
+
+  }
+
+}
+
+sub _map {
+  my $filter=shift;
+  sub {
+    my ($next, $index, @options)=@_;
+    sub {
+      #my $cb=$_[$#_];
+      @{$_[0]}= map $filter->($_), @{$_[0]};
+      &$next;
     }
   }
 }
+
+sub _grep {
+  my $filter=$_[0];
+  sub {
+    my ($next, $index, @options)=@_;
+    sub {
+      #my $cb=$_[$#_];
+      @{$_[0]}= grep $_=~ $filter, @{$_[0]};
+      &$next;
+    }
+  }
+}
+
+sub _upper {
+  sub {
+    my ($next, $index, @options)=@_;
+    sub {
+      #my $cb=$_[$#_];
+      for my($s)(@{$_[0]}){
+        $s=uc $s; 
+      }
+      &$next;
+    }
+  }
+}
+sub _lines {
+  my $sep=$/; # save input seperator
+  my $buffer=""; # buffing
+  sub {
+    my ($next, $index, @options)=@_;
+    sub {
+
+      # expects last element as a callback, if  no callback is last data
+      my $cb=pop;
+
+      # Alias of in put means consumed in place 
+      #
+      my @lines=split $sep, $_[0];
+
+      #If the buffer does not end in a line
+      # and we have callback, we expect more data
+      if($cb and $_[0]!~/$sep$/){
+        # Set buffer to partial line
+        $_[0]=pop @lines;
+      }
+      $next->(\@lines, $cb);
+    }
+  }
+}
+
+# return accumulated results from stdout
+#
+
+use Sub::Middler;
+
+sub _backtick {
+  my $cmd=shift;
+  my $on_result=shift;
+
+
+  my $buffer="";
+  my $status;
+  my $pid;
+  my @io;
+
+  ($pid, @io)= _sub_process $cmd, sub {
+      ($status, $pid)=@_;
+      $on_result and $on_result->($buffer, $status, $pid, undef);
+  };
+
+  # Back tick handles stadard out only
+  $io[1]->on_read=sub {
+    $buffer.=$_[0]; $_[0]="";
+  };
+
+  # Consume the error stream
+  $io[2]->on_read=sub {
+    $_[0]="";
+  };
+
+  # Start readers
+  $io[1]->start;
+  $io[2]->start;
+
+}
+
 
 # Run another command, linking stdio
 #
@@ -886,12 +1031,47 @@ sub worker {
 
 }
 
-# Write message to non blocking file handle. Never a file.
-sub log {
+#  Send via broker
 
+sub log_trace {
+  unshift @_, undef, "usac/log/trace"; 
+  &$broadcaster
+}
+
+sub log_debug {
+  unshift @_, undef, "usac/log/debug"; 
+  &$broadcaster
+}
+
+sub log_warn {
+  unshift @_, undef, "usac/log/warn"; 
+  &$broadcaster
+}
+
+sub log_error {
+  unshift @_, undef, "usac/log/error"; 
+  &$broadcaster
+}
+
+sub log_fatal {
+  unshift @_, undef, "usac/log/fatal"; 
+  &$broadcaster
 }
 
 
+{
+  # Setup STDIN, STDOUT and STDERR as non blocking
+  my $res;
+  $res= IO::FD::fcntl 0, F_SETFL, O_NONBLOCK;
+  DEBUG and say STDERR "ERROR in setting STDIN Nonblocking" unless (defined $res);
+
+  $res= IO::FD::fcntl 1, F_SETFL, O_NONBLOCK;
+  DEBUG and say STDERR "ERROR in setting STDOUT Nonblocking" unless (defined $res);
+
+  $res= IO::FD::fcntl 2, F_SETFL, O_NONBLOCK;
+  DEBUG and say STDERR "ERROR in setting STDERR Nonblocking" unless (defined $res);
+
+}
 
 
 

@@ -28,6 +28,7 @@ BUILD {
 method start :override ($fh=undef){
 	$$_afh_ref=$fh if $fh;
 	$_aw= AE::io $$_afh_ref, 0, $_acceptor//=$self->_make_acceptor;
+  $uSAC::IO::AE::IO::watchers{$self}=$_aw;
 	$self;
 }
 
@@ -59,6 +60,7 @@ method _make_acceptor :override {
 method pause :override {
   #Destroy the IO watcher
   undef $_aw;
+  delete $uSAC::IO::AE::IO::watchers{$self};
 }
 
 1;
