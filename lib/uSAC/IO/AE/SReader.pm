@@ -23,6 +23,7 @@ field $_rfh_ref;
 BUILD {
 	$_rfh_ref=\$self->fh;
 }
+sub uSAC::IO::asay;
 
 method start :override ($fh=undef) {
 	$$_rfh_ref=$fh if $fh;
@@ -30,6 +31,7 @@ method start :override ($fh=undef) {
   $self->buffer="" if $fh;
 	$_rw= AE::io $$_rfh_ref, 0, $_reader//=$self->_make_reader;
   $uSAC::IO::AE::IO::watchers{$self}=$_rw;
+  uSAC::IO::asay "STARTED sreader $$_rfh_ref=====";
 	$self;
 }
 
@@ -61,11 +63,18 @@ method _make_reader  :override {
     #say Devel::Peek::Dump $buf;
 		$len>0 and return($on_read and $on_read->($buf));
 		not defined($len) and ($! == EAGAIN or $! == EINTR) and return;
-		$len==0 and return($on_eof and $on_eof->($buf));
 
+    # End of file
+    $len==0 
+      and (delete $uSAC::IO::AE::IO::watchers{$self}) 
+      and (undef $_rw || 1)
+      and return($on_eof and $on_eof->($buf));
+
+    # Error
 		Log::OK::ERROR and log_error "ERROR IN READER: $!";
 		$_rw=undef;
-		$on_error->(undef, $buf);
+    delete $uSAC::IO::AE::IO::watchers{$self};
+		$on_error and $on_error->(undef, $buf);
 		return;
 	};
 }

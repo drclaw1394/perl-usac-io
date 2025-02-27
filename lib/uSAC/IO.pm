@@ -4,12 +4,12 @@ use warnings;
 
 no warnings "experimental";
 
-use feature "say";
+#use feature "say";
 use feature "current_sub";
 
 our $VERSION="v0.1.0";
 
-use constant::more DEBUG=>1;
+use constant::more DEBUG=>0;
 #Datagram
 use constant::more qw<r_CIPO=0 w_CIPO r_COPI w_COPI r_CEPI w_CEPI>;
 use Import::These qw<uSAC::IO:: DReader DWriter SWriter SReader>;
@@ -35,8 +35,9 @@ my $broadcaster=$node->get_broadcaster;
 
 
 
-use Export::These qw{asap timer timer_cancel connect connect_cancel connect_addr bind pipe pair dreader dwriter reader writer sreader swriter signal socket_stage};
+use Export::These qw{asap timer timer_cancel connect connect_cancel connect_addr bind pipe pair dreader dwriter reader writer sreader swriter signal socket_stage asay };
 
+use Export::These '$STDOUT','$STDIN', '$STDERR';
 
 sub _reexport {
   uSAC::FastPack::Broker->import;
@@ -78,7 +79,7 @@ sub connect_addr;
 sub _pre_loop;
 sub _post_loop;
 sub _shutdown_loop;
-
+sub asay;
 
 *asap=\&{$rb."::asap"};                         # Schedual code to run as soon as possible (next tick)
 *signal=\&{$rb."::signal"};                         # Schedual code to run as soon as possible (next tick)
@@ -108,6 +109,21 @@ sub _shutdown_loop;
 
 use strict "refs";
 
+{
+  # Setup STDIN, STDOUT and STDERR as non blocking
+  my $res;
+  $res= IO::FD::fcntl 0, F_SETFL, O_NONBLOCK;
+  DEBUG and asay "ERROR in setting STDIN Nonblocking" unless (defined $res);
+
+  $res= IO::FD::fcntl 1, F_SETFL, O_NONBLOCK;
+  DEBUG and asay "ERROR in setting STDOUT Nonblocking" unless (defined $res);
+
+  $res= IO::FD::fcntl 2, F_SETFL, O_NONBLOCK;
+  DEBUG and asay "ERROR in setting STDERR Nonblocking" unless (defined $res);
+
+}
+
+
 
 # Create a socket from hints and call the indicated callback ( or override when done)
 # 
@@ -116,7 +132,7 @@ sub _create_socket {
   my ($socket, $hints, $override)=@_;
   return undef if defined $socket;
 
-  DEBUG and say STDERR "_create_socket called";
+  DEBUG and asay "_create_socket called";
   for($hints){
     my $on_error=$_->{data}{on_error};
     my $on_socket=$override//$_->{data}{on_socket};
@@ -126,11 +142,11 @@ sub _create_socket {
       # TODO open a socket with platform specific flags to avoid this extra call
       my $res= IO::FD::fcntl $socket, F_SETFL, O_NONBLOCK;
       unless (defined $res){
-        DEBUG and say STDERR "ERROR in fcntl";
+        DEBUG and asay "ERROR in fcntl";
         $on_error && asap $on_error, $socket, $!;
         return;
       }
-      DEBUG and say STDERR "ON socket", $on_socket;
+      DEBUG and asay "ON socket", $on_socket;
       $on_socket and asap $on_socket, $socket, $_;
     }
     else {
@@ -183,9 +199,9 @@ sub socket_stage($$){
     _create_socket undef, $_[1], $next if $_[1];
   };
 
-  DEBUG and say STDERR "about to prepare specs";
+  DEBUG and asay "about to prepare specs";
   _prep_spec($_, $on_spec) for @specs;
-  DEBUG and say STDERR "after to prepare specs";
+  DEBUG and asay "after to prepare specs";
 
   1;
 
@@ -217,7 +233,7 @@ sub fd_2_fh {
 # The socket and hints are passed to the callback on_bind
 sub bind ($$) {
 
-  DEBUG and say STDERR "BIND CALLED";
+  DEBUG and asay "BIND CALLED";
   my ($socket, $hints)=@_;
 
   _create_socket $socket, $hints, __SUB__  and return;
@@ -230,7 +246,7 @@ sub bind ($$) {
 
   my $on_bind=$hints->{data}{on_bind};
   my $on_error=$hints->{data}{on_error};
-  DEBUG and say STDERR "SOcket is: $socket";
+  DEBUG and asay "SOcket is: $socket";
   $type=$hints->{socktype}//=unpack "I", IO::FD::DWIM::getsockopt $socket, SOL_SOCKET, SO_TYPE;
   $fam=$hints->{family}//=sockaddr_family IO::FD::DWIM::getsockname $socket;
 
@@ -252,11 +268,11 @@ sub bind ($$) {
             $copy{port}=$port;
           }
       }
-      DEBUG and say STDERR "Call on_bind", $on_bind;
+      DEBUG and asay "Call on_bind", $on_bind;
       $on_bind and $on_bind->($socket, \%copy);
     }
     else {
-      DEBUG and say STDERR "ERROR: ". $!;
+      DEBUG and asay "ERROR: ". $!;
       my $err=$!;
        $on_error and $on_error->($socket, $err);
     }
@@ -270,7 +286,7 @@ sub bind ($$) {
 # TODO: allow a string as a spec to be used instead of hints? Only valid when host is undef.
 # TODO: allow host and port (addr and po ) in spec when host and port are undef for spec processing
 sub connect ($$){
-  DEBUG and say STDERR "Connect called";
+  DEBUG and asay "Connect called";
 	my ($socket, $hints)=@_;
   my $fam;
   my $type;
@@ -285,9 +301,9 @@ sub connect ($$){
 	my $ok;
 	my $addr;
 
-  DEBUG and say STDERR "CONNECT before";
+  DEBUG and asay "CONNECT before";
   _create_socket $socket, $hints, __SUB__ and return;
-  DEBUG and say STDERR "CONNECT after";
+  DEBUG and asay "CONNECT after";
 
   # If the type and  family hasn't been specified with hints, extract from socket info
   $type=$hints->{socktype}//=unpack "I", IO::FD::DWIM::getsockopt $socket, SOL_SOCKET, SO_TYPE;
@@ -300,16 +316,16 @@ sub connect ($$){
 			$port,
       $hints,
       sub {
-        DEBUG and say STDERR "LOOKUP callback"; 
+        DEBUG and asay "LOOKUP callback"; 
         my @addresses=@_;
         $addr=$addresses[0]{addr};
 	      connect_addr($socket, $addr, $on_connect, $on_error);
-        DEBUG and say STDERR time;
+        DEBUG and asay time;
       },
 
       sub{
-        DEBUG and say STDERR "LOOKUP ERROR"; 
-        DEBUG and say STDERR Dumper $hints;
+        DEBUG and asay "LOOKUP ERROR"; 
+        DEBUG and asay Dumper $hints;
         $on_error and $on_error->($socket, gai_strerror $!);
       }
 		);
@@ -325,18 +341,18 @@ sub connect ($$){
 }
 
 sub listen ($$){
-  DEBUG and say STDERR "Listen called";
+  DEBUG and asay "Listen called";
   my ($socket, $hints)=@_;
 
   _create_socket $socket, $hints, \&bind and return;
 
-  DEBUG and say STDERR $socket;
-  DEBUG and say STDERR "IS ref? ", ref $hints;
+  DEBUG and asay $socket;
+  DEBUG and asay "IS ref? ", ref $hints;
   my $on_listen=$hints->{data}{on_listen}//=\&accept; # Default is to call accept immediately
   my $on_error=$hints->{data}{on_error};
 
   if(defined IO::FD::DWIM::listen($socket, $hints->{backlog}//1024)){
-    DEBUG and say STDERR "Listen ok";
+    DEBUG and asay "Listen ok";
     $on_listen and asap $on_listen , $socket, $hints;
   }
   else {
@@ -348,8 +364,8 @@ sub listen ($$){
 sub accept($$){
   my ($socket, $hints)=@_;
 
-  DEBUG and say STDERR "Accept called";
-  DEBUG and say STDERR Dumper $hints;
+  DEBUG and asay "Accept called";
+  DEBUG and asay Dumper $hints;
   _create_socket $socket, $hints, \&bind and return;
 
   use uSAC::IO::Acceptor;
@@ -358,7 +374,7 @@ sub accept($$){
     fh=>$socket, 
     on_accept=>sub {
       $hints->{acceptor}=$a;    #Add reference to prevent destruction
-      DEBUG and say STDERR "INTERNAL CALLBACK FOR ACCEPT";
+      DEBUG and asay "INTERNAL CALLBACK FOR ACCEPT";
       # Call the on_accept with new fds ref, peers, ref, listening fd and listening hints
       $hints->{data}{on_accept}->(@_, $hints);
     },
@@ -376,8 +392,8 @@ sub _prep_spec{
 	require Scalar::Util;
 	my ($spec, $on_spec)=@_;
 
-  DEBUG and say STDERR "_prep_spec_call";
-  DEBUG and say STDERR Dumper $spec;
+  DEBUG and asay "_prep_spec_call";
+  DEBUG and asay Dumper $spec;
 
   $on_spec//=$spec->{data}{on_spec};
   my $on_error=$spec->{data}{on_error};
@@ -531,11 +547,11 @@ sub _prep_spec{
 
   $r->{address}=$address;
 
-  DEBUG and say STDERR Dumper $r;
+  DEBUG and asay Dumper $r;
 	#Generate combinations
 	my $result=Data::Combination::combinations $r;
 	
-  DEBUG and say STDERR Dumper $result;
+  DEBUG and asay Dumper $result;
 
 	#Retrieve the interfaces from the os
 	#@interfaces=(make_unix_interface, Socket::More::getifaddrs);
@@ -545,12 +561,12 @@ sub _prep_spec{
 	my @results=$result->@*;
 	
 	#Force preselection of matching interfaces
-  #say "Interfaces before ", Dumper @interfaces;
+  #asay "Interfaces before ", Dumper @interfaces;
 	@interfaces=grep {
 		my $interface=$_;
 		scalar grep {$interface->{name} =~ $_->{interface}} @results
 	} @interfaces;
-  #say "Interfaces after ", Dumper @interfaces;
+  #asay "Interfaces after ", Dumper @interfaces;
 
 	#Validate Family and fill out port and path
   no warnings "uninitialized";
@@ -561,12 +577,12 @@ sub _prep_spec{
   my $count=@interfaces*@results;
   my $at_least_1=0;
 	for my $interface (@interfaces){
-    DEBUG and say STDERR "======INTERFACE";
+    DEBUG and asay "======INTERFACE";
 		my $fam= sockaddr_family($interface->{addr});
-    DEBUG and say STDERR "family is $fam";
+    DEBUG and asay "family is $fam";
 		for(@results){
 
-      DEBUG and say STDERR "Result family", Dumper $_;
+      DEBUG and asay "Result family", Dumper $_;
 			next if $fam != $_->{family};
 
 			#Filter out any families which are not what we asked for straight up
@@ -607,7 +623,7 @@ sub _prep_spec{
       $clone->{flags}=$flags;
 
 
-      DEBUG and say STDERR Dumper $clone;
+      DEBUG and asay Dumper $clone;
       if($fam == AF_UNIX){
         # Assume no lookup is needed for this
         my $suffix=$_->{socktype}==SOCK_STREAM?"_S":"_D";
@@ -623,10 +639,10 @@ sub _prep_spec{
       elsif(!exists $_->{address} or $_->{address} eq ".*"){
         # No address to look up, assuming the binary addr field is set
         #
-        DEBUG and say STDERR "address does not exist or is wild $_->{address}";
-        DEBUG and say  STDERR "Address needs to be filled";
+        DEBUG and asay "address does not exist or is wild $_->{address}";
+        DEBUG and asay  "Address needs to be filled";
         if($fam == AF_INET){
-          DEBUG and say STDERR "DOING IPv4";
+          DEBUG and asay "DOING IPv4";
           my (undef, $ip)=unpack_sockaddr_in($interface->{addr});
           Socket::More::Lookup::getnameinfo($interface->{addr}, my $host="", my $port="", NI_NUMERICHOST|NI_NUMERICSERV);
 
@@ -639,7 +655,7 @@ sub _prep_spec{
         }
 
         elsif($fam == AF_INET6){
-          DEBUG and say STDERR "DOING IPv6";
+          DEBUG and asay "DOING IPv6";
           my(undef, $ip, $scope, $flow_info)=unpack_sockaddr_in6($interface->{addr});
           Socket::More::Lookup::getnameinfo($interface->{addr}, my $host="", my $port="", NI_NUMERICHOST|NI_NUMERICSERV);
           $clone->{address}=$host;
@@ -681,8 +697,8 @@ sub _prep_spec{
           my @results;
           Socket::More::Lookup::getaddrinfo($_->{address},$_->{port},$_, @results);
           $clone->{addr}=$results[0]{addr};
-          DEBUG and say STDERR "RESULTS ", Dumper @results;
-          DEBUG and say STDERR "spec ", Dumper $_;
+          DEBUG and asay "RESULTS ", Dumper @results;
+          DEBUG and asay "spec ", Dumper $_;
 
           Socket::More::Resolver::getaddrinfo($_->{address},$_->{port},$_, 
             sub {
@@ -710,7 +726,7 @@ sub _prep_spec{
             },
 
             sub {
-             DEBUG and say STDERR "getaddrinfo error", "@_", gai_strerror($_[0]);
+             DEBUG and asay "getaddrinfo error", "@_", gai_strerror($_[0]);
             $on_error->()    # Use on error
           }
           );
@@ -776,7 +792,7 @@ sub writer {
 		}
 	}
 	else {
-    DEBUG and say STDERR "OTHER SOCKET TYPE";
+    #DEBUG and asay "OTHER SOCKET TYPE";
 		#OTHER?
 		#TODO: fix this
 		return swriter fh=>$socket;
@@ -826,7 +842,7 @@ sub pipe {
 	my ($rfh,$wfh)=@_;
 	my ($r,$w)=(reader($rfh), writer($wfh));
 	if($r and $w){
-		$r->pipe($w);
+		$r->pipe_to($w);
 		return ($r,$w);	
 	}
 	();
@@ -878,7 +894,7 @@ sub _sub_process ($;$$$$){
 
     my $c={pid=>$pid, pipes=>\@pipes, reader=>$reader, error=>$error};
     $procs{$pid}=$c;
-    say "created child $pid";
+    asay "created child $pid";
     uSAC::IO::child $pid, sub {
       my ($ppid, $status)=@_;
         my $dc=delete $procs{$ppid}; 
@@ -889,7 +905,7 @@ sub _sub_process ($;$$$$){
         $reader->pause;
         $error->pause;
         $on_error and  $on_error->($status, $ppid); #Status first to match perl system command
-      say "AFTER WHILE $ppid";
+      asay "AFTER WHILE $ppid";
     };
 
     return ($pid, $writer, $reader, $error);
@@ -913,8 +929,8 @@ sub _sub_process ($;$$$$){
 
     # Do it!
     if($cmd){
-      say "asldkjfalskdjfalskdjflaksdjf";
-      exec $cmd or say STDERR $! and exit;
+      asay "asldkjfalskdjfalskdjflaksdjf";
+      exec $cmd or asay $! and exit;
     }
 
 
@@ -1059,18 +1075,26 @@ sub log_fatal {
 }
 
 
-{
-  # Setup STDIN, STDOUT and STDERR as non blocking
-  my $res;
-  $res= IO::FD::fcntl 0, F_SETFL, O_NONBLOCK;
-  DEBUG and say STDERR "ERROR in setting STDIN Nonblocking" unless (defined $res);
+my $dummy=sub{};
 
-  $res= IO::FD::fcntl 1, F_SETFL, O_NONBLOCK;
-  DEBUG and say STDERR "ERROR in setting STDOUT Nonblocking" unless (defined $res);
+our $STDIN = reader(0);
+our $STDOUT= writer(1);
+our $STDERR= writer(2);
 
-  $res= IO::FD::fcntl 2, F_SETFL, O_NONBLOCK;
-  DEBUG and say STDERR "ERROR in setting STDERR Nonblocking" unless (defined $res);
+sub asay {
+  use feature "isa";
+  my $w=$STDOUT; # Use the std out if
+  my $cb=$dummy;
+  if($_[0] isa "uSAC::IO::Writer"){
+    $w=shift @_;
+  } 
+  
+  if(ref $_[$#_] eq "CODE"){
+    $cb=pop @_;
+  }
 
+  $w->write(join("", @_, "\n"), $cb);
+  ();
 }
 
 

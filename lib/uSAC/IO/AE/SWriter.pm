@@ -68,7 +68,7 @@ method _make_writer :override {
 
         #\my $arg=\$entry->[3];
         $time=$clock;
-        #say "SYSWRITE async: $wfh";
+        #say STDERR "SYSWRITE async buffer len: ". length $buf;
         #$offset+=$w = IO::FD::syswrite4 $wfh, $buf, length($buf)-$offset, $offset;
         $offset+=$w = $syswrite->( $wfh, $buf, length($buf)-$offset, $offset);
         if($offset==length $buf) {

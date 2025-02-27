@@ -47,8 +47,8 @@ sub _exit {
 sub cancel ($){
   my $w=delete $watchers{$_[0]};
   $_[0]=undef; 
-  say "cancel called";
-  say %watchers+0;
+  uSAC::IO::asay "cancel called";
+  uSAC::IO::asay %watchers+0;
 }
 
 
@@ -90,7 +90,6 @@ sub timer ($$$){
     my $s;
     my $id=\$s;
     $watchers{$id}=AE::timer $offset, $repeat, sub{
-      say "WATCHERS: ",%watchers;
       delete $watchers{$id} unless($repeat);
       $sub->($id)
     };
@@ -162,7 +161,7 @@ sub connect_addr {
               delete $watchers{$id};
 
               if($sockaddr){
-                      say STDERR  "IN socket connect callback: ", $on_connect;
+                      uSAC::IO::asay "IN socket connect callback: ", $on_connect;
                       $on_connect and $on_connect->($socket, $addr);
               }
               else {
@@ -174,7 +173,6 @@ sub connect_addr {
     }
     else {
       # Syncrhonous fail. reshedual
-      #say 'Synchronous fail';
       $on_error and asap $on_error, $socket, "$!";
     }
     return;

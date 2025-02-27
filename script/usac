@@ -34,7 +34,7 @@ die "No backend specified. Use environment or --backend" unless $backend;
 # provided.  Therefore the first item in @ARGV in the uSAC::Main::_main
 # function will be the script we want to execute
 #
-my @list=($^X,"-M$backend", "-MuSAC::Main", "-e", "uSAC::Main::_main", @ARGV);
+my @list=($^X,"-M$backend", "-MuSAC::Main", "-e", "uSAC::Main::_main", "-MuSAC::IO", @ARGV);
 #print "@list";
 #print "\n";
 exec @list;

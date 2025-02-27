@@ -10,7 +10,7 @@ use Log::OK {
 };
 
 
-use uSAC::IO ();
+use uSAC::IO;# ();
 
 
 use Error::Show;
@@ -124,14 +124,14 @@ sub _main {
             }
             if(!defined $res and $@){
               # Compile error
-              print  STDERR "COMPILE ERROR";
+              print STDERR "COMPILE ERROR";
               print STDERR Error::Show::context error=>$@;
               exit;
             }
             elsif(!defined $res and $!){
               # Access error
-             print STDERR "error $script: $!\n"; 
-             exit;  # This stops the loop
+               print STDERR "error $script: $!\n"; 
+               exit;  # This stops the loop
             }
             else {
               #print  STDERR "No script file. Entering REPL\n";
