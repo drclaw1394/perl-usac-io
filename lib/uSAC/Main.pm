@@ -2,6 +2,7 @@
 
 package uSAC::Main;
 no warnings "experimental";
+#use feature "say";
 use Log::ger;
 use Log::ger::Output "Screen";
 use Log::OK {
@@ -10,6 +11,7 @@ use Log::OK {
 };
 
 
+use Sub::Middler;
 use uSAC::IO;# ();
 
 
@@ -82,16 +84,18 @@ my $script=$0;
 
 sub _main {
   use feature "try";
-  my $script=shift;
+  my $inline=shift;
+  if($inline){
+    $inline=pack "H*", $inline;
+  }
   
-  ##print "LOOP\n";
   #print "ARGV in MAIN: @ARGV\n";
   # Perl has consumed all the switches it wants. So the first item is the script
-  $script//=shift @ARGV;
+  my $script//=shift @ARGV;
 
   my $p=`which usac-repl`;
   chomp($p);
-  unless($script){
+  if(!$script and !$inline){
     print  STDERR "No script file given. Entering REPL\n";
     $script= $p;
   }
@@ -99,6 +103,12 @@ sub _main {
 
   #print STDERR "WORKING WITH script $script\n";
   $0=$script;
+
+  # setup Boot strap timers and in readers/writers
+  #
+  $uSAC::IO::STDIN = reader(0);
+  $uSAC::IO::STDOUT= writer(1);
+  $uSAC::IO::STDERR= writer(2);
 
   while($restart_loop--){
     #_template_process;   #
@@ -112,35 +122,47 @@ sub _main {
             # like normal perl do to the 'do script'
             # Let absolute paths and ../ types alone
             my $res;
-            if(ref($script) eq ""){
+            $res=eval $inline;
+
+            if($res == undef and $@){
+              # Compile error
+              #print STDERR "COMPILE ERROR: $@";
+              print STDERR Error::Show::context error=>$@;
+              exit;
+            }
+
+            
+            $res=undef;
+
+            local $@=undef;
+            local $!=undef;
+
+            if($script){
               if(($script!~m{^/}) and ($script!~m{^\.{1,2}/})){
                 $script="./$script"
               }
               $res=do $script;
-            }
-            else {
-              #assume a code reference
-              $res=$script->();
-            }
-            if(!defined $res and $@){
-              # Compile error
-              print STDERR "COMPILE ERROR";
-              print STDERR Error::Show::context error=>$@;
-              exit;
-            }
-            elsif(!defined $res and $!){
-              # Access error
-               print STDERR "error $script: $!\n"; 
-               exit;  # This stops the loop
-            }
-            else {
-              #print  STDERR "No script file. Entering REPL\n";
+
+              if(!defined $res and $@){
+                # Compile error
+                print STDERR "COMPILE ERROR";
+                print STDERR Error::Show::context error=>$@;
+                exit;
+              }
+              elsif(!defined $res and $!){
+                # Access error
+                print STDERR "error $script: $!\n"; 
+                exit;  # This stops the loop
+              }
+              else {
+                #print  STDERR "No script file. Entering REPL\n";
+              }
             }
       }
     );    # Call user code in a schedualled fashion
+    #my $code=$_[0];
     uSAC::IO::_post_loop;     # run event loop ie wait for cv or call  run
   }
-  #print "AT EXIT";
   CORE::exit(@exit_args);  # Exit perl with code
 }
 

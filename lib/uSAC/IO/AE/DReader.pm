@@ -45,13 +45,16 @@ method _make_reader :override {
 	\my $time=\$self->time;
 	\my $clock=\$self->clock;
 	\my $flags=\$self->flags;
+
+  my $_cb=sub {}; # Dummy for now
+
 	$_rw=undef;
 	sub {
 		#$self->[time_]=$Time;	#Update the last access time
 		$time=$clock;
-		my $buf="";
-		my $addr =IO::FD::recv($rfh, $buf, $max_read_size, $flags);
-		defined($addr) and return($on_read and $on_read->($buf, $addr));
+		my $buf=[""];
+		my $addr =IO::FD::recv($rfh, $buf->[0], $max_read_size, $flags);
+		defined($addr) and return($on_read and $on_read->($buf, $addr, $_cb));
 		($! == EAGAIN or $! == EINTR) and return;
 
 		warn "ERROR IN READER" if DEBUG;

@@ -8,6 +8,10 @@ no warnings qw<experimental uninitialized>;
 use AnyEvent;
 use Log::ger;
 use Log::OK;
+
+use IO::FD::DWIM();
+use Fcntl qw(F_GETFL F_SETFL O_NONBLOCK :mode);
+
 #use IO::FD::DWIM ":all";
 #use IO::FD;
 
@@ -23,15 +27,18 @@ field $_rfh_ref;
 BUILD {
 	$_rfh_ref=\$self->fh;
 }
-sub uSAC::IO::asay;
 
 method start :override ($fh=undef) {
-	$$_rfh_ref=$fh if $fh;
+
+  if($fh){
+    my $res= IO::FD::fcntl $fh, F_SETFL, O_NONBLOCK;
+	  $$_rfh_ref=$fh;
+  }
+
   #reset buffer if new fh
-  $self->buffer="" if $fh;
+  $self->buffer=[""] if $fh;
 	$_rw= AE::io $$_rfh_ref, 0, $_reader//=$self->_make_reader;
   $uSAC::IO::AE::IO::watchers{$self}=$_rw;
-  uSAC::IO::asay "STARTED sreader $$_rfh_ref=====";
 	$self;
 }
 
@@ -54,20 +61,22 @@ method _make_reader  :override {
 	\my $clock=$self->clock;
   \my $sysread=\$self->sysread;
 	my $len;
+  my $_cb=sub {}; # Dummy for now
 	$_rw=undef;
 
 	sub {
 		$time=$clock;
     #$len = IO::FD::sysread($rfh, $buf, $max_read_size, length $buf );
-		$len = $sysread->($rfh, $buf, $max_read_size, length $buf );
+		$len = $sysread->($rfh, $buf->[0], $max_read_size, length $buf->[0] );
     #say Devel::Peek::Dump $buf;
-		$len>0 and return($on_read and $on_read->($buf));
+		$len>0 and return($on_read and $on_read->($buf,$_cb));
 		not defined($len) and ($! == EAGAIN or $! == EINTR) and return;
 
     # End of file
     $len==0 
       and (delete $uSAC::IO::AE::IO::watchers{$self}) 
       and (undef $_rw || 1)
+		  and (($on_read and $on_read->($buf, undef)) ||1)
       and return($on_eof and $on_eof->($buf));
 
     # Error

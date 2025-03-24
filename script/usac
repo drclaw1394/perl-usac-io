@@ -19,10 +19,34 @@ for(@ARGV){
   $i++;
 }
 
+
 if(defined $found){
   # This overrides the environment setting
   (undef, $backend)=splice @ARGV, $found, 2;
 }
+
+my @cli;
+$i=0;
+$found=undef;
+my $e="-e";
+
+while($i<@ARGV){
+  if($ARGV[$i] =~/-{1,2}(e|E)/){
+    # This overrides the environment setting
+    $e="-E" if $1 eq "E";
+    my $prog;
+    (undef, $prog)=splice @ARGV, $i, 2;
+
+    # Adjust to use the features of -E
+    $prog='use feature ":all";'.$prog if $e eq "-E";
+
+    push @cli, $prog;
+  }
+  else {
+    $i++;
+  }
+}
+
 
 
 die "No backend specified. Use environment or --backend" unless $backend;
@@ -34,11 +58,18 @@ die "No backend specified. Use environment or --backend" unless $backend;
 # provided.  Therefore the first item in @ARGV in the uSAC::Main::_main
 # function will be the script we want to execute
 #
-my @list=($^X,"-M$backend", "-MuSAC::Main", "-e", "uSAC::Main::_main", "-MuSAC::IO", @ARGV);
-#print "@list";
-#print "\n";
-exec @list;
 
+
+my @c;
+
+
+my $code=unpack "H*", join ";", @cli;
+$code="qq{$code}";
+
+#print "FLAG IS $e";
+my @list=($^X,"-M$backend", "-MuSAC::Main", "-MuSAC::IO", $e, "uSAC::Main::_main($code)", @ARGV);
+#my @list=($^X,"-M$backend", "-MuSAC::Main", "-MuSAC::IO", "-e", "uSAC::Main::_main", @ARGV);
+exec @list;
 =pod
 
 =head1 NAME

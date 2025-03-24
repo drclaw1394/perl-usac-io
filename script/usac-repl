@@ -9,21 +9,23 @@ my $reader= uSAC::IO::reader fileno(STDIN);
 my $line="";
 
 $reader->on_read=sub {
+  say "on read";
   local $@="";
-  my @res=eval $_[0];
+  my @res=eval $_[0][0];
 
   if($@){
     # handle syntax errors
     say STDERR "ERROR: $@";
-    say STDERR Error::Show::context error=>$@, program=>$_[0];
+    say STDERR Error::Show::context error=>$@, program=>$_[0][0];
   }
   else {
     # Print results
-    dd @res;
+    #dd @res;
+    say @res;
   }
 
   # Consume input buffer
-  $_[0]="";
+  $_[0][0]="";
 };
 
 

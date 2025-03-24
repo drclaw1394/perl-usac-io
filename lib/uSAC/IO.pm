@@ -109,19 +109,6 @@ sub asay;
 
 use strict "refs";
 
-{
-  # Setup STDIN, STDOUT and STDERR as non blocking
-  my $res;
-  $res= IO::FD::fcntl 0, F_SETFL, O_NONBLOCK;
-  DEBUG and asay "ERROR in setting STDIN Nonblocking" unless (defined $res);
-
-  $res= IO::FD::fcntl 1, F_SETFL, O_NONBLOCK;
-  DEBUG and asay "ERROR in setting STDOUT Nonblocking" unless (defined $res);
-
-  $res= IO::FD::fcntl 2, F_SETFL, O_NONBLOCK;
-  DEBUG and asay "ERROR in setting STDERR Nonblocking" unless (defined $res);
-
-}
 
 
 
@@ -865,7 +852,7 @@ my %procs;
 # Internal for and of fork/exec
 # Creates pipes for communicating to child processes
 sub _sub_process ($;$$$$){
-  my ($cmd, $on_error)=@_;
+  my ($cmd, $on_complete)=@_;
 
   my @pipes;
   # Create pipes?
@@ -904,7 +891,7 @@ sub _sub_process ($;$$$$){
         # remove the watchers
         $reader->pause;
         $error->pause;
-        $on_error and  $on_error->($status, $ppid); #Status first to match perl system command
+        $on_complete and  $on_complete->($status, $ppid); #Status first to match perl system command
       asay "AFTER WHILE $ppid";
     };
 
@@ -929,7 +916,6 @@ sub _sub_process ($;$$$$){
 
     # Do it!
     if($cmd){
-      asay "asldkjfalskdjfalskdjflaksdjf";
       exec $cmd or asay $! and exit;
     }
 
@@ -938,6 +924,7 @@ sub _sub_process ($;$$$$){
 
 }
 
+#synchronous
 sub _map {
   my $filter=shift;
   sub {
@@ -950,18 +937,19 @@ sub _map {
   }
 }
 
+#synchronous
 sub _grep {
   my $filter=$_[0];
   sub {
     my ($next, $index, @options)=@_;
     sub {
-      #my $cb=$_[$#_];
       @{$_[0]}= grep $_=~ $filter, @{$_[0]};
       &$next;
     }
   }
 }
 
+#synchronous
 sub _upper {
   sub {
     my ($next, $index, @options)=@_;
@@ -974,6 +962,8 @@ sub _upper {
     }
   }
 }
+
+#synchronous
 sub _lines {
   my $sep=$/; # save input seperator
   my $buffer=""; # buffing
@@ -986,7 +976,8 @@ sub _lines {
 
       # Alias of in put means consumed in place 
       #
-      my @lines=split $sep, $_[0];
+      my @lines;
+      push @lines, split $sep, $_ for @{$_[0]};
 
       #If the buffer does not end in a line
       # and we have callback, we expect more data
@@ -999,8 +990,23 @@ sub _lines {
   }
 }
 
+
 # return accumulated results from stdout
 #
+sub _accumulate {
+  my $buffer="";
+  sub {
+    my ($next, $index, @options)=@_;
+    sub {
+      my $cb=pop;
+      $buffer .= $_ for @{$_[0]};
+
+      # Call next with no callback provided. Marks end or data
+      $next->([$buffer], $cb) unless $cb;
+    }
+  }
+}
+
 
 use Sub::Middler;
 
@@ -1016,7 +1022,7 @@ sub _backtick {
 
   ($pid, @io)= _sub_process $cmd, sub {
       ($status, $pid)=@_;
-      $on_result and $on_result->($buffer, $status, $pid, undef);
+      $on_result and $on_result->([$buffer, $status, $pid], undef);
   };
 
   # Back tick handles stadard out only
@@ -1042,9 +1048,10 @@ sub system ($;$$$$){
 
 }
 
-# Fork this process. Add an additional channel for comms but leave STDIO? 
+# Fork this process. setup broker/node for communications via pipes
+# 
 sub worker {
-
+  #sub_process;
 }
 
 #  Send via broker
@@ -1077,9 +1084,15 @@ sub log_fatal {
 
 my $dummy=sub{};
 
-our $STDIN = reader(0);
-our $STDOUT= writer(1);
-our $STDERR= writer(2);
+our $STDIN;
+our $STDOUT;
+our $STDERR;
+
+###########################
+# our $STDIN = reader(0); #
+# our $STDOUT= writer(1); #
+# our $STDERR= writer(2); #
+###########################
 
 sub asay {
   use feature "isa";
@@ -1093,7 +1106,7 @@ sub asay {
     $cb=pop @_;
   }
 
-  $w->write(join("", @_, "\n"), $cb);
+  $w->write([join("", @_, "\n")], $cb);
   ();
 }
 

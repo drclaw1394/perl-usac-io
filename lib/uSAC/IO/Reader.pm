@@ -38,7 +38,7 @@ BUILD{
 	$_on_error//= $_on_eof//=sub{};
 
 	$_max_read_size//=4096;
-	$_buffer=IO::FD::SV($_max_read_size);#"";
+	$_buffer=[IO::FD::SV($_max_read_size)];#"";
   $_sysread//=\&IO::FD::sysread;
 
 	
@@ -89,23 +89,27 @@ method pipe_to ($writer,$limit=undef){
 	my $counter;
 	\my @queue=$writer->queue;
 	$self->on_read= sub {
-		my $data=$_[0];	#Copy data
-		$_[0]="";	#Consume input
+    #my $data=$_[0][0];	#Copy data
+    #$_[0][0]="";	#Consume input
 		if(!$limit  or $#queue < $limit){
 			#The next write cannot equal the limit so blaze ahead
 			#with no callback,
-			$writer->write($data);
+      #$writer->write($data);
+			$writer->write($_[0]);
 		}
 		else{
 			#the next write will equal the limit,
 			#use a callback
 			$self->pause;	#Pause the reader
-			$writer->write($data, sub{
+      #$writer->write($data, sub{
+			$writer->write($_[0], sub{
 				#restart the reader
 				$self->start;
 			});
 		}
+		$_[0][0]="";	#Consume input
 	};
+  $self->start;
 	$writer; #Return writer to allow chaining
 }
 1;

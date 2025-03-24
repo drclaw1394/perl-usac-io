@@ -47,8 +47,8 @@ sub _exit {
 sub cancel ($){
   my $w=delete $watchers{$_[0]};
   $_[0]=undef; 
-  uSAC::IO::asay "cancel called";
-  uSAC::IO::asay %watchers+0;
+  #uSAC::IO::asay "cancel called";
+  #uSAC::IO::asay %watchers+0;
 }
 
 
@@ -87,7 +87,7 @@ sub asap (*@){
 
 sub timer ($$$){
     my ($offset, $repeat, $sub, $no_save)=@_;
-    my $s;
+    my $s="";
     my $id=\$s;
     $watchers{$id}=AE::timer $offset, $repeat, sub{
       delete $watchers{$id} unless($repeat);
