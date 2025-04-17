@@ -1,6 +1,7 @@
 # Wrapper around a main script to remove setup of event system code
 
 package uSAC::Main;
+use feature "try";
 no warnings "experimental";
 #use feature "say";
 use Log::ger;
@@ -22,7 +23,18 @@ our $Default_Broker;
 our $broadcaster;
 our $listener;
 our $ignorer;
-if(require uSAC::FastPack::Broker){
+
+my $broker_ok;
+try {
+  require uSAC::FastPack::Broker;
+  $broker_ok=1;
+}
+catch($e){
+  # No broker.. probably not installed
+  warn "uSAC::FastPack::Broker not installed. Internal messaging will fail";
+}
+
+if($broker_ok){
   $Default_Broker=uSAC::FastPack::Broker->new;
 
   $broadcaster=*usac_broadcast=$Default_Broker->get_broadcaster;
