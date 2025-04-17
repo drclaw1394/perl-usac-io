@@ -43,9 +43,9 @@ if($broker_ok){
 }
 else {
 
-  $broadcaster=sub {};
-  $listener=sub {};
-  $ignorer=sub {};
+  $broadcaster=*usac_broadcast=sub {};
+  $listener=*usac_listen=sub {};
+  $ignorer=*usac_ignore=sub {};
 }
 
 
