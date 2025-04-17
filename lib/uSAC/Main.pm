@@ -12,17 +12,29 @@ use Log::OK {
 
 
 use Sub::Middler;
-use uSAC::FastPack::Broker;
 use uSAC::IO;# ();
 
 
 # Create Setup the default broker entry points
 #
-our $Default_Broker=uSAC::FastPack::Broker->new;
+our $Default_Broker;
 
-our $broadcaster=*usac_broadcast=$Default_Broker->get_broadcaster;
-our $listener=*usac_listen=$Default_Broker->get_listener;
-our $ignorer=*usac_ignore=$Default_Broker->get_ignorer;
+our $broadcaster;
+our $listener;
+our $ignorer;
+if(require uSAC::FastPack::Broker){
+  $Default_Broker=uSAC::FastPack::Broker->new;
+
+  $broadcaster=*usac_broadcast=$Default_Broker->get_broadcaster;
+  $listener=*usac_listen=$Default_Broker->get_listener;
+  $ignorer=*usac_ignore=$Default_Broker->get_ignorer;
+}
+else {
+
+  $broadcaster=sub {};
+  $listener=sub {};
+  $ignorer=sub {};
+}
 
 
 use Error::Show;
