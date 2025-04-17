@@ -161,7 +161,7 @@ sub connect_addr {
               delete $watchers{$id};
 
               if($sockaddr){
-                      uSAC::IO::asay "IN socket connect callback: ", $on_connect;
+                      uSAC::IO::asay "IN socket connect callback: ";
                       $on_connect and $on_connect->($socket, $addr);
               }
               else {
@@ -241,6 +241,12 @@ sub _post_loop {
   }
   # Only execute run loop if exit hasn't been called
   !$will_exit and $CV and $CV->recv;
+}
+
+sub _post_fork {
+  # Things needing to be done after forking
+  $asap_timer=undef;
+  $asap_timer//=AE::timer 0, 0, $asap_sub;
 }
 
 

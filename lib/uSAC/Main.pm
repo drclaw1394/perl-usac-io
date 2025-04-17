@@ -12,10 +12,43 @@ use Log::OK {
 
 
 use Sub::Middler;
+use uSAC::FastPack::Broker;
 use uSAC::IO;# ();
 
 
+# Create Setup the default broker entry points
+#
+our $Default_Broker=uSAC::FastPack::Broker->new;
+
+our $broadcaster=*usac_broadcast=$Default_Broker->get_broadcaster;
+our $listener=*usac_listen=$Default_Broker->get_listener;
+our $ignorer=*usac_ignore=$Default_Broker->get_ignorer;
+
+
 use Error::Show;
+sub _setup_log {
+  
+  my $node=$Default_Broker;
+  $node->listen("usac/log/fatal",   sub {
+      log_fatal join "\n", $_[0][1][0][2];
+  });
+  $node->listen("usac/log/error",   sub {
+      log_error join "\n", $_[0][1][0][2];
+  });
+  $node->listen("usac/log/warn",   sub {
+      log_warn join "\n", $_[0][1][0][2];
+  });
+  $node->listen("usac/log/info",   sub {
+      log_info join "\n", $_[0][1][0][2];
+  });
+  $node->listen("usac/log/debug",   sub {
+      log_debug join "\n", $_[0][1][0][2];
+  });
+  $node->listen("usac/log/trace",   sub {
+      log_trace join "\n", $_[0][1][0][2];
+  });
+}
+
 sub _cli{
   #print  "Called from cli\n";
   my %options;
@@ -84,6 +117,18 @@ my $script=$0;
 
 sub _main {
   use feature "try";
+  # setup Boot strap timers and in readers/writers
+  #
+  $STDIN = reader(0);
+  $STDOUT= writer(1);
+  $STDERR= writer(2);
+
+
+  # Setup default broker/messaging. Add listeners for logging
+  #
+  _setup_log;
+
+
   my $inline=shift;
   if($inline){
     $inline=pack "H*", $inline;
@@ -96,7 +141,7 @@ sub _main {
   my $p=`which usac-repl`;
   chomp($p);
   if(!$script and !$inline){
-    print  STDERR "No script file given. Entering REPL\n";
+    aprint  $STDERR, "No script file given. Entering REPL\n";
     $script= $p;
   }
 
@@ -104,11 +149,6 @@ sub _main {
   #print STDERR "WORKING WITH script $script\n";
   $0=$script;
 
-  # setup Boot strap timers and in readers/writers
-  #
-  $uSAC::IO::STDIN = reader(0);
-  $uSAC::IO::STDOUT= writer(1);
-  $uSAC::IO::STDERR= writer(2);
 
   while($restart_loop--){
     #_template_process;   #
@@ -127,7 +167,7 @@ sub _main {
             if($res == undef and $@){
               # Compile error
               #print STDERR "COMPILE ERROR: $@";
-              print STDERR Error::Show::context error=>$@;
+              asay $STDERR, Error::Show::context error=>$@;
               exit;
             }
 
@@ -145,19 +185,22 @@ sub _main {
 
               if(!defined $res and $@){
                 # Compile error
-                print STDERR "COMPILE ERROR";
-                print STDERR Error::Show::context error=>$@;
+                asay $STDERR, "COMPILE ERROR";
+                asay $STDERR, Error::Show::context error=>$@;
                 exit;
               }
               elsif(!defined $res and $!){
                 # Access error
-                print STDERR "error $script: $!\n"; 
+                asay $STDERR, "error $script: $!\n"; 
                 exit;  # This stops the loop
               }
               else {
                 #print  STDERR "No script file. Entering REPL\n";
               }
             }
+
+            # Start even processin on read stream
+            #$STDIN->start;
       }
     );    # Call user code in a schedualled fashion
     #my $code=$_[0];

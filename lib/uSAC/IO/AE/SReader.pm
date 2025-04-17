@@ -16,8 +16,6 @@ use Fcntl qw(F_GETFL F_SETFL O_NONBLOCK :mode);
 #use IO::FD;
 
 use Errno qw(EAGAIN EINTR);
-#use Data::Dumper;
-#use Devel::Peek;
 
 field $_rw;
 field $_reader;

@@ -2,26 +2,25 @@
 # read input and execute
 use feature ":all";
 use uSAC::IO;
-use Data::Dump::Color;
+use Data::Dump::Color qw(dump);
 use Error::Show;
+no warnings "experimental";
 
-my $reader= uSAC::IO::reader fileno(STDIN); 
+\my $reader= \$STDIN; #$uSAC::IO::STDIN; #uSAC::IO::reader fileno(STDIN); 
 my $line="";
 
 $reader->on_read=sub {
-  say "on read";
   local $@="";
   my @res=eval $_[0][0];
 
   if($@){
     # handle syntax errors
-    say STDERR "ERROR: $@";
-    say STDERR Error::Show::context error=>$@, program=>$_[0][0];
+    asay $STDERR, "ERROR: $@";
+    asay $STDERR, Error::Show::context error=>$@, program=>$_[0][0];
   }
   else {
     # Print results
-    #dd @res;
-    say @res;
+    asay $STDERR, dump @res;
   }
 
   # Consume input buffer

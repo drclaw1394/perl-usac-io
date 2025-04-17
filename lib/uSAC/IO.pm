@@ -10,6 +10,7 @@ use feature "current_sub";
 our $VERSION="v0.1.0";
 
 use constant::more DEBUG=>0;
+
 #Datagram
 use constant::more qw<r_CIPO=0 w_CIPO r_COPI w_COPI r_CEPI w_CEPI>;
 use Import::These qw<uSAC::IO:: DReader DWriter SWriter SReader>;
@@ -24,23 +25,31 @@ use Socket::More::Resolver {}, undef;
 use IO::FD::DWIM ();
 use Fcntl qw(F_GETFL F_SETFL O_NONBLOCK :mode);
 
-use Data::Dumper;
 use Data::Cmp qw<cmp_data>;
-use uSAC::FastPack::Broker;
-
-# The broker node
-#
-my $node=uSAC::FastPack::Broker::Default;
-my $broadcaster=$node->get_broadcaster;
 
 
+sub Dumper;
 
-use Export::These qw{asap timer timer_cancel connect connect_cancel connect_addr bind pipe pair dreader dwriter reader writer sreader swriter signal socket_stage asay };
+BEGIN {
+  if(DEBUG){
+    require Data::Dumper;
+    Data::Dumper->import;
+  }
+}
 
-use Export::These '$STDOUT','$STDIN', '$STDERR';
+our $STDIN;
+our $STDOUT;
+our $STDERR;
+
+use Export::These qw{accept asap timer delay interval timer_cancel connect connect_cancel connect_addr bind pipe pair listen 
+dreader dwriter reader writer sreader swriter signal socket_stage asay aprint adump $STDOUT $STDIN $STDERR};
+
+#use Export::These '$STDOUT','$STDIN', '$STDERR';
 
 sub _reexport {
-  uSAC::FastPack::Broker->import;
+  #eval 'require uSAC::FastPack::Broker;
+  #uSAC::FastPack::Broker->import;
+  #';
 }
 
 
@@ -61,7 +70,7 @@ our $Clock=time;
 
 # Must return 1
 # Takes a sub as first argument, remaining arguments are passed to sub
-sub asap (*@);   # Schedule sub as soon as async possible
+sub asap(*@);   # Schedule sub as soon as async possible
 
 # Must return an integer key for the timer.
 sub timer ($$$);  # Setup a timer
@@ -79,6 +88,7 @@ sub connect_addr;
 sub _pre_loop;
 sub _post_loop;
 sub _shutdown_loop;
+sub _post_fork;
 sub asay;
 
 *asap=\&{$rb."::asap"};                         # Schedual code to run as soon as possible (next tick)
@@ -99,6 +109,7 @@ sub asay;
 *_pre_loop=\&{$rb."::_pre_loop"};               # Internal
 *_post_loop=\&{$rb."::_post_loop"};             # Internal
 *_shutdown_loop=\&{$rb."::_shutdown_loop"};     # Internal
+*_post_fork=\&{$rb."::_post_fork"};     # Internal
 
 
 #sub _tick_timer;
@@ -548,12 +559,10 @@ sub _prep_spec{
 	my @results=$result->@*;
 	
 	#Force preselection of matching interfaces
-  #asay "Interfaces before ", Dumper @interfaces;
 	@interfaces=grep {
 		my $interface=$_;
 		scalar grep {$interface->{name} =~ $_->{interface}} @results
 	} @interfaces;
-  #asay "Interfaces after ", Dumper @interfaces;
 
 	#Validate Family and fill out port and path
   no warnings "uninitialized";
@@ -835,6 +844,17 @@ sub pipe {
 	();
 }
 
+sub delay {
+  
+  my ($d,$cb)=@_;
+  timer $d, 0, $cb;
+}
+
+sub interval {
+  my ($int,$cb)=@_;
+  timer 0, $int, $cb;
+}
+
 
 
 ###########################################
@@ -881,7 +901,7 @@ sub _sub_process ($;$$$$){
 
     my $c={pid=>$pid, pipes=>\@pipes, reader=>$reader, error=>$error};
     $procs{$pid}=$c;
-    asay "created child $pid";
+    #asay "created child $pid";
     uSAC::IO::child $pid, sub {
       my ($ppid, $status)=@_;
         my $dc=delete $procs{$ppid}; 
@@ -892,10 +912,10 @@ sub _sub_process ($;$$$$){
         $reader->pause;
         $error->pause;
         $on_complete and  $on_complete->($status, $ppid); #Status first to match perl system command
-      asay "AFTER WHILE $ppid";
+        #asay "AFTER WHILE $ppid";
     };
 
-    return ($pid, $writer, $reader, $error);
+    return ($writer, $reader, $error, $pid);
   }
   else {
     # child
@@ -914,6 +934,9 @@ sub _sub_process ($;$$$$){
     IO::FD::close $pipes[w_COPI];
     IO::FD::close $pipes[w_CEPI];
 
+    # Restart and ASAP timer, and other even clean up
+    #
+    _post_fork;
     # Do it!
     if($cmd){
       exec $cmd or asay $! and exit;
@@ -925,7 +948,7 @@ sub _sub_process ($;$$$$){
 }
 
 #synchronous
-sub _map {
+sub _map :prototype($){
   my $filter=shift;
   sub {
     my ($next, $index, @options)=@_;
@@ -938,7 +961,7 @@ sub _map {
 }
 
 #synchronous
-sub _grep {
+sub _grep :prototype($){
   my $filter=$_[0];
   sub {
     my ($next, $index, @options)=@_;
@@ -950,13 +973,24 @@ sub _grep {
 }
 
 #synchronous
-sub _upper {
+sub _upper :prototype(){
   sub {
     my ($next, $index, @options)=@_;
     sub {
-      #my $cb=$_[$#_];
       for my($s)(@{$_[0]}){
         $s=uc $s; 
+      }
+      &$next;
+    }
+  }
+}
+
+sub _lower :prototype(){
+  sub {
+    my ($next, $index, @options)=@_;
+    sub {
+      for my($s)(@{$_[0]}){
+        $s=lc $s; 
       }
       &$next;
     }
@@ -1054,45 +1088,8 @@ sub worker {
   #sub_process;
 }
 
-#  Send via broker
-
-sub log_trace {
-  unshift @_, undef, "usac/log/trace"; 
-  &$broadcaster
-}
-
-sub log_debug {
-  unshift @_, undef, "usac/log/debug"; 
-  &$broadcaster
-}
-
-sub log_warn {
-  unshift @_, undef, "usac/log/warn"; 
-  &$broadcaster
-}
-
-sub log_error {
-  unshift @_, undef, "usac/log/error"; 
-  &$broadcaster
-}
-
-sub log_fatal {
-  unshift @_, undef, "usac/log/fatal"; 
-  &$broadcaster
-}
-
 
 my $dummy=sub{};
-
-our $STDIN;
-our $STDOUT;
-our $STDERR;
-
-###########################
-# our $STDIN = reader(0); #
-# our $STDOUT= writer(1); #
-# our $STDERR= writer(2); #
-###########################
 
 sub asay {
   use feature "isa";
@@ -1109,6 +1106,40 @@ sub asay {
   $w->write([join("", @_, "\n")], $cb);
   ();
 }
+
+sub aprint {
+  use feature "isa";
+  my $w=$STDOUT; # Use the std out if
+  my $cb=$dummy;
+  if($_[0] isa "uSAC::IO::Writer"){
+    $w=shift @_;
+  } 
+  
+  if(ref $_[$#_] eq "CODE"){
+    $cb=pop @_;
+  }
+
+  $w->write([join("", @_, "")], $cb);
+  ();
+}
+
+sub adump {
+  use feature "isa";
+  my $w=$STDOUT; # Use the std out if
+  my $cb=$dummy;
+  if($_[0] isa "uSAC::IO::Writer"){
+    $w=shift @_;
+  } 
+  
+  if(ref $_[$#_] eq "CODE"){
+    $cb=pop @_;
+  }
+
+  $w->write([Dumper @_], $cb);
+  ();
+
+}
+
 
 
 
