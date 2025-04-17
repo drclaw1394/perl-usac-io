@@ -16,7 +16,8 @@ WriteMakefile(
         "Socket::More::Resolver"=>0,
         "Socket::More"=>0,
         "Error::Show"=>0,
-	"Data::Dump::Color"=>0
+	"Data::Dump::Color"=>0,
+  "uSAC::FastPack"=>0
 
 			}, 
     ABSTRACT_FROM     => 'lib/uSAC/IO.pod', 
