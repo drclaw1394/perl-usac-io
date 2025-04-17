@@ -52,23 +52,22 @@ else {
 use Error::Show;
 sub _setup_log {
   
-  my $node=$Default_Broker;
-  $node->listen("usac/log/fatal",   sub {
+  usac_listen("usac/log/fatal",   sub {
       log_fatal join "\n", $_[0][1][0][2];
   });
-  $node->listen("usac/log/error",   sub {
+  usac_listen("usac/log/error",   sub {
       log_error join "\n", $_[0][1][0][2];
   });
-  $node->listen("usac/log/warn",   sub {
+  usac_listen("usac/log/warn",   sub {
       log_warn join "\n", $_[0][1][0][2];
   });
-  $node->listen("usac/log/info",   sub {
+  usac_listen("usac/log/info",   sub {
       log_info join "\n", $_[0][1][0][2];
   });
-  $node->listen("usac/log/debug",   sub {
+  usac_listen("usac/log/debug",   sub {
       log_debug join "\n", $_[0][1][0][2];
   });
-  $node->listen("usac/log/trace",   sub {
+  usac_listen("usac/log/trace",   sub {
       log_trace join "\n", $_[0][1][0][2];
   });
 }
