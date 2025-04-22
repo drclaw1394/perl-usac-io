@@ -6,7 +6,7 @@ use feature qw<refaliasing current_sub say>;
 no warnings qw<experimental uninitialized>;
 
 #use AnyEvent;
-use Log::ger;
+use uSAC::Log;
 use Log::OK;
 
 use Errno qw(EAGAIN EINTR);

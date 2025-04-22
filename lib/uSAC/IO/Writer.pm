@@ -6,7 +6,7 @@ no warnings qw<experimental uninitialized>;
 use IO::FD;
 use Fcntl qw(F_GETFL F_SETFL O_NONBLOCK);
 
-use Log::ger;
+use uSAC::Log;
 use Log::OK;
 use Errno qw(EAGAIN EINTR);
 

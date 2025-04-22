@@ -16,6 +16,9 @@ use Sub::Middler;
 use uSAC::IO;# ();
 
 
+
+
+
 # Create Setup the default broker entry points
 #
 our $Default_Broker;
@@ -40,6 +43,9 @@ if($broker_ok){
   $broadcaster=*usac_broadcast=$Default_Broker->get_broadcaster;
   $listener=*usac_listen=$Default_Broker->get_listener;
   $ignorer=*usac_ignore=$Default_Broker->get_ignorer;
+  $SIG{__WARN__}=sub {
+    $broadcaster->("usac/log/warn", "WARN: ".$_[0]);
+  }
 }
 else {
 
@@ -145,6 +151,11 @@ sub _main {
   $STDIN = reader(0);
   $STDOUT= writer(1);
   $STDERR= writer(2);
+
+  # Force built in file handles to auto flush. This make writing unbuffered and synchrounous.
+  #
+  STDERR->autoflush(1);
+  STDOUT->autoflush(1);
 
 
   # Setup default broker/messaging. Add listeners for logging

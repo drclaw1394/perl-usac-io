@@ -6,7 +6,7 @@ use feature qw<refaliasing current_sub say>;
 no warnings qw<experimental uninitialized>;
 
 use AnyEvent;
-use Log::ger;
+use uSAC::Log;
 use Log::OK;
 
 use IO::FD::DWIM();
@@ -29,7 +29,7 @@ BUILD {
 method start :override ($fh=undef) {
 
   if($fh){
-    my $res= IO::FD::fcntl $fh, F_SETFL, O_NONBLOCK;
+    #my $res= IO::FD::fcntl $fh, F_SETFL, O_NONBLOCK;
 	  $$_rfh_ref=$fh;
   }
 

@@ -3,42 +3,42 @@ use strict;
 use warnings;
 no warnings "experimental";
 use Export::These qw<
-  usac_log_trace
-  usac_log_debug
-  usac_log_warn
-  usac_log_info
-  usac_log_error
-  usac_log_fatal
+  log_trace
+  log_debug
+  log_warn
+  log_info
+  log_error
+  log_fatal
 >;
 
 #  Send via broker
-use uSAC::FastPack::Broker;
+#use uSAC::FastPack::Broker;
 
-sub usac_log_trace {
+sub log_trace {
   unshift @_, undef, "usac/log/trace"; 
   &$uSAC::Main::broadcaster;
 }
 
-sub usac_log_debug {
+sub log_debug {
   unshift @_, undef, "usac/log/debug"; 
   &$uSAC::Main::broadcaster;
 }
 
-sub usac_log_warn {
+sub log_warn {
   unshift @_, undef, "usac/log/warn"; 
   &$uSAC::Main::broadcaster;
 }
-sub usac_log_info {
+sub log_info {
   unshift @_, undef, "usac/log/info"; 
   &$uSAC::Main::broadcaster;
 }
 
-sub usac_log_error {
-  print "IN ERRROR \n";
+sub log_error {
+  unshift @_, undef, "usac/log/error"; 
   &$uSAC::Main::broadcaster;
 }
 
-sub usac_log_fatal {
+sub log_fatal {
   unshift @_, undef, "usac/log/fatal"; 
   &$uSAC::Main::broadcaster;
 }

@@ -5,7 +5,7 @@ use feature qw<refaliasing current_sub say>;
 no warnings qw<experimental uninitialized>;
 
 use AnyEvent;
-use Log::ger;
+use uSAC::Log;
 use Log::OK;
 #use IO::FD::DWIM ":all";
 use IO::FD;
@@ -58,7 +58,7 @@ method _make_writer :override {
   my $entry;
   my $sub=sub {
         unless($wfh){
-          Log::OK::ERROR and log_error "SIO Writer: file handle undef, but write watcher still active";
+          Log::OK::TRACE and log_trace "SIO Writer: file handle undef, but write watcher still active";
           return;
         }
         $entry=$queue[0];
@@ -83,7 +83,7 @@ method _make_writer :override {
         }
         elsif(!defined($w) and $! != EAGAIN and $! != EINTR){
           #this is actual error
-          Log::OK::ERROR and log_error "SIO Writer: ERROR IN WRITE $!";
+          Log::OK::TRACE and log_trace "SIO Writer: ERROR IN WRITE $!";
           #actual error		
           $_ww=undef;
           $wfh=undef;
@@ -125,11 +125,12 @@ method _make_writer :override {
     $w = $syswrite->($wfh, $_[0][0]);
 
     if( $w==length($_[0][0]) ){
+      Log::OK::TRACE and log_trace "SWriter DID write all.. doing callback";
       $cb and &$cb;
     }
     elsif(!defined($w) and $! != EAGAIN and $! != EINTR){
       #this is actual error
-      Log::OK::ERROR and log_error "SIO Writer: ERROR IN WRITE NO APPEND $!";
+      Log::OK::TRACE and log_trace "SIO Writer: ERROR IN WRITE NO APPEND $!";
       #actual error		
       $_ww=undef;
       $wfh=undef;
@@ -139,6 +140,7 @@ method _make_writer :override {
     }
     else {
       #The write did not send all the data. Queue it for async writing
+      Log::OK::TRACE and log_trace "SWriter could not write all.. adding to queue";
       push @queue,[$_[0][0], $w, $cb];
       $_ww = AE::io $wfh, 1, $sub unless $_ww;
     }

@@ -57,7 +57,7 @@ method _make_reader :override {
 		defined($addr) and return($on_read and $on_read->($buf, $addr, $_cb));
 		($! == EAGAIN or $! == EINTR) and return;
 
-		warn "ERROR IN READER" if DEBUG;
+    #warn "ERROR IN READER" if DEBUG;
 		$_rw=undef;
 		$on_error->($!);
 		return;
