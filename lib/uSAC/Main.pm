@@ -1,9 +1,11 @@
 # Wrapper around a main script to remove setup of event system code
 
-package uSAC::Main;
-use feature "try";
-no warnings "experimental";
-#use feature "say";
+package LMain;
+# The LMain pacakge import the Log::ger log routnies. These are dynamicall
+# inserted by Log::ger so can not be accessed in the Log::ger package namesapce
+# This way the same log_* names can be used with minimal changes  and prevents
+# recursive calls
+#
 use Log::ger;
 use Log::ger::Output "Screen";
 use Log::OK {
@@ -12,6 +14,12 @@ use Log::OK {
 };
 
 
+package uSAC::Main;
+# Main package. This is where the magic happens.
+# Setsup run loops, logging, IO readers/writers..
+
+use feature "try";
+no warnings "experimental";
 use Sub::Middler;
 use uSAC::IO;# ();
 
@@ -44,7 +52,7 @@ if($broker_ok){
   $listener=*usac_listen=$Default_Broker->get_listener;
   $ignorer=*usac_ignore=$Default_Broker->get_ignorer;
   $SIG{__WARN__}=sub {
-    $broadcaster->("usac/log/warn", "WARN: ".$_[0]);
+    #$broadcaster->("usac/log/warn", "WARN: ".$_[0]);
   }
 }
 else {
@@ -59,22 +67,22 @@ use Error::Show;
 sub _setup_log {
   
   usac_listen("usac/log/fatal",   sub {
-      log_fatal join "\n", $_[0][1][0][2];
+      LMain::log_fatal join "\n", $_[0][1][0][2];
   });
   usac_listen("usac/log/error",   sub {
-      log_error join "\n", $_[0][1][0][2];
+      LMain::log_error join "\n", $_[0][1][0][2];
   });
   usac_listen("usac/log/warn",   sub {
-      log_warn join "\n", $_[0][1][0][2];
+      LMain::log_warn join "\n", $_[0][1][0][2];
   });
   usac_listen("usac/log/info",   sub {
-      log_info join "\n", $_[0][1][0][2];
+      LMain::log_info join "\n", $_[0][1][0][2];
   });
   usac_listen("usac/log/debug",   sub {
-      log_debug join "\n", $_[0][1][0][2];
+      LMain::log_debug join "\n", $_[0][1][0][2];
   });
   usac_listen("usac/log/trace",   sub {
-      log_trace join "\n", $_[0][1][0][2];
+      LMain::log_trace join "\n", $_[0][1][0][2];
   });
 }
 
@@ -219,7 +227,7 @@ sub _main {
 
               if(!defined $res and $@){
                 # Compile error
-                asay $STDERR, "COMPILE ERROR";
+                asay $STDERR, "ERROR: $@";
                 asay $STDERR, Error::Show::context error=>$@;
                 exit;
               }
