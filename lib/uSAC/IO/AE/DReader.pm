@@ -1,7 +1,7 @@
 use Object::Pad;
 package uSAC::IO::AE::DReader;
 class uSAC::IO::AE::DReader :isa(uSAC::IO::DReader);
-use feature qw<refaliasing current_sub say>;
+use feature qw<refaliasing current_sub>;
 no warnings qw<experimental uninitialized>;
 
 use AnyEvent;

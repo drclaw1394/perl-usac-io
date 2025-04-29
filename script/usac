@@ -116,7 +116,7 @@ You do this:
   use uSAC::IO;
 
   timer 1, 0, sub {
-    say "Hello"
+    asay "Hello"
     &timer_cancel;
   };
 

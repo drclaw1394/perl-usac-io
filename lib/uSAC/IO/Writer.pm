@@ -1,6 +1,6 @@
 use Object::Pad;
 class uSAC::IO::Writer;
-use feature qw<refaliasing current_sub say>;
+use feature qw<refaliasing current_sub>;
 no warnings qw<experimental uninitialized>;
 
 use IO::FD;

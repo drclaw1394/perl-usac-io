@@ -3,7 +3,6 @@ use strict;
 use warnings;
 # Utility functions
 
-use feature "say";
 
 use Export::These qw( cwd dirname basename path catfile abs2rel rel2abs need);# decode_urlencoded_form);
 

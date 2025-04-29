@@ -1,7 +1,7 @@
 use Object::Pad;
 package uSAC::IO::AE::DWriter;
 class uSAC::IO::AE::DWriter :isa(uSAC::IO::DWriter);
-use feature qw<refaliasing current_sub say>;
+use feature qw<refaliasing current_sub>;
 no warnings qw<experimental uninitialized>;
 
 use AnyEvent;
@@ -81,12 +81,11 @@ method _make_writer :override {
 			#TODO: DO we need to restructure on ICMP results for a unreachable host, connection refused, etc?
 			if(!defined($w) and $! != EAGAIN and $! != EINTR){
 				#this is actual error
-				warn $! if DEBUG;
-				warn "ERRNO: ".($!+0) if DEBUG;
+        #warn $! if DEBUG;
+        #warn "ERRNO: ".($!+0) if DEBUG;
 				#actual error		
 				$_ww=undef;
 				@queue=();	#reset queue for session reuse
-				say "BEFORE ON ERROR";
 				$on_error->($!) if $on_error;
 				$cb->() if $cb;
 				return;

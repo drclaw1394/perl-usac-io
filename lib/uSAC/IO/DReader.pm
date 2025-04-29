@@ -2,7 +2,7 @@ use Object::Pad;
 package uSAC::IO::DReader;
 class uSAC::IO::DReader :isa(uSAC::IO::Reader);
 
-use feature qw<refaliasing current_sub say>;
+use feature qw<refaliasing current_sub>;
 no warnings qw<experimental uninitialized>;
 
 use Errno qw(EAGAIN EINTR);

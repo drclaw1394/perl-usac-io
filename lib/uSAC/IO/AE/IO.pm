@@ -3,7 +3,7 @@ package uSAC::IO::AE::IO;
 use strict;
 use warnings;
 #use v5.36;
-use feature qw<say try current_sub>;
+use feature qw<try current_sub>;
 no warnings "experimental";
 
 #use Socket ":all";
@@ -47,7 +47,6 @@ sub _exit {
 sub cancel ($){
   my $w=delete $watchers{$_[0]};
   $_[0]=undef; 
-  #uSAC::IO::asay "cancel called";
   #uSAC::IO::asay %watchers+0;
 }
 

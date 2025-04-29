@@ -1,7 +1,7 @@
 use Object::Pad;
 class uSAC::IO::AE::SWriter :isa(uSAC::IO::SWriter);
 
-use feature qw<refaliasing current_sub say>;
+use feature qw<refaliasing current_sub>;
 no warnings qw<experimental uninitialized>;
 
 use AnyEvent;
@@ -15,6 +15,7 @@ use parent "uSAC::IO::Writer";
 use uSAC::IO::Writer qw<:fields>;
 
 use constant::more RECUSITION_LIMIT=>5;
+use constant::more DEBUG=>0;
 
 field $_ww;		# Actual new variable for sub class
 field $_wfh_ref;
@@ -58,7 +59,7 @@ method _make_writer :override {
   my $entry;
   my $sub=sub {
         unless($wfh){
-          Log::OK::TRACE and log_trace "SIO Writer: file handle undef, but write watcher still active";
+          DEBUG and Log::OK::TRACE and log_trace "SIO Writer: file handle undef, but write watcher still active";
           return;
         }
         $entry=$queue[0];
@@ -68,7 +69,6 @@ method _make_writer :override {
 
         #\my $arg=\$entry->[3];
         $time=$clock;
-        #say STDERR "SYSWRITE async buffer len: ". length $buf;
         #$offset+=$w = IO::FD::syswrite4 $wfh, $buf, length($buf)-$offset, $offset;
         $offset+=$w = $syswrite->( $wfh, $buf, length($buf)-$offset, $offset);
         if($offset==length $buf) {
@@ -83,7 +83,7 @@ method _make_writer :override {
         }
         elsif(!defined($w) and $! != EAGAIN and $! != EINTR){
           #this is actual error
-          Log::OK::TRACE and log_trace "SIO Writer: ERROR IN WRITE $!";
+          DEBUG and Log::OK::TRACE and log_trace "SIO Writer: ERROR IN WRITE $!";
           #actual error		
           $_ww=undef;
           $wfh=undef;
@@ -95,7 +95,7 @@ method _make_writer :override {
 
   sub {
     unless(@_ and $wfh){
-      Log::OK::TRACE and log_trace "SIO: SWRITE reset stack called";
+      DEBUG and Log::OK::TRACE and log_trace "SIO: SWRITE reset stack called";
       $_recursion_counter=0;
       $_ww=undef;
       @queue=();
@@ -108,7 +108,6 @@ method _make_writer :override {
 
 
     #Push to queue if watcher is active or need to do a async call
-    #say "Recursion counter is $_recursion_counter";
     if($_recursion_counter > RECUSITION_LIMIT or defined $_ww){
       push @queue, [$_[0][0], 0, $cb];
       #Watcher or queue active to ensure its running.
@@ -125,12 +124,12 @@ method _make_writer :override {
     $w = $syswrite->($wfh, $_[0][0]);
 
     if( $w==length($_[0][0]) ){
-      Log::OK::TRACE and log_trace "SWriter DID write all.. doing callback";
+      DEBUG and Log::OK::TRACE and log_trace "SWriter DID write all.. doing callback";
       $cb and &$cb;
     }
     elsif(!defined($w) and $! != EAGAIN and $! != EINTR){
       #this is actual error
-      Log::OK::TRACE and log_trace "SIO Writer: ERROR IN WRITE NO APPEND $!";
+      DEBUG and Log::OK::TRACE and log_trace "SIO Writer: ERROR IN WRITE NO APPEND $!";
       #actual error		
       $_ww=undef;
       $wfh=undef;
@@ -140,7 +139,7 @@ method _make_writer :override {
     }
     else {
       #The write did not send all the data. Queue it for async writing
-      Log::OK::TRACE and log_trace "SWriter could not write all.. adding to queue";
+      DEBUG and Log::OK::TRACE and log_trace "SWriter could not write all.. adding to queue";
       push @queue,[$_[0][0], $w, $cb];
       $_ww = AE::io $wfh, 1, $sub unless $_ww;
     }
@@ -152,7 +151,7 @@ method _make_writer :override {
 method _make_reseter {
 	\my @queue=$self->queue;
   sub {
-      Log::OK::TRACE and log_trace "SIO: SWRITE reset stack called";
+      DEBUG and Log::OK::TRACE and log_trace "SIO: SWRITE reset stack called";
       $_recursion_counter=0;
       $_ww=undef;
       @queue=();

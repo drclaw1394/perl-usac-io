@@ -3,7 +3,7 @@ package uSAC::IO::Acceptor;
 use uSAC::IO::Common;
 use IO::FD;
 
-use feature qw<refaliasing current_sub say>;
+use feature qw<refaliasing current_sub>;
 no warnings qw<experimental uninitialized>;
 use Fcntl qw(F_GETFL F_SETFL O_NONBLOCK);
 

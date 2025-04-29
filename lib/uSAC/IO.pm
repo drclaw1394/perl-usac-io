@@ -4,7 +4,6 @@ use warnings;
 
 no warnings "experimental";
 
-#use feature "say";
 use feature "current_sub";
 
 our $VERSION="v0.1.0";

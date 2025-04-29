@@ -2,7 +2,7 @@
 use Object::Pad;
 package uSAC::IO::AE::SReader;
 class uSAC::IO::AE::SReader :isa(uSAC::IO::SReader);
-use feature qw<refaliasing current_sub say>;
+use feature qw<refaliasing current_sub>;
 no warnings qw<experimental uninitialized>;
 
 use AnyEvent;
@@ -49,7 +49,6 @@ method _make_reader  :override {
 	#
 	\my $on_read=\$self->on_read; #alias cb 
 	\my $on_eof=\$self->on_eof;
-	#say $self->on_eof;
 	\my $on_error=\$self->on_error;
 	#\my $rw=\$self->[rw_];
 	\my $buf=\$self->buffer;
@@ -66,7 +65,6 @@ method _make_reader  :override {
 		$time=$clock;
     #$len = IO::FD::sysread($rfh, $buf, $max_read_size, length $buf );
 		$len = $sysread->($rfh, $buf->[0], $max_read_size, length $buf->[0] );
-    #say Devel::Peek::Dump $buf;
 		$len>0 and return($on_read and $on_read->($buf,$_cb));
 		not defined($len) and ($! == EAGAIN or $! == EINTR) and return;
 

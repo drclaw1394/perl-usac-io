@@ -2,7 +2,7 @@ use Object::Pad;
 package uSAC::IO::Reader;
 class uSAC::IO::Reader;
 
-use feature qw<refaliasing current_sub say>;
+use feature qw<refaliasing current_sub>;
 no warnings qw<experimental uninitialized>;
 
 #use AnyEvent;
@@ -61,7 +61,7 @@ method timing {
 
 #manually call on_read if buffer is not empty
 method pump {
-	$_on_read->($_buffer, undef) if $_buffer;
+	$_on_read->($_buffer, undef); # if $_buffer;
 }
 
 method read {

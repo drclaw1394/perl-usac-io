@@ -3,7 +3,7 @@ use strict;
 use warnings;
 use version; our $VERSION=version->declare("v0.1");
 
-use feature qw<say state refaliasing>;
+use feature qw<state refaliasing>;
 use Socket qw<AF_INET SOCK_STREAM SOCK_DGRAM pack_sockaddr_in inet_aton>;
 use Fcntl qw(F_GETFL F_SETFL O_NONBLOCK);
 

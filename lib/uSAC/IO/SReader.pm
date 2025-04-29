@@ -1,7 +1,6 @@
 use Object::Pad;
 package uSAC::IO::SReader;
 class uSAC::IO::SReader :isa(uSAC::IO::Reader);
-use feature "say";
 use parent "uSAC::IO::Reader";
 use uSAC::IO::Common;
 

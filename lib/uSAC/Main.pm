@@ -7,7 +7,7 @@ package LMain;
 # recursive calls
 #
 use Log::ger;
-use Log::ger::Output "Screen";
+use Log::ger::Output "Screen",use_color=>0;
 use Log::OK {
   lvl=> "info",
   opt=>"verbose"

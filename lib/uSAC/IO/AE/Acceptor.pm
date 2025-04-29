@@ -14,7 +14,7 @@ use IO::FD;
 
 class uSAC::IO::AE::Acceptor :isa(uSAC::IO::Acceptor);
 
-use feature qw<refaliasing current_sub say>;
+use feature qw<refaliasing current_sub>;
 no warnings qw<experimental uninitialized>;
 field $_aw;
 field $_acceptor;

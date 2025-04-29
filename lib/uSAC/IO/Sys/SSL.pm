@@ -1,7 +1,7 @@
 package uSAC::IO::Sys::SSL;
 use strict;
 use warnings;
-use feature qw<say state refaliasing>;
+use feature qw<state refaliasing>;
 
 use IO::FD;
 use POSIX qw<EAGAIN>;
@@ -84,16 +84,16 @@ sub make_sysread {
             last;
           }
           elsif($res==SSL_ERROR_NONE){
-            say "ERROR NONE";
+            Log::OK::DEBUG and log_debug "ERROR NONE";
           }
           elsif($res==SSL_ERROR_SSL){
-            say "ERROR IN SSL ON ACCEPT";
+            Log::OK::DEBUG and log_debug "ERROR IN SSL ON ACCEPT";
             #Close the connection
             #IO::FD::close $fd;
             last;
           }
           else {
-            say "some other error";
+            Log::OK::DEBUG and log_debug "some other error";
           }
         }
         elsif($res==1){
@@ -106,7 +106,7 @@ sub make_sysread {
           #0. 
           #
           #Ssl failed
-          say "->SSL failed. Shuting down";
+          Log::OK::DEBUG and log_debug "->SSL failed. Shuting down";
 
 
           #Force an error for the reader/writer
@@ -138,38 +138,38 @@ sub make_sysread {
           last;
         }
         elsif($res==SSL_ERROR_ZERO_RETURN){
-          say STDERR "SSL_ERROR_ZERO_RETURN in sysread";
-          say STDERR "CLIENT CLOSED THE CONNECTION";
+          Log::OK::DEBUG and log_debug "SSL_ERROR_ZERO_RETURN in sysread";
+          Log::OK::DEBUG and log_debug "CLIENT CLOSED THE CONNECTION";
           $res=0; #Emulate EOF condition?
           last;
         }
         elsif($res==SSL_ERROR_NONE){
-          say STDERR "SSL_ERROR_NONE in sysread";
+          Log::OK::DEBUG and log_debug "SSL_ERROR_NONE in sysread";
         }
         elsif($res==SSL_ERROR_SSL){
-          say STDERR "SSL_ERROR_SSL in sysread";
+          Log::OK::DEBUG and log_debug "SSL_ERROR_SSL in sysread";
           $res=undef;
           $!=0; #TODO set approprate error
           last;
         }
         elsif($res==SSL_ERROR_WANT_X509_LOOKUP){
-          say STDERR "SSL_ERROR_WANT_X509_LOOKUP in sysread";
+          Log::OK::DEBUG and log_debug "SSL_ERROR_WANT_X509_LOOKUP in sysread";
           last;
         }
         elsif($res== SSL_ERROR_SYSCALL){
-          say STDERR "SSL_ERROR_SYSCALL in sysread";
+          Log::OK::DEBUG and log_debug "SSL_ERROR_SYSCALL in sysread";
           last;
         }
         elsif($res== SSL_ERROR_WANT_CONNECT){
-          say STDERR "SSL_ERROR_WANT_CONNECT in sysread";
+          Log::OK::DEBUG and log_debug "SSL_ERROR_WANT_CONNECT in sysread";
           last;
         }
         elsif($res== SSL_ERROR_WANT_ACCEPT){
-          say STDERR "SSL_ERROR_WANT_ACCEPT in sysread";
+          Log::OK::DEBUG and log_debug "SSL_ERROR_WANT_ACCEPT in sysread";
           last;
         }
         else {
-          say STDERR "some other ssl error in sysread";
+          Log::OK::DEBUG and log_debug "some other ssl error in sysread";
           last;
         }
       }
@@ -221,7 +221,6 @@ sub make_syswrite {
         }
       }
       elsif($state=STATE_IO){
-        say "STATE IO: write";
         $res=Net::SSLeay::write $ssl, $buffer;#, $length;
         if($res>0){
           #Success?
@@ -232,40 +231,40 @@ sub make_syswrite {
           $res=Net::SSLeay::get_error($ssl, $res);
           if($res==SSL_ERROR_WANT_WRITE){
             #sleep 1; 
-            say "->Want write... waiting for event";
+            Log::OK::DEBUG and log_debug "->Want write... waiting for event";
             last;
           }
           elsif($res==SSL_ERROR_WANT_READ){
             Net::SSLeay::read $ssl,0; #force a read by take no data
           }
           elsif($res==SSL_ERROR_NONE){
-            say STDERR "SSL_ERROR_NONE in syswrite";
+            Log::OK::DEBUG and log_debug STDERR "SSL_ERROR_NONE in syswrite";
           }
           elsif($res==SSL_ERROR_WANT_X509_LOOKUP){
-            say STDERR "SSL_ERROR_WANT_X509_LOOKUP in syswrite";
+            Log::OK::DEBUG and log_debug STDERR "SSL_ERROR_WANT_X509_LOOKUP in syswrite";
             last;
           }
           elsif($res== SSL_ERROR_SYSCALL){
-            say STDERR "SSL_ERROR_SYSCALL in syswrite";
+            Log::OK::DEBUG and log_debug STDERR "SSL_ERROR_SYSCALL in syswrite";
             last;
           }
           elsif($res== SSL_ERROR_WANT_CONNECT){
-            say STDERR "SSL_ERROR_WANT_CONNECT in syswrite";
+            Log::OK::DEBUG and log_debug STDERR "SSL_ERROR_WANT_CONNECT in syswrite";
             last;
           }
           elsif($res== SSL_ERROR_WANT_ACCEPT){
-            say STDERR "SSL_ERROR_WANT_ACCEPT in syswrite";
+            Log::OK::DEBUG and log_debug STDERR "SSL_ERROR_WANT_ACCEPT in syswrite";
             last;
           }
           elsif($res== SSL_ERROR_ZERO_RETURN){
-            say STDERR "SSL_ERROR_ZERO_RETURN in sysread";
-            say STDERR "CLIENT CLOSED THE CONNECTION";
+            Log::OK::DEBUG and log_debug "SSL_ERROR_ZERO_RETURN in sysread";
+            Log::OK::DEBUG and log_debug "CLIENT CLOSED THE CONNECTION";
             $res=undef;
             $!=0;
             last;
           }
           else {
-            say STDERR "some other ssl error in syswrite";
+            Log::OK::DEBUG and log_debug "some other ssl error in syswrite";
             last;
           }
 
