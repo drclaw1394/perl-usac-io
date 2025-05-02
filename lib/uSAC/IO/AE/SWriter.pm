@@ -124,7 +124,7 @@ method _make_writer :override {
     $w = $syswrite->($wfh, $_[0][0]);
 
     if( $w==length($_[0][0]) ){
-      DEBUG and Log::OK::TRACE and log_trace "SWriter DID write all.. doing callback";
+      DEBUG and Log::OK::TRACE and log_trace "SWriter DID write all.. doing callback  length $w";
       $cb and &$cb;
     }
     elsif(!defined($w) and $! != EAGAIN and $! != EINTR){
