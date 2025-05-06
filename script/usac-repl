@@ -1,33 +1,39 @@
 #!/usr/bin/env -S usac -Ilib --backend AnyEvent
 # read input and execute
-use feature ":all";
-use uSAC::IO;
-use Data::Dump::Color qw(dump);
-use Error::Show;
-no warnings "experimental";
+use uSAC::REPL;
 
-\my $reader= \$STDIN; #$uSAC::IO::STDIN; #uSAC::IO::reader fileno(STDIN); 
-my $line="";
+uSAC::REPL::start;
 
-$reader->on_read=sub {
-  local $@="";
-  my @res=eval $_[0][0];
-
-  if($@){
-    # handle syntax errors
-    asay $STDERR, "ERROR: $@";
-    asay $STDERR, Error::Show::context error=>$@, program=>$_[0][0];
-  }
-  else {
-    # Print results
-    asay $STDERR, dump @res;
-  }
-
-  # Consume input buffer
-  $_[0][0]="";
-};
-
-
-#Start reader
-$reader->start;
-1;
+#############################################################################
+# use feature ":all";                                                       #
+# use uSAC::IO;                                                             #
+# use Data::Dump::Color qw(dump);                                           #
+# use Error::Show;                                                          #
+# no warnings "experimental";                                               #
+#                                                                           #
+# \my $reader= \$STDIN; #$uSAC::IO::STDIN; #uSAC::IO::reader fileno(STDIN); #
+# my $line="";                                                              #
+#                                                                           #
+# $reader->on_read=sub {                                                    #
+#   local $@="";                                                            #
+#   my @res=eval $_[0][0];                                                  #
+#                                                                           #
+#   if($@){                                                                 #
+#     # handle syntax errors                                                #
+#     asay $STDERR, "ERROR: $@";                                            #
+#     asay $STDERR, Error::Show::context error=>$@, program=>$_[0][0];      #
+#   }                                                                       #
+#   else {                                                                  #
+#     # Print results                                                       #
+#     asay $STDERR, dump @res;                                              #
+#   }                                                                       #
+#                                                                           #
+#   # Consume input buffer                                                  #
+#   $_[0][0]="";                                                            #
+# };                                                                        #
+#                                                                           #
+#                                                                           #
+# #Start reader                                                             #
+# $reader->start;                                                           #
+# 1;                                                                        #
+#############################################################################

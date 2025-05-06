@@ -178,6 +178,8 @@ sub _main {
   _setup_log;
 
 
+  # If called with an argument, it is hex encoded perl code
+  #
   my $inline=shift;
   if($inline){
     $inline=pack "H*", $inline;
@@ -187,10 +189,10 @@ sub _main {
   # Perl has consumed all the switches it wants. So the first item is the script
   my $script//=shift @ARGV;
 
-  my $p=`which usac-repl`;
-  chomp($p);
   if(!$script and !$inline){
     aprint  $STDERR, "No script file given. Entering REPL\n";
+    my $p=`which usac-repl`;
+    chomp($p);
     $script= $p;
   }
 
@@ -211,7 +213,10 @@ sub _main {
             # like normal perl do to the 'do script'
             # Let absolute paths and ../ types alone
             my $res;
-            $res=eval $inline;
+            {
+              package main;
+              $res=eval $inline;
+            }
 
             if($res == undef and $@){
               # Compile error
@@ -230,7 +235,11 @@ sub _main {
               if(($script!~m{^/}) and ($script!~m{^\.{1,2}/})){
                 $script="./$script"
               }
-              $res=do $script;
+
+              {
+                package main;
+                $res=do $script;
+              }
 
               if(!defined $res and $@){
                 # Compile error
