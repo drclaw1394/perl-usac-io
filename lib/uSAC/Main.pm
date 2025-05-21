@@ -12,6 +12,8 @@ use Log::OK {
   lvl=> "info",
   opt=>"verbose"
 };
+package main;
+use uSAC::Util;
 
 
 package uSAC::Main;

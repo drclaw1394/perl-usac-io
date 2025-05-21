@@ -4,7 +4,7 @@ use warnings;
 # Utility functions
 
 
-use Export::These qw( cwd dirname basename path catfile abs2rel rel2abs need);# decode_urlencoded_form);
+use Export::These qw( cwd dirname basename path catfile abs2rel rel2abs dost need);# decode_urlencoded_form);
 
 sub cwd {
   my($dev, $inode)=stat ".";
@@ -180,8 +180,15 @@ sub path {
 
 *usac_path=\&path;
 
+# Modified version of perl 'do'. Allow using caller relative paths
+#
+sub dost(*) {
+  do &path;
+}
 
 my %needed;
+# Modified version of perl 'require'. Returns the last value in the module on repeated calls
+#
 sub need (*) {
   my $input=shift;
   my $frame=shift//[caller];
