@@ -20,65 +20,74 @@ use Errno qw(EAGAIN EINTR);
 field $_rw;
 field $_reader;
 		
-field $_rfh_ref;
+#field $_rfh;
 
 BUILD {
-	$_rfh_ref=\$self->fh;
+  #$_rfh=$self->fh;
 }
 
 method start :override ($fh=undef) {
-
   if($fh){
     #my $res= IO::FD::fcntl $fh, F_SETFL, O_NONBLOCK;
-	  $$_rfh_ref=$fh;
-  }
+    $self->fh=$fh;
 
-  #reset buffer if new fh
-  $self->buffer=[""] if $fh;
-	$_rw= AE::io $$_rfh_ref, 0, $_reader//=$self->_make_reader;
+    #reset buffer if new fh
+    $self->buffer=[""];
+
+    $_reader=undef;
+    $_reader=$self->_make_reader;
+    $_rw= AE::io $fh, 0, $_reader;
+  }
+  else{
+    # Reuse existing reader
+    $_reader//=$self->_make_reader;
+    $_rw= AE::io $self->fh, 0, $_reader;
+  }
   $uSAC::IO::AE::IO::watchers{$self}=$_rw;
+
 	$self;
 }
 
 method _make_reader  :override {
 #alias variables and create io watcher
 	
+  my $on_read;
 	#NOTE: Object::Pad does not allow child classes to have access to 
 	#parent fields. Here we alias what we need so 'runtime' access is
 	#not impacted
 	#
-	\my $on_read=\$self->on_read; #alias cb 
-	\my $on_eof=\$self->on_eof;
-	\my $on_error=\$self->on_error;
 	#\my $rw=\$self->[rw_];
-	\my $buf=\$self->buffer;
-	\my $max_read_size=\$self->max_read_size;
-	\my $rfh=$_rfh_ref;#$self->rfh;		
-	\my $time=$self->time;
-	\my $clock=$self->clock;
-  \my $sysread=\$self->sysread;
+	my $buf=$self->buffer;
+	my $max_read_size=$self->max_read_size;
+	my $rfh=$self->fh;
+	my $time=$self->time;
+	my $clock=$self->clock;
+  my $sysread=$self->sysread;
 	my $len;
   my $_cb=sub {}; # Dummy for now
 	$_rw=undef;
 
 	sub {
-		$time=$clock;
-    #$len = IO::FD::sysread($rfh, $buf, $max_read_size, length $buf );
+
+	  $on_read//=$self->on_read; 
+		$$time=$$clock;
 		$len = $sysread->($rfh, $buf->[0], $max_read_size, length $buf->[0] );
 		$len>0 and return($on_read and $on_read->($buf,$_cb));
 		not defined($len) and ($! == EAGAIN or $! == EINTR) and return;
 
     # End of file
-    $len==0 
-      and (delete $uSAC::IO::AE::IO::watchers{$self}) 
-      and (undef $_rw || 1)
-		  and (($on_read and $on_read->($buf, undef)) ||1)
-      and return($on_eof and $on_eof->($buf));
-
+    if($len==0){
+      delete $uSAC::IO::AE::IO::watchers{$self};
+      undef $_rw;
+      #$on_read and $on_read->($buf, undef);
+      my $on_eof=$self->on_eof;
+      $on_eof and $on_eof->($buf);
+    }
     # Error
 		Log::OK::ERROR and log_error "ERROR IN READER: $!";
 		$_rw=undef;
     delete $uSAC::IO::AE::IO::watchers{$self};
+    my $on_error=$self->on_error;
 		$on_error and $on_error->(undef, $buf);
 		return;
 	};
@@ -90,6 +99,14 @@ method pause :override {
 	undef $_rw;
   delete $uSAC::IO::AE::IO::watchers{$self};
 	$self;
+}
+
+method destroy :override {
+  Log::OK::TRACE and log_trace "--------DESTROY  in AE::SReader\n";
+  $self->SUPER::destroy();
+  $_rw=undef;
+  $_reader=undef;
+
 }
 
 1;

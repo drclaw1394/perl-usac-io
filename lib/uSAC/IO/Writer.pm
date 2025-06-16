@@ -21,6 +21,7 @@ field $_writer;
 field $_resetter;
 field @_queue; 
 field $_syswrite :mutator :param = undef;
+field $_time_dummy;
 
 BUILD {
 	$_fh=fileno($_fh) if ref($_fh);	#Ensure we are working with a fd
@@ -32,8 +33,8 @@ BUILD {
   
   unless(ref $_time){
     # Link to dummy time variable is none provided
-    my $time=time;
-    $_time=\$time;
+    $_time_dummy=time;
+    $_time=\$_time_dummy;
   }
 
   unless(ref $_clock){
@@ -45,25 +46,24 @@ BUILD {
 
 ADJUST {
 	#make a writer
-	$_writer=$self->_make_writer;
+  $self->set_write_handle($_fh);
 
 }
+
 method timing {
 	($_time, $_clock)=@_;
 }
 
 #return or create an return writer
 method writer {
-	$_writer//=$self->_make_writer;
+  #$_writer//=$self->_make_writer;
 }
 
 method reset {
-  $_resetter//=$self->_make_reseter;
 }
 
 #OO interface
 method write {
-	&{$_writer};
 }
 
 
@@ -98,6 +98,18 @@ method queue {
 	\@_queue;
 }
 
+method destroy {
+  Log::OK::TRACE and log_trace "--------DESTROY  in Writer\n";
+  $_on_drain=undef;
+  $_on_eof=undef;
+  $_on_error=undef;
+  for(@_queue){
+    $_->[2]=undef;
+  }
+  @_queue=();
+  $_syswrite=undef;
+  $_time_dummy=undef;
+}
 1;
 
 __END__

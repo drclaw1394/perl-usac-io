@@ -19,7 +19,7 @@ use IO::FD;
 
 field $_ctx;
 field $_fh :param :mutator;
-field $_reader 	:mutator;
+#field $_reader 	:mutator;
 field $_time	:mutator :param = undef;
 field $_clock	 :mutator :param = undef;
 field $_on_read :mutator :param = undef;
@@ -112,6 +112,15 @@ method pipe_to ($writer,$limit=undef){
   $self->start;
 	$writer; #Return writer to allow chaining
 }
+
+
+method destroy {
+  Log::OK::TRACE and log_trace "--------DESTROY  in Reader\n";
+  $_on_read=undef;
+  $_on_eof=undef;
+  $_on_error=undef;
+}
+
 1;
 
 __END__
