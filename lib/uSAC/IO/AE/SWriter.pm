@@ -14,7 +14,7 @@ use parent "uSAC::IO::Writer";
 use uSAC::IO::Writer qw<:fields>;
 
 use constant::more RECUSITION_LIMIT=>10;
-use constant::more DEBUG=>1;
+use constant::more DEBUG=>0;
 
 field $_ww;		# Actual new variable for sub class
 field $_wfh;
@@ -92,6 +92,7 @@ method _make_writer :override {
           #$e->[2]($e->[3]) if $e->[2];
           &{$e->[2]} if $e->[2];
           $e->[2]=undef if $e->[2];
+          DEBUG and print STDERR "SWRITE callback from quque\n";
           @$e=();
           $buf=undef;
         }
@@ -124,9 +125,11 @@ method _make_writer :override {
 
     #Push to queue if watcher is active or need to do a async call
     if($_recursion_counter > RECUSITION_LIMIT or defined $_ww){
+      DEBUG and print STDERR "SWriter water exists for fd $_wfh. Pushing to queue\n";
       push @$queue, [$_[0][0], 0, $cb];
       $_[0][0]=undef;
       $cb=undef;
+      $_recursion_counter=0;
       #Watcher or queue active to ensure its running.
       ($_ww = AE::io($_wfh, 1, $sub)) unless ($_ww and $_wfh);
       return();
@@ -140,9 +143,11 @@ method _make_writer :override {
 
     $w = $syswrite->($_wfh, $_[0][0]);
 
+    DEBUG and print STDERR "WRITE $w bytes out of ". length $_[0][0];
+
     if( $w==length($_[0][0]) ){
       #DEBUG and Log::OK::TRACE and log_trace unpack "H*",$_[0][0] if $w<100;
-      #DEBUG and Log::OK::TRACE and log_trace "SWriter DID write all.. doing callback  length $w";
+      DEBUG and print STDERR "SWriter DID write all.. doing callback  length $w\n";
       #DEBUG and Log::OK::TRACE and log_trace "QUEUE length is: @queue";
       $_[0][0]=undef;
       $cb and &$cb;
@@ -150,7 +155,7 @@ method _make_writer :override {
     }
     elsif(!defined($w) and $! != EAGAIN and $! != EINTR){
       #this is actual error
-      DEBUG and Log::OK::TRACE and log_trace "SIO Writer: ERROR IN WRITE NO APPEND $!";
+      DEBUG and print STDERR "SIO Writer: ERROR IN WRITE NO APPEND $!\n";
       #actual error		
       $_ww=undef;
       #$_wfh=undef;
@@ -165,7 +170,7 @@ method _make_writer :override {
     }
     else {
       #The write did not send all the data. Queue it for async writing
-      #DEBUG and Log::OK::TRACE and log_trace "SWriter could not write all.. adding to queue";
+      DEBUG and print STDERR "SWriter could not write all.. adding to queue\n";
       push @$queue,[$_[0][0], $w, $cb];
       $cb=undef;
       $_[0][0]=undef;

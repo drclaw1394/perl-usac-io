@@ -52,35 +52,37 @@ sub cancel ($){
 
 
 
-# Processing sub for asap code refs. Supports recursive asap calls.
+# Processing sub for asap code refs.
+
 my $asap_sub=sub {
-                        
+
   # Call subs with supplied arguments.
-  my $entry;
-  my $args;
-  while($entry=shift @asap){
-    #print "ASAP WHILE LOOP\n";
-    $args=shift @asap_args;
-    try{
-      $entry->(@$args);
-    }
-    catch($e){
-      use Error::Show;
-      die Error::Show::context message=>$e;
-      #warn "Uncaught execption in asap callback: $e";
-    }
+  #
+  my $entry=shift @asap;
+  my $args=shift @asap_args;
+  try{
+    $entry->(@$args);
   }
-  $asap_timer=undef; 
+  catch($e){
+    use Error::Show;
+    die Error::Show::context message=>$e;
+    #warn "Uncaught execption in asap callback: $e";
+  }
+
+  # Destroy the idle watcher/timer if nothing left to process!
+  if(!@asap){
+    $asap_timer=undef;
+  }
+
 };
 
 # Schedule a code ref to execute asap on current event system.
-# currently a shared timer.
 #
 sub asap (*@){
     my ($c, @args)=@_;
     push @asap, $c;
     push @asap_args, \@args;
-    $asap_timer//=AE::timer 0, 0, $asap_sub;
+    $asap_timer//=AE::idle $asap_sub;
     1;
 }
 
