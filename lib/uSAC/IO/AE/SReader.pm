@@ -84,7 +84,7 @@ method _make_reader  :override {
       $on_eof and $on_eof->($buf);
     }
     # Error
-		Log::OK::ERROR and log_error "ERROR IN READER: $!";
+    #Log::OK::ERROR and log_error "ERROR IN READER: $!";
 		$_rw=undef;
     delete $uSAC::IO::AE::IO::watchers{$self};
     my $on_error=$self->on_error;
