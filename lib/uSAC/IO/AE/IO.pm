@@ -72,6 +72,8 @@ my $asap_sub=sub {
   # Destroy the idle watcher/timer if nothing left to process!
   if(!@asap){
     $asap_timer=undef;
+
+    delete $watchers{idle};
   }
 
 };
@@ -83,6 +85,7 @@ sub asap (*@){
     push @asap, $c;
     push @asap_args, \@args;
     $asap_timer//=AE::idle $asap_sub;
+    $watchers{idle}=$asap_timer;
     1;
 }
 

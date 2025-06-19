@@ -192,7 +192,6 @@ sub socket_stage($$){
   
   # Override an undefined on_spec function to create a socket
   my $on_spec=$specs[0]{data}{on_spec}//sub { 
-    
     _create_socket undef, $_[1], $next if $_[1];
   };
 
@@ -572,7 +571,7 @@ sub _prep_spec{
   my $count=@interfaces*@results;
   my $at_least_1=0;
 	for my $interface (@interfaces){
-    DEBUG and asay "======INTERFACE";
+    DEBUG and asay "======INTERFACE ".Dumper $interface;
 		my $fam= sockaddr_family($interface->{addr});
     DEBUG and asay "family is $fam";
 		for(@results){
@@ -682,6 +681,7 @@ sub _prep_spec{
 
         if(!$found){
           push @seen, $clone;
+          asay "calling on spec for $clone";
           $on_spec and asap $on_spec, undef, $clone;
         }
       }
@@ -715,6 +715,7 @@ sub _prep_spec{
 
               if(!$found){
                 push @seen, $clone;
+                asay "calling on spec for  existing addresss $clone";
                 $on_spec and $on_spec->(undef, $clone);
               }
 
