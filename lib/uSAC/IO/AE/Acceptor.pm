@@ -38,15 +38,17 @@ method _make_acceptor :override {
   \my $on_error=\$self->on_error; #alias the error callback
   $_aw=undef; #Ensure watcher is dead
   \my $afh=$_afh_ref;
-  my @new; my $new=\@new;
-  my @peers; my $peers=\@peers;
+  #my @new; my $new=\@new;
+  #my @peers; my $peers=\@peers;
 
   #Return a sub which is used in the AE::io call
   sub {
-    my $res= IO::FD::accept_multiple @new, @peers, $afh;
+    my $new=[];
+    my $peers=[];
+    my $res= IO::FD::accept_multiple @$new, @$peers, $afh;
     if(defined $res){ 
       if(SET_NONBLOCKING){ 
-        IO::FD::fcntl $_, F_SETFL, O_NONBLOCK for @new;
+        IO::FD::fcntl $_, F_SETFL, O_NONBLOCK for @$new;
       }
       #execute the callback with the array refs and the actuall listening fd
       $on_accept->($new, $peers, $afh);
