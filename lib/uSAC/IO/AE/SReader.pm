@@ -52,6 +52,7 @@ method _make_reader  :override {
 #alias variables and create io watcher
 	
   my $on_read;
+  my $on_eof;
 	#NOTE: Object::Pad does not allow child classes to have access to 
 	#parent fields. Here we alias what we need so 'runtime' access is
 	#not impacted
@@ -70,6 +71,7 @@ method _make_reader  :override {
 	sub {
 
 	  $on_read//=$self->on_read; 
+    $on_eof//=$self->on_eof;
 		$$time=$$clock;
 		$len = $sysread->($rfh, $buf->[0], $max_read_size, length $buf->[0] );
 		$len>0 and return($on_read and $on_read->($buf,$_cb));
@@ -79,8 +81,6 @@ method _make_reader  :override {
     if($len==0){
       delete $uSAC::IO::AE::IO::watchers{$self};
       undef $_rw;
-      #$on_read and $on_read->($buf, undef);
-      my $on_eof=$self->on_eof;
       $on_eof and $on_eof->($buf);
     }
     # Error

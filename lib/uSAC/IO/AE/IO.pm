@@ -47,7 +47,8 @@ sub _exit {
 sub cancel ($){
   my $w=delete $watchers{$_[0]};
   $_[0]=undef; 
-  #uSAC::IO::asay %watchers+0;
+  #use Error::Show;
+  #uSAC::IO::asay Error::Show::context undef;
 }
 
 
@@ -65,7 +66,7 @@ my $asap_sub=sub {
   }
   catch($e){
     use Error::Show;
-    die Error::Show::context message=>$e;
+    uSAC::IO::asay $STDERR, Error::Show::context message=>$e;
     #warn "Uncaught execption in asap callback: $e";
   }
 
@@ -235,7 +236,7 @@ sub _post_loop {
   unless($tick_timer_raw){
     $tick_timer_raw=1; # Synchronous true until asap is called
     asap sub {
-      my $id=timer 0, 1, sub {
+      my $id=timer 0, 0.1, sub {
         $uSAC::IO::Clock=time;
         _exit unless %watchers;
       };

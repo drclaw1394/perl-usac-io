@@ -45,8 +45,8 @@ method pause{
 my $backend=uSAC::IO::Common::detect_backend;
 
 my $rb=($backend."::Acceptor");
-eval "require $rb";
 
+die "Could not require $rb" unless(eval "require $rb");
 #Wrapper 
 sub create { shift; $rb->new(@_); }
 1;
