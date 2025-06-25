@@ -8,7 +8,7 @@ use feature "current_sub";
 
 our $VERSION="v0.1.0";
 
-use constant::more DEBUG=>0;
+use constant::more DEBUG=>1;
 
 #Datagram
 use constant::more qw<r_CIPO=0 w_CIPO r_COPI w_COPI r_CEPI w_CEPI>;
@@ -40,7 +40,7 @@ our $STDIN;
 our $STDOUT;
 our $STDERR;
 
-use Export::These qw{accept asap timer delay interval timer_cancel connect connect_cancel connect_addr bind pipe pair listen 
+use Export::These qw{accept asap timer delay interval timer_cancel sub_process sub_process_cancel connect connect_cancel connect_addr bind pipe pair listen 
 dreader dwriter reader writer sreader swriter signal socket_stage asay aprint adump $STDOUT $STDIN $STDERR};
 
 #use Export::These '$STDOUT','$STDIN', '$STDERR';
@@ -871,7 +871,7 @@ sub interval {
 my %procs;
 # Internal for and of fork/exec
 # Creates pipes for communicating to child processes
-sub _sub_process ($;$$$$){
+sub sub_process ($;$$$$){
   my ($cmd, $on_complete)=@_;
 
   my @pipes;
@@ -899,18 +899,25 @@ sub _sub_process ($;$$$$){
     
 
 
-    my $c={pid=>$pid, pipes=>\@pipes, reader=>$reader, error=>$error};
+    my $c={pid=>$pid, pipes=>\@pipes, reader=>$reader, error=>$error, writer=>$writer};
     $procs{$pid}=$c;
     #asay "created child $pid";
     uSAC::IO::child $pid, sub {
       my ($ppid, $status)=@_;
-        my $dc=delete $procs{$ppid}; 
+
+        if($procs{$ppid}){
+          $procs{$ppid}{pid}=0; # Mark as done
+        }
+
+        #my $dc=delete $procs{$ppid}; 
         # Close pipes
-        IO::FD::close $_ for $dc->{pipes}->@*;
+        #IO::FD::close $pipes[w_CIPO];
+        #IO::FD::close $pipes[r_COPI];
+        #IO::FD::close $pipes[r_CEPI];
         
         # remove the watchers
-        $reader->pause;
-        $error->pause;
+        #$reader->pause;
+        #$error->pause;
         $on_complete and  $on_complete->($status, $ppid); #Status first to match perl system command
         #asay "AFTER WHILE $ppid";
     };
@@ -939,12 +946,36 @@ sub _sub_process ($;$$$$){
     _post_fork;
     # Do it!
     if($cmd){
-      exec $cmd or asay $! and exit;
+      exec $cmd or asay $STDERR, $! and exit;
     }
 
 
   }
 
+}
+
+# Kill a job if it isn't already finished
+sub sub_process_cancel($){
+    my $dc=delete $procs{$_[0]}; 
+    if($dc){
+        my $pid=$dc->{pid};
+         # Only kill the process if its still running
+        if($pid){
+          DEBUG and asay $STDERR, "Killing sub process $pid";
+          kill "KILL", $pid 
+        }
+        else{
+          DEBUG and asay $STDERR, "Sub process $pid already complete";
+        }
+        # close the fds!
+        IO::FD::close $dc->{pipes}[w_CIPO];
+        IO::FD::close $dc->{pipes}[r_COPI];
+        IO::FD::close $dc->{pipes}[r_CEPI];
+        $dc->{reader}=undef;
+        $dc->{error}=undef;
+        $dc->{writer}=undef;
+        $_[0]=undef;
+    }
 }
 
 #synchronous
@@ -1054,7 +1085,7 @@ sub _backtick {
   my $pid;
   my @io;
 
-  ($pid, @io)= _sub_process $cmd, sub {
+  ($pid, @io)= sub_process $cmd, sub {
       ($status, $pid)=@_;
       $on_result and $on_result->([$buffer, $status, $pid], undef);
   };

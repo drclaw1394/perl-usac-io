@@ -25,6 +25,7 @@ field $_resetter;
 BUILD {
 	$_wfh=$self->fh;
   $_recursion_counter=0;
+  $_writer=$self->_make_writer;
   $_resetter=$self->_make_reseter;
 }
 
