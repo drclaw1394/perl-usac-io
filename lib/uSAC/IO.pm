@@ -8,7 +8,7 @@ use feature "current_sub";
 
 our $VERSION="v0.1.0";
 
-use constant::more DEBUG=>1;
+use constant::more DEBUG=>0;
 
 #Datagram
 use constant::more qw<r_CIPO=0 w_CIPO r_COPI w_COPI r_CEPI w_CEPI>;
@@ -960,6 +960,7 @@ sub sub_process_cancel($){
     if($dc){
         my $pid=$dc->{pid};
          # Only kill the process if its still running
+
         if($pid){
           DEBUG and asay $STDERR, "Killing sub process $pid";
           kill "KILL", $pid 
@@ -967,6 +968,7 @@ sub sub_process_cancel($){
         else{
           DEBUG and asay $STDERR, "Sub process $pid already complete";
         }
+
         # close the fds!
         IO::FD::close $dc->{pipes}[w_CIPO];
         IO::FD::close $dc->{pipes}[r_COPI];
