@@ -26,6 +26,7 @@ use Sub::Middler;
 use uSAC::IO;# ();
 
 
+use uSAC::Pool;
 
 
 
@@ -46,6 +47,7 @@ catch($e){
   # No broker.. probably not installed
   warn "uSAC::FastPack::Broker not installed. Internal messaging will fail";
 }
+
 
 if($broker_ok){
   $Default_Broker=uSAC::FastPack::Broker->new;
@@ -155,11 +157,15 @@ sub import {
 
 # Redefine exit to call f
 my @exit_args;
-my $restart_loop=1;
+our $restart_loop=1;
+our $worker_flag=0;
 
 #  Pre declare the main routine. It is expected in the users code
 #sub main;
 my $script=$0;
+
+our $worker_sub;
+my $parent_sub;
 
 sub _main {
   use feature "try";
@@ -180,6 +186,7 @@ sub _main {
   _setup_log;
 
 
+
   # If called with an argument, it is hex encoded perl code
   #
   my $inline=shift;
@@ -198,15 +205,34 @@ sub _main {
     $script= $p;
   }
 
+  ###############################################################################################
+  # # NOTE: THe worker structure is based areound a template worker. If the                     #
+  # # process was started 'fresh' and executed as a template it setups the                      #
+  # # communications to allow starting grand children based on the template                     #
+  # #                                                                                           #
+  # my $worker_flag=!!%uSAC::WorkerSwitch::;                                                    #
+  # if($worker_flag){                                                                           #
+  #                                                                                             #
+  #                                                                                             #
+  #   die "Cannot run as worker in repl mode" if $script=~/usac-repl/;                          #
+  #   die "Cannot run as worker with tty" if -t STDIN or -r STDOUT;                             #
+  #                                                                                             #
+  #   require uSAC::Worker;                                                                     #
+  #   # Set up as a worker process (for rpc calls from parent)                                  #
+  #   # But only if this isn;t an interactive se                                                #
+  #   Log::OK::TRACE and asay $STDERR,"setup workers ";                                         #
+  #   # Test if the worker namespace is present. If so we setup the STD IO to as a worker comms #
+  #   uSAC::Worker::setup_template();                                                           #
+  #   Log::OK::TRACE and asay $STDERR," after setup workers ";                                  #
+  # }                                                                                           #
+  ###############################################################################################
+
+
 
   #print STDERR "WORKING WITH script $script\n";
   $0=$script;
 
-
-  while($restart_loop--){
-    #_template_process;   #
-    uSAC::IO::_pre_loop;      # Setup up event loop ie create cv or do nothing
-    uSAC::IO::asap(sub { 
+  $parent_sub=sub { 
           #die "NO script to run" unless -e $script;
             local $@=undef;
             local $!=undef;
@@ -244,10 +270,11 @@ sub _main {
               }
 
               if(!defined $res and $@){
+                die $@;
                 # Compile error
-                asay $STDERR, "ERROR: $@";
-                asay $STDERR, Error::Show::context error=>$@;
-                exit;
+                #asay $STDERR, "RRERROR: $@";
+                #asay $STDERR, Error::Show::context error=>$@;
+                #exit;
               }
               elsif(!defined $res and $!){
                 # Access error
@@ -261,22 +288,25 @@ sub _main {
 
             # Start even processin on read stream
             #$STDIN->start;
-      }
-    );    # Call user code in a schedualled fashion
-    #my $code=$_[0];
-    uSAC::IO::_post_loop;     # run event loop ie wait for cv or call  run
-  }
-  CORE::exit(@exit_args);  # Exit perl with code
+      };
+
+
+    _do_it();
 }
+  sub _do_it {
+    #while($restart_loop--){
+    asay $STDERR, "====TOP OF RESTART LOOP PID $$  count it $restart_loop+++++++++++++\n";
+    #_template_process;   #
+    uSAC::IO::_pre_loop;          # Setup up event loop ie create cv or do nothing
+    uSAC::IO::asap($worker_sub?$worker_sub:$parent_sub, $$);  # Call user code in a schedualled fashion
+    $worker_sub=undef;
+    #my $code=$_[0];
+    asay $STDERR, "BEFORE POST LOOP====";
+    uSAC::IO::_post_loop;     # run event loop ie wait for cv or call  run
+    print STDERR "====BOTTOM OF RESTART LOOP PID $$  count it $restart_loop+++++++++++++\n";
+    CORE::exit(@exit_args);  # Exit perl with code
+    #}
 
-=pod
-=head1 NAME
-  
-  uSAC::Main - Implement the main behind the scenes event loop
+  }
 
-=head1 DESCRIPTION
-
-Used by the L<usac> script, this prepares the backround run loop and
-the funs the users script in the loop.
-
-
+1;

@@ -872,7 +872,8 @@ my %procs;
 # Internal for and of fork/exec
 # Creates pipes for communicating to child processes
 sub sub_process ($;$$$$){
-  my ($cmd, $on_complete)=@_;
+
+  my ($cmd, $on_complete, $on_fork)=@_;
 
   my @pipes;
   # Create pipes?
@@ -901,7 +902,7 @@ sub sub_process ($;$$$$){
 
     my $c={pid=>$pid, pipes=>\@pipes, reader=>$reader, error=>$error, writer=>$writer};
     $procs{$pid}=$c;
-    #asay "created child $pid";
+    asay $STDERR, "created child $pid";
     uSAC::IO::child $pid, sub {
       my ($ppid, $status)=@_;
 
@@ -922,11 +923,15 @@ sub sub_process ($;$$$$){
         #asay "AFTER WHILE $ppid";
     };
 
+    #$uSAC::IO::AE::IO::CV->send();
     return ($writer, $reader, $error, $pid);
   }
   else {
     # child
     # Close parent ends
+    asay $STDERR, "IN CHILD FORK $$";
+    my $cpid=$$;
+    print STDERR "CHILD PID IS $cpid\n";
     IO::FD::close $pipes[w_CIPO];
     IO::FD::close $pipes[r_COPI];
     IO::FD::close $pipes[r_CEPI];
@@ -941,17 +946,36 @@ sub sub_process ($;$$$$){
     IO::FD::close $pipes[w_COPI];
     IO::FD::close $pipes[w_CEPI];
 
-    # Restart and ASAP timer, and other even clean up
+
+    # Shedual the code to reconfigure the run loop
+
+    # Give child opertunity to do extra setup
     #
-    _post_fork;
+    #!$pid and $on_fork and asap $on_fork, $pid;
+
+
     # Do it!
-    if($cmd){
+    # If a cmd if provided exec is called. and this function never returns in
+    # the client
+    #
+    # If NO cmd is provided, the on_fork is actuall the entry point for the
+    # child worker. It is schedulled to run from top level and this state or
+    # execution is stoped with a die call. This function never returns in the
+    # client
+    # 
+    if(defined $cmd and ! ref $cmd){
       exec $cmd or asay $STDERR, $! and exit;
+      #TODO signal to parent the exec failed somehow??
+      
     }
+    elsif(defined $cmd) {
+      $uSAC::Main::worker_sub =$cmd; #, $pid; #Shedual
+      asay $STDERR, "CMD IS A CODE REF======= $cmd";
+      # Stop all watchers, and stop the event loop
+      die " $cpid RETURN FROM CHILD";
 
-
+    }
   }
-
 }
 
 # Kill a job if it isn't already finished
@@ -978,6 +1002,24 @@ sub sub_process_cancel($){
         $dc->{writer}=undef;
         $_[0]=undef;
     }
+}
+
+
+
+# Jobs
+# Jobs are sub processes which:
+#   Generate data for disk or external placment
+#   presents all STDIN, STDOUT and STDERR as fast pack messages for control and status
+#   queued (schedualed)
+#   persitent 
+#   
+#   perl process become a 'server' responding to fastpack messages
+
+my @queue;
+
+sub schedual_job  {
+
+  #
 }
 
 #synchronous

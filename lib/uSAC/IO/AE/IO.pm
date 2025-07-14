@@ -66,8 +66,14 @@ my $asap_sub=sub {
   }
   catch($e){
     use Error::Show;
-    uSAC::IO::asay $STDERR, Error::Show::context message=>$e;
-    #warn "Uncaught execption in asap callback: $e";
+    print STDERR  " ____GOT EXCEPTION____ in pid $$: $e";#$;Error::Show::context message=>$e;
+    if($e=~/(\d+) RETURN/){
+
+      print STDERR  " START CHILD PROCESSING:";
+       _post_fork();
+       uSAC::Main::_do_it();
+    }
+    return; 
   }
 
   # Destroy the idle watcher/timer if nothing left to process!
@@ -83,8 +89,13 @@ my $asap_sub=sub {
 #
 sub asap (*@){
     my ($c, @args)=@_;
-    push @asap, $c;
-    push @asap_args, \@args;
+    if($c){
+      # only push if a sub is given. Otherwise we just use as a way to restart the asap timer
+      push @asap, $c;
+      push @asap_args, \@args;
+    }
+    #uSAC::IO::asay $STDERR, "Restarting ASAP in $$ with ".@asap." args ";
+
     $asap_timer//=AE::idle $asap_sub;
     $watchers{idle}=$asap_timer;
     1;
@@ -224,13 +235,15 @@ sub cancel_accept {
 
 # Code to setup event loop before it starts
 sub _pre_loop {
-  #print "CALLING PRE LOOP\n";
+  uSAC::IO::asay $STDERR, "CALLING PRE LOOP $$\n";
+  $will_exit=undef;
   # Create a cv; 
-  $CV=AE::cv;
+  $CV=AE::cv unless $CV;
   return;
 }
 
 sub _post_loop {
+  uSAC::IO::asay $STDERR, "CALLING POST LOOP $$\n";
   # Create a tick timer, which isn't part of the normal watcher list
   # When no watchers are present, 
   unless($tick_timer_raw){
@@ -238,6 +251,8 @@ sub _post_loop {
     asap sub {
       my $id=timer 0, 0.1, sub {
         $uSAC::IO::Clock=time;
+        #print STDERR "WATCHERS for $$ ARE ". join " ", %watchers;
+        #print STDERR "\n";
         _exit unless %watchers;
       };
 
@@ -245,13 +260,25 @@ sub _post_loop {
     };
   }
   # Only execute run loop if exit hasn't been called
+  print STDERR "Willl exit for $$ : $will_exit\n";
+  uSAC::IO::asay $STDERR, "CV for $$ is $CV\n";
   !$will_exit and $CV and $CV->recv;
 }
 
 sub _post_fork {
-  # Things needing to be done after forking
+
+  print STDERR "POST FORK $$ ====\n";
+  %watchers=();
+  %sig_watchers=();
   $asap_timer=undef;
-  $asap_timer//=AE::timer 0, 0, $asap_sub;
+  $CV->send();
+  $CV=undef;
+  #$tick_timer_raw=undef;
+  #$will_exit=undef;
+  #$CV=undef;
+
+  print STDERR "RESET AFTER FORK\n";
+
 }
 
 
