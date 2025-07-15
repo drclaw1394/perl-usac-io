@@ -6,6 +6,7 @@ use uSAC::Log;
 use Log::OK;
 use Data::Dumper;
 use constant::more DEBUG=>0;
+use Socket::More::Lookup qw'getaddrinfo';
 
 use feature "try";
 no warnings "experimental";
@@ -86,15 +87,19 @@ sub _child_setup {
         #asay $STDERR, " IN CLIENT EVAL LISTENER msg ============== ". Dumper $msg;
         my $seq= $cap->[0];
 
-        my $res=eval $msg->[FP_MSG_PAYLOAD];
-        #asay $STDERR, "Result of EVAL REQUEST Is $res  for seq $seq=====";
-        try {
-          $broker->broadcast(undef, "worker/$wid/eval-return/$seq", $res);
-        }
-        catch($e){
-          my $error=Error::Show::context error=>$e;
-          $broker->broadcast(undef,"worker/$wid/eval-error/$seq", $error);
-        }
+          local $@;
+          my $res=eval $msg->[FP_MSG_PAYLOAD];
+          asay $STDERR, "Result of EVAL REQUEST Is $res  for seq $seq=====";
+          asay $STDERR, "Result of EVAL REQUEST Is $@ for seq $seq=====";
+          unless($@){
+            $broker->broadcast(undef, "worker/$wid/eval-return/$seq", $res);
+          }
+          else{
+
+            my $error=Error::Show::context error=>$@;
+            asay $STDERR,  $error;
+            $broker->broadcast(undef,"worker/$wid/eval-error/$seq", $error);
+          }
       }
     });
 
@@ -133,7 +138,7 @@ sub _parent_setup {
 
   my $forward_sub=$bridge->forward_message_sub;
   $broker->add_bridge($bridge);
-  $broker->listen($bridge->source_id,"^worker/$wid/", $forward_sub);
+  $broker->listen($bridge->source_id, "^worker/$wid/", $forward_sub);
 
   $io->[2]->pipe_to($STDERR);
 
@@ -166,15 +171,24 @@ sub create_worker {
   asay $STDERR , "--CALLING CREATE WORKER----";
   my $work=shift;
   my $on_complete=shift;
-  $work//=\&_child_setup;
-  my @io=sub_process $work, $on_complete;
+
+  my $_on_complete=sub {
+    # unregister worker?
+
+
+    &$on_complete;
+  };
+
+  my $_work//=sub {
+    &_child_setup;
+    $work and &$work;
+  };
+
+  my @io=sub_process $_work, $_on_complete;
   my $id=$io[3];
-####
-#  #
-####
+
   if(@io){
     #Do parent stuff here
-    #timer 1, 0, sub {_parent_setup \@io;};
     _parent_setup \@io;
     $io[2]->pipe_to($STDERR);
 
@@ -187,117 +201,4 @@ sub create_worker {
 }
 
 
-########################################################################################################################
-# sub setup_template {                                                                                                 #
-#                                                                                                                      #
-#   Log::OK::TRACE and log_trace "Configuring worker (rpc) interface";                                                 #
-#   my $broker=$uSAC::Main::Default_Broker;                                                                            #
-#                                                                                                                      #
-#   my $bridge=uSAC::FastPack::Broker::Bridge->new(broker=>$broker, reader=>$STDIN, writer=>$STDOUT, rfd=>0,  wfd=>1); #
-#   $broker->add_bridge($bridge);                                                                                      #
-#                                                                                                                      #
-#                                                                                                                      #
-#   # Register for control messages                                                                                    #
-#   #                                                                                                                  #
-#   $broker->listen(undef, "worker/spawn/(\d+)", sub {                                                                 #
-#       shift @_;                                                                                                      #
-#                                                                                                                      #
-#       for my ($msg, $cap)($_[0]->@*){                                                                                #
-#                                                                                                                      #
-#         my $id=$msg->[FP_MSG_PAYLOAD];                                                                               #
-#                                                                                                                      #
-#         # NOTE: Currently only supports perl code                                                                    #
-#         # Use subprocess directly to run arbitary code                                                               #
-#         #                                                                                                            #
-#                                                                                                                      #
-#         # Fork this process as it is a template                                                                      #
-#         sub_process undef,                                                                                           #
-#                                                                                                                      #
-#         sub {                                                                                                        #
-#           # On complete. Called in parent                                                                            #
-#                                                                                                                      #
-#         },                                                                                                           #
-#                                                                                                                      #
-#         sub {                                                                                                        #
-#           # on _fork                                                                                                 #
-#           # Called in child                                                                                          #
-#           # Restart the reader to ensure commands are processed                                                      #
-#                                                                                                                      #
-#           $STDIN->start;                                                                                             #
-#                                                                                                                      #
-#           $broker->listen(undef, "^worker/$id/rpa/(\w+)/(\d+)", sub {                                                #
-#                                                                                                                      #
-#               # Add a procedure which we can call                                                                    #
-#               #                                                                                                      #
-#               my $sender=shift;                                                                                      #
-#               for my ($msg, $cap)($_[0]->@*){                                                                        #
-#                 my $name= $cap->[0];                                                                                 #
-#                 my $id= $cap->[1];                                                                                   #
-#                                                                                                                      #
-#                 local $@;                                                                                            #
-#                 my $sub=eval $msg->[FP_MSG_PAYLOAD];                                                                 #
-#                 if($@){                                                                                              #
-#                   # Error.                                                                                           #
-#                   my $error=Error::Show::context error=>$@;                                                          #
-#                   $broker->broadcast(undef,"worker/$id/rpa-error/$name/$id", $error);                                #
-#                 }                                                                                                    #
-#                 else {                                                                                               #
-#                   $broker->broadcast(undef,"worker/$id/rpa-success/$name/$id", 1);                                   #
-#                   $remote_procedures{$name}=$sub;                                                                    #
-#                 }                                                                                                    #
-#               }                                                                                                      #
-#                                                                                                                      #
-#             });                                                                                                      #
-#                                                                                                                      #
-#           $broker->listen(undef, "^worker/$id/rpc/(\w+)/(\d+)", sub {                                                #
-#               # call a procedure                                                                                     #
-#               my $sender=shift;                                                                                      #
-#               for my ($msg, $cap)($_[0]->@*){                                                                        #
-#                 my $name= $cap->[0];                                                                                 #
-#                 my $id= $cap->[1];                                                                                   #
-#                 my $sub= $remote_procedures{$name}=$sub;                                                             #
-#                                                                                                                      #
-#                 if($sub){                                                                                            #
-#                   try {                                                                                              #
-#                     $sub->($msg->[FP_MSG_PAYLOAD]);                                                                  #
-#                   }                                                                                                  #
-#                   catch($e){                                                                                         #
-#                     my $error=Error::Show::context error=>$e;                                                        #
-#                     $broker->broadcast(undef,"worker/$id/rpc-error/$name/$id", $error);                              #
-#                   }                                                                                                  #
-#                 }                                                                                                    #
-#                 else {                                                                                               #
-#                   $broker->broadcast(undef,"worker/$id/rpc-unknown/$name/$id", 1);                                   #
-#                 }                                                                                                    #
-#               }                                                                                                      #
-#             });                                                                                                      #
-#         };                                                                                                           #
-#                                                                                                                      #
-#       }                                                                                                              #
-#                                                                                                                      #
-#     }                                                                                                                #
-#   );                                                                                                                 #
-#                                                                                                                      #
-#                                                                                                                      #
-#                                                                                                                      #
-#                                                                                                                      #
-#   $broker->listen(undef, "worker/kill/(\d+)", sub {                                                                  #
-#       # Kill this worker, rea                                                                                        #
-#       $bridge->close;                                                                                                #
-#     });                                                                                                              #
-#                                                                                                                      #
-#   $broker->listen(undef, "^worker/reap/(d+)", sub {                                                                  #
-#       # Reap                                                                                                         #
-#       #                                                                                                              #
-#                                                                                                                      #
-#     });                                                                                                              #
-#                                                                                                                      #
-#   $broker->listen(undef, "^worker/status/(\d+)", sub {                                                               #
-#       # Trigger the reporting of worker status                                                                       #
-#       #                                                                                                              #
-#                                                                                                                      #
-#     });                                                                                                              #
-#                                                                                                                      #
-# }                                                                                                                    #
-########################################################################################################################
 1;

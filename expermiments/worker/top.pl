@@ -12,19 +12,22 @@ my @workers;
 push @workers, uSAC::Worker::create_worker, uSAC::Worker::create_worker;
 
 
-#timer 2, 0, sub {
-    $broker->listen(undef,"^worker/(\\d+)/eval-return/(\\d+)\$", sub {
+$broker->listen(undef,"^worker/(\\d+)/eval-return/(\\d+)\$", sub {
+  asay $STDERR, "====REsults from eval ". Dumper @_;
+});
 
-    asay $STDERR, "====REsults from eval ". Dumper @_;
-  });
-#};
+$broker->listen(undef,"^worker/(\\d+)/eval-error/(\\d+)\$", sub {
+  asay $STDERR, "==== EVAL ERROR". Dumper @_;
+});
 
 
 my $i=0;
-my $t2=timer 0, 0.1, sub {
+my $t2=timer 0, 1, sub {
   for(@workers){
     asay $STDERR, "$$ SENDING FOR EVAL $_";
-    $broker->broadcast(undef,"worker/$_/eval/$i", "for(1..1000000){sin 10*10}; 1");
+    #$broker->broadcast(undef,"worker/$_/eval/$i", "for(1..1000000){sin 10*10}; 1");
+    $broker->broadcast(undef,"worker/$_/eval/$i", '{1/0; my @results=1;getaddrinfo("google.com.au",80, {}, @results); Dumper @results}');;
+    #$broker->broadcast(undef,"worker/$_/eval/$i", '{asay $STDERR, "===========asdfasdfasdfasdf============"}');;
     $i++;
   }
 };
