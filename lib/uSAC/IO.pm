@@ -40,7 +40,7 @@ our $STDIN;
 our $STDOUT;
 our $STDERR;
 
-use Export::These qw{accept asap timer delay interval timer_cancel sub_process sub_process_cancel connect connect_cancel connect_addr bind pipe pair listen 
+use Export::These qw{accept asap timer delay interval timer_cancel sub_process sub_process_cancel backtick connect connect_cancel connect_addr bind pipe pair listen 
 dreader dwriter reader writer sreader swriter signal socket_stage asay aprint adump $STDOUT $STDIN $STDERR};
 
 #use Export::These '$STDOUT','$STDIN', '$STDERR';
@@ -884,6 +884,7 @@ sub sub_process ($;$$$$){
   # Fork and then exec? . Or do we use a template process
   my $pid=fork;
   if($pid){
+    asay $STDERR, "IN PARENT FORK $$";
     # parent
     # Close the ends of the pipe not needed
     IO::FD::close $pipes[r_CIPO];
@@ -903,6 +904,9 @@ sub sub_process ($;$$$$){
     my $c={pid=>$pid, pipes=>\@pipes, reader=>$reader, error=>$error, writer=>$writer};
     $procs{$pid}=$c;
     asay $STDERR, "created child $pid";
+    #$uSAC::IO::AE::IO::CV->send;
+
+    _shutdown_loop;
     uSAC::IO::child $pid, sub {
       my ($ppid, $status)=@_;
 
@@ -1119,7 +1123,7 @@ sub _accumulate {
 
 use Sub::Middler;
 
-sub _backtick {
+sub backtick {
   my $cmd=shift;
   my $on_result=shift;
 
@@ -1129,19 +1133,27 @@ sub _backtick {
   my $pid;
   my @io;
 
-  ($pid, @io)= sub_process $cmd, sub {
+  (@io, $pid)= sub_process $cmd, sub {
       ($status, $pid)=@_;
-      $on_result and $on_result->([$buffer, $status, $pid], undef);
+      if(ref($on_result) eq "ARRAY"){
+        my $m=linker $on_result;
+
+        $m->([$buffer, $status, $pid],undef);
+      }
+      elsif(ref($on_result) eq "CODE"){
+        $on_result->([$buffer, $status, $pid], undef);
+        
+      }
   };
 
   # Back tick handles stadard out only
   $io[1]->on_read=sub {
-    $buffer.=$_[0]; $_[0]="";
+    $buffer.=$_[0][0]; $_[0][0]="";
   };
 
   # Consume the error stream
   $io[2]->on_read=sub {
-    $_[0]="";
+    $_[0][0]="";
   };
 
   # Start readers

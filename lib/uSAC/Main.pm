@@ -294,18 +294,16 @@ sub _main {
     _do_it();
 }
   sub _do_it {
-    #while($restart_loop--){
-    asay $STDERR, "====TOP OF RESTART LOOP PID $$  count it $restart_loop+++++++++++++\n";
-    #_template_process;   #
-    uSAC::IO::_pre_loop;          # Setup up event loop ie create cv or do nothing
+    $Default_Broker->_post_fork;
     uSAC::IO::asap($worker_sub?$worker_sub:$parent_sub, $$);  # Call user code in a schedualled fashion
     $worker_sub=undef;
-    #my $code=$_[0];
-    asay $STDERR, "BEFORE POST LOOP====";
-    uSAC::IO::_post_loop;     # run event loop ie wait for cv or call  run
-    print STDERR "====BOTTOM OF RESTART LOOP PID $$  count it $restart_loop+++++++++++++\n";
+    # NOTE: THis while loop is important. no really any easy way to recall the run loop, without it
+    # Run loop is recalled on fork ( so for parent and child)
+    while(1){
+      uSAC::IO::_pre_loop;          # Setup up event loop ie create cv or do nothing
+      uSAC::IO::_post_loop;     # run event loop ie wait for cv or call  run
+    }
     CORE::exit(@exit_args);  # Exit perl with code
-    #}
 
   }
 
