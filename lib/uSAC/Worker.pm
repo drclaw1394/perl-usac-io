@@ -7,35 +7,125 @@ use Log::OK;
 use Data::Dumper;
 use constant::more DEBUG=>0;
 use Socket::More::Lookup qw'getaddrinfo';
+use Object::Pad;
 
 use feature "try";
 no warnings "experimental";
 
 # The perl code which can be called by name
 
-my %remote_procedures;
 
+class uSAC::Worker;
+
+field $_rpc         :param = undef;
+field $_on_complete :param = undef;
+field $_work        :param = undef;
+field $_wid         :reader;
+field $_io;
+field $_broker      :param = undef;
+field $_bridge;
+field $_seq;
+field $_active;
+
+
+BUILD {
+  asay $STDERR , "--CALLING CREATE WORKER----";
+  $_seq=0;
+  $_active={};
+  $_broker//=$uSAC::Main::Default_Broker;
+
+  $_rpc->{eval}=sub {
+
+  };
+  my $__on_complete=sub {
+    # unregister worker?
+    $self->_clean_up;
+
+    $_on_complete and &$_on_complete
+  };
+
+  my $__work//=sub {
+    $_wid=$$; # NOTE: needed for child to know its worker id
+
+    asay  $STDERR, "++++++DOING CHILD SETUP for wid $_wid+++";
+    $self->_child_setup;
+    $_work and &$_work;
+  };
+
+  @$_io=sub_process $__work, $__on_complete;
+  $_wid=$_io->[3]; #NOte this is only in parent
+  asay $STDERR, "======asdfasdfasdfasdfasdfasdf $_wid";
+  if(@$_io){
+    #Do parent stuff here
+    $self->_parent_setup;
+    $_io->[2]->pipe_to($STDERR);
+
+  }
+  else {
+    # Error in parent
+
+  }
+}
+
+method eval {
+  my $string=shift;
+  my $cb=shift;
+
+  #asay $STDERR, "$$ SENDING FOR EVAL to $_wid";
+  $_active->{++$_seq}=$cb;
+  $_broker->broadcast(undef,"worker/$_wid/eval/$_seq", $string);
+}
+
+method rpa {
+  my $name=shift;
+  my $string=shift;
+  my $cb=shift;
+  $_active->{++$_seq}=$cb;
+  $_broker->broadcast(undef,"worker/$_wid/rpa/$name/$_seq", $string);
+}
+
+method rpc {
+  my $name=shift;
+  my $string=shift;
+  my $cb=shift;
+  $_active->{++$_seq}=$cb;
+  $_broker->broadcast(undef,"worker/$_wid/rpc/$name/$_seq", $string);
+}
+
+
+
+method close {
+  $_bridge->close;
+  sub_process_cancel $_wid;
+  @$_io=undef;
+  #$_wid=undef;
+}
+
+method _clean_up {
+  asay $STDERR, "---- CLEAN UP WORKER----";
+  my $forward_sub=$_bridge->forward_message_sub;
+
+  $_broker->ignore($_bridge->source_id, "^worker/$_wid/", $forward_sub);
+}
 
 # Setup child bridge to parent
-sub _child_setup {
-  my $wid=shift;
+method _child_setup {
   #Log::OK::TRACE and log_trace "Configuring worker (rpc) interface in child"; 
   # TODO: remove all worker registrations in broker as we are not interested in  existing working registrations
   #
-  my $broker=$uSAC::Main::Default_Broker;
 
-  my $bridge=uSAC::FastPack::Broker::Bridge->new(broker=>$broker, reader=>$STDIN, writer=>$STDOUT, rfd=>0,  wfd=>1);
-  $broker->add_bridge($bridge);
-  $broker->listen($bridge->source_id,"^worker/$wid/", $bridge->forward_message_sub);
+  $_bridge=uSAC::FastPack::Broker::Bridge->new(broker=>$_broker, reader=>$STDIN, writer=>$STDOUT, rfd=>0,  wfd=>1);
+  $_broker->add_bridge($_bridge);
+  $_broker->listen($_bridge->source_id,"^worker/$_wid/", $_bridge->forward_message_sub);
 
 
   # Now register for messages from parent
-  $broker->listen(undef, "^worker/$wid/rpa/(\\w+)/(\\d+)", sub {
-
+  $_broker->listen(undef, "^worker/$_wid/rpa/(\\w+)/(\\d+)", sub {
+      asay $STDERR, "========== IN RPA==============";
       # Add a procedure which we can call
       #
-      my $sender=shift;
-      for my ($msg, $cap)($_[0]->@*){
+      my $sender=shift $_[0]->@*;
+      for my ($msg, $cap)($_[0][0]->@*){
         my $name= $cap->[0];
         my $seq= $cap->[1];
 
@@ -44,41 +134,41 @@ sub _child_setup {
         if($@){
           # Error.   
           my $error=Error::Show::context error=>$@;
-          $broker->broadcast(undef,"worker/$wid/rpa-error/$name/$seq", $error);
+          $_broker->broadcast(undef,"worker/$_wid/rpa-error/$name/$seq", $error);
         }
         else {
-          $broker->broadcast(undef,"worker/$wid/rpa-success/$name/$seq", 1);
-          $remote_procedures{$name}=$sub;
-          DEBUG and asay $STDERR, 'INSTALLED REMOTE PROCEEDURES: '.Dumper $remote_procedures;
+          $_rpc->{$name}=$sub;
+          $_broker->broadcast(undef,"worker/$_wid/rpa-return/$name/$seq", 1);
+          asay $STDERR, "INSTALLED REMOTE PROCEEDURES for name $name seq $seq: ".Dumper $_rpc;
         }
       }
 
     });
 
-  $broker->listen(undef, "^worker/$wid/rpc/(\\w+)/(\\d+)", sub {
+  $_broker->listen(undef, "^worker/$_wid/rpc/(\\w+)/(\\d+)", sub {
       # call a procedure
-      my $sender=shift;
-      for my ($msg, $cap)($_[0]->@*){
+      my $sender=shift $_[0]->@*;
+      for my ($msg, $cap)($_[0][0]->@*){
         my $name= $cap->[0];
         my $seq= $cap->[1];
-        my $sub= $remote_procedures{$name}=$sub;
+        my $sub= $_rpc->{$name};
 
         if($sub){
           try {
-            $broker->broadcast(undef, "worker/$wid/rpc-return/$name/$seq", $sub->($msg->[FP_MSG_PAYLOAD]));
+            $_broker->broadcast(undef, "worker/$_wid/rpc-return/$name/$seq", $sub->($msg->[FP_MSG_PAYLOAD]));
           }
           catch($e){
             my $error=Error::Show::context error=>$e;
-            $broker->broadcast(undef,"worker/$wid/rpc-error/$name/$seq", $error);
+            $_broker->broadcast(undef,"worker/$_wid/rpc-error/$name/$seq", $error);
           }
         }
         else {
-          $broker->broadcast(undef,"worker/$wid/rpc-unknown/$name/$seq", 1);
+          $_broker->broadcast(undef,"worker/$_wid/rpc-error/$name/$seq", "RPC NOT FOUND");
         }
       }
     });
 
-  $broker->listen(undef, "^worker/$wid/eval/(\\d+)", sub {
+  $_broker->listen(undef, "^worker/$_wid/eval/(\\d+)", sub {
 
       #DEBUG and asay $STDERR, " IN CLIENT EVAL LISTENER============== ". Dumper @_;
       # call a procedure
@@ -89,16 +179,15 @@ sub _child_setup {
 
           local $@;
           my $res=eval $msg->[FP_MSG_PAYLOAD];
-          asay $STDERR, "Result of EVAL REQUEST Is $res  for seq $seq=====";
-          asay $STDERR, "Result of EVAL REQUEST Is $@ for seq $seq=====";
+          #asay $STDERR, "WORKER Result of EVAL REQUEST Is $res  for seq $seq=====";
           unless($@){
-            $broker->broadcast(undef, "worker/$wid/eval-return/$seq", $res);
+            $_broker->broadcast(undef, "worker/$_wid/eval-return/$seq", $res);
           }
           else{
 
             my $error=Error::Show::context error=>$@;
             asay $STDERR,  $error;
-            $broker->broadcast(undef,"worker/$wid/eval-error/$seq", $error);
+            $_broker->broadcast(undef,"worker/$_wid/eval-error/$seq", $error);
           }
       }
     });
@@ -108,7 +197,7 @@ sub _child_setup {
     use feature 'state';
     state $i=0;
     DEBUG and asay $STDERR, "TIMER IN CHILD WORKER-----";
-    $broker->broadcast(undef, "worker/$wid/status/$i", "Hello from $wid");
+    $_broker->broadcast(undef, "worker/$_wid/status/$i", "Hello from $_wid");
     $i++;
     timer 1,0, $sub;
 
@@ -119,46 +208,110 @@ sub _child_setup {
   my $t = timer 0, 1, sub {
     asay $STDERR, "--CHILD TIMER--";
   };
-  #############################################
-  # $broker->listen(undef, ".*", sub {        #
-  #     asay $STDERR, "WOKER side CATCH ALL"; #
-  #     asay $STDERR, Dumper  @_;             #
-  #     #$broker->                            #
-  # });                                       #
-  #############################################
 }
 
 # Setup parent bridge to child
-sub _parent_setup {
-  my $io=shift;
-  my $wid=$io->[3];
-  DEBUG and asay $STDERR, "PARENT SETUP "."@$io";
-  my $broker=$uSAC::Main::Default_Broker;
-  my $bridge=uSAC::FastPack::Broker::Bridge->new(broker=>$broker, reader=>$io->[1], writer=>$io->[0], rfd=>$io->[1]->fh,  wfd=>$io->[0]->fh);
+method _parent_setup {
+  asay $STDERR, "PARENT SETUP "."@$_io";
+  $_bridge=uSAC::FastPack::Broker::Bridge->new(broker=>$_broker, reader=>$_io->[1], writer=>$_io->[0], rfd=>$_io->[1]->fh,  wfd=>$_io->[0]->fh);
 
-  my $forward_sub=$bridge->forward_message_sub;
-  $broker->add_bridge($bridge);
-  $broker->listen($bridge->source_id, "^worker/$wid/", $forward_sub);
+  my $forward_sub=$_bridge->forward_message_sub;
+  $_broker->add_bridge($_bridge);
 
-  $io->[2]->pipe_to($STDERR);
+  # Listen for any local messages and forward to other end of bridge
+  #
+  $_broker->listen($_bridge->source_id, "^worker/$_wid/", $forward_sub);
+  
+  # Add Eval support
+  $_broker->listen(undef, "^worker/$_wid/eval-return/(\\d+)\$", sub {
+      #asay $STDERR, "====REsults from eval ". Dumper @_;
+    shift $_[0]->@*;
+    for my ($msg, $cap)($_[0][0]->@*){
+      my $i=$cap->[0];   
+      my $cb=delete $_active->{$i};
+      $cb and $cb->($msg->[FP_MSG_PAYLOAD]);
+    }
+
+  });
+
+  $_broker->listen(undef,"^worker/$_wid/eval-error/(\\d+)\$", sub {
+    shift $_[0]->@*;
+    asay $STDERR, "====REsults from eval ". Dumper @_;
+    for my ($msg, $cap)($_[0][0]->@*){
+      my $i=$cap->[0];   
+      my $cb=delete $_active->{$i};
+      $cb and $cb->($msg->[FP_MSG_PAYLOAD]);
+    }
+
+  });
+
+
+
+  # Add RPA support
+  $_broker->listen(undef, "^worker/$_wid/rpa-return/(\\w+)/(\\d+)\$", sub {
+    shift $_[0]->@*;
+    for my ($msg, $cap)($_[0][0]->@*){
+      my $name=$cap->[0];
+      my $i=$cap->[1];   
+      asay $STDERR, "RPA RETURN----- $_wid  $name";
+      my $cb=delete $_active->{$i};
+      $cb and $cb->($msg->[FP_MSG_PAYLOAD]);
+    }
+  });
+
+  $_broker->listen(undef, "^worker/$_wid/rpa-error/(\\w+)/(\\d+)\$", sub {
+    shift $_[0]->@*;
+    for my ($msg, $cap)($_[0][0]->@*){
+      my $i=$cap->[1];   
+      my $name=$cap->[0];
+      asay $STDERR, "RPA ERROR----- $_wid  $name";
+      my $cb=delete $_active->{$i};
+      $cb and $cb->($msg->[FP_MSG_PAYLOAD]);
+    }
+
+  });
+
+  # Add RPC support
+  $_broker->listen(undef, "^worker/$_wid/rpc-return/(\\w+)/(\\d+)\$", sub {
+    shift $_[0]->@*;
+    for my ($msg, $cap)($_[0][0]->@*){
+      my $name=$cap->[0];
+      my $i=$cap->[1];   
+      asay $STDERR, "RPC RETURN----- $_wid  $name";
+      my $cb=delete $_active->{$i};
+      $cb and $cb->($msg->[FP_MSG_PAYLOAD]);
+    }
+  });
+
+  $_broker->listen(undef, "^worker/$_wid/rpc-error/(\\w+)/(\\d+)\$", sub {
+    shift $_[0]->@*;
+    for my ($msg, $cap)($_[0][0]->@*){
+      my $i=$cap->[1];   
+      my $name=$cap->[0];
+      asay $STDERR, "RPC ERROR----- $_wid  $name";
+      my $cb=delete $_active->{$i};
+      $cb and $cb->($msg->[FP_MSG_PAYLOAD]);
+    }
+
+  });
+
+
+
+
+  $_io->[2]->pipe_to($STDERR);
 
 
   
 
   # Now register for messages from worker
   #
-  $broker->listen(undef, "^worker/$wid/status/(\\d+)\$", sub {
+  $_broker->listen(undef, "^worker/$_wid/status/(\\d+)\$", sub {
   #$broker->listen(undef, ".*", sub {
       # Trigger the reporting of worker status
       #
-      asay $STDERR, "STAUTS FROM WORKER is: ".Dumper @_;
+      #asay $STDERR, "STAUTS FROM WORKER is: ".Dumper @_;
 
     });
-  ###############################################################
-  # $broker->listen(undef, ".*", sub {                          #
-  #     #asay $STDERR, "CATCH ALL in PARENTE SETUP", Dumper @_; #
-  #   });                                                       #
-  ###############################################################
   
   asay $STDERR, "--SETUP UP PARENT TIMER=---";
   my $t = timer 0, 1, sub {
@@ -167,38 +320,6 @@ sub _parent_setup {
 }
 
 
-sub create_worker {
-  asay $STDERR , "--CALLING CREATE WORKER----";
-  my $work=shift;
-  my $on_complete=shift;
-
-  my $_on_complete=sub {
-    # unregister worker?
-
-
-    &$on_complete;
-  };
-
-  my $_work//=sub {
-    &_child_setup;
-    $work and &$work;
-  };
-
-  my @io=sub_process $_work, $_on_complete;
-  my $id=$io[3];
-
-  if(@io){
-    #Do parent stuff here
-    _parent_setup \@io;
-    $io[2]->pipe_to($STDERR);
-
-  }
-  else {
-    # Error in parent
-
-  }
-  $id;
-}
 
 
 1;
