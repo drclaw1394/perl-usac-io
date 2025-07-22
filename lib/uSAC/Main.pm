@@ -25,8 +25,11 @@ no warnings "experimental";
 use Sub::Middler;
 use uSAC::IO;# ();
 
+use uSAC::Pool;
 
 
+our $POOL;
+our $USAC_RUN=1;
 
 
 # Create Setup the default broker entry points
@@ -294,11 +297,13 @@ sub _main {
 }
   sub _do_it {
     $Default_Broker->_post_fork;
+    $Default_Broker->broadcast(undef,"post-fork", 1);
+    $POOL=undef;
     uSAC::IO::asap($worker_sub?$worker_sub:$parent_sub, $$);  # Call user code in a schedualled fashion
     $worker_sub=undef;
     # NOTE: THis while loop is important. no really any easy way to recall the run loop, without it
     # Run loop is recalled on fork ( so for parent and child)
-    while(1){
+    while($USAC_RUN){
       uSAC::IO::_pre_loop;          # Setup up event loop ie create cv or do nothing
       uSAC::IO::_post_loop;     # run event loop ie wait for cv or call  run
     }

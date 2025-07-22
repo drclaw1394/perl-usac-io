@@ -1,4 +1,6 @@
 #!/usr/bin/env -S usac -Ilib --backend AnyEvent
+use v5.36;
+
 use uSAC::REPL;
 
 uSAC::REPL::start;

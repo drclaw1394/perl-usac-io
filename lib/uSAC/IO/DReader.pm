@@ -18,8 +18,6 @@ die "Could not require $rb" unless(eval "require $rb");
 
 field $_flags :mutator;
 
-#sub dreader { shift; $rb->new(@_); }
-#sub create { shift; $rb->new(fh=>@_); }
 sub create {$rb->new(@_); }
 
 1;

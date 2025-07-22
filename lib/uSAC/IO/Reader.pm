@@ -18,13 +18,15 @@ use IO::FD;
 #Returns a method which is called with a buffer, an optional callback and argument
 
 field $_ctx;
-field $_fh :param :mutator;
+field $_fh :param;
 #field $_reader 	:mutator;
-field $_time	:mutator :param = undef;
-field $_clock	 :mutator :param = undef;
-field $_on_read :mutator :param = undef;
-field $_on_eof  :mutator :param = undef;
-field $_on_error :mutator :param = undef;
+#
+#field $_time	:mutator :param = undef;
+#field $_clock	 :mutator :param = undef;
+#field $_on_read :mutator :param = undef;
+#field $_on_eof  :mutator :param = undef;
+#field $_on_error :mutator :param = undef;
+#
 field $_max_read_size :mutator :param = undef;
 field $_buffer	:mutator;
 field $_sysread :mutator :param =undef;
@@ -32,10 +34,11 @@ field $_sysread :mutator :param =undef;
 	
 BUILD{
 	$_fh=fileno($_fh) if ref($_fh);	#Ensure we are working with a fd
+  $self->fh=$_fh;
 	IO::FD::fcntl $_fh, F_SETFL, O_NONBLOCK;
 
-	$_on_read//=sub {$self->pause};
-	$_on_error//= $_on_eof//=sub{};
+	$self->on_read=sub {$self->pause};
+	$self->on_error= $self->on_eof=sub{};
 
 	$_max_read_size//=4096*4;
 	$_buffer=[IO::FD::SV($_max_read_size)];#"";
@@ -45,31 +48,50 @@ BUILD{
   my $time=time;
   my $clock=time;
   #my $time=0;
-  $_time=\$time;
-  $_clock=\$clock;
+  $self->time=\$time;
+  $self->clock=\$clock;
 }
 
+method on_read {
+  # needs override
+}
+
+method on_error {
+
+}
+
+method on_eof {
+}
+
+method time {
+}
+
+method clock {
+}
 
 # Accessor API
 #
 #Set the external variables to use as clock source and timer
 method timing {
-	($_time, $_clock)=@_;
+	($self->time, $self->clock)=@_;
+}
+
+method fh {
+
 }
 
 
 
 #manually call on_read if buffer is not empty
 method pump {
-	$_on_read->($_buffer, undef); # if $_buffer;
+	self->on_read->($_buffer, undef); # if $_buffer;
 }
 
 method read {
 	my $size=$_[1]//4096*4;
 	#force a manual read into buffer
-  $_sysread->($_fh, $size, $_buffer);
-  #IO::FD::sysread($_fh, $size, $_buffer);
-	$_on_read->($_buffer, undef) if $_buffer;
+  $_sysread->($self->fh, $size, $_buffer);
+	$self->on_read->($_buffer, undef) if $_buffer;
 }
 
 
@@ -85,7 +107,7 @@ method _make_reader {
 
 }
 
-method pipe_to ($writer,$limit=undef){
+method pipe_to ($writer, $limit=undef){
 	my $counter;
 	\my @queue=$writer->queue;
 	$self->on_read= sub {
@@ -116,9 +138,9 @@ method pipe_to ($writer,$limit=undef){
 
 method destroy {
   Log::OK::TRACE and log_trace "--------DESTROY  in Reader\n";
-  $_on_read=undef;
-  $_on_eof=undef;
-  $_on_error=undef;
+  $self->on_read=undef;
+  $self->on_eof=undef;
+  $self->on_error=undef;
 }
 
 1;

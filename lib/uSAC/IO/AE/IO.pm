@@ -40,6 +40,7 @@ sub _exit {
   # Mark with will_exit to prevent blocking on undefined $CV
   $tick_timer_raw=undef;
   $will_exit=1;
+  $uSAC::Main::USAC_RUN=0;
   _shutdown_loop;
 }
 
@@ -57,6 +58,7 @@ sub cancel ($){
 
 my $asap_sub=sub {
 
+  return unless @asap;
   # Call subs with supplied arguments.
   #
   my $entry=shift @asap;
@@ -65,13 +67,16 @@ my $asap_sub=sub {
     $entry->(@$args);
   }
   catch($e){
+    #uSAC::IO::asay $STDERR, "IN ASAP EXCEPTION HANDLER";
     use Error::Show;
-    print STDERR  " ____GOT EXCEPTION____ in pid $$: $e";#$;Error::Show::context message=>$e;
     if($e=~/(\d+) RETURN/){
-
-      print STDERR  " START CHILD PROCESSING:";
+      ## NOTE SPECIAL EXCEPTION TO HANDLE CHILD FORK
        _post_fork();
        uSAC::Main::_do_it();
+    }
+    else {
+      # NORMAL Execiption handling
+      uSAC::IO::asay $STDERR, Error::Show::context $e;
     }
     return; 
   }
@@ -177,7 +182,6 @@ sub connect_addr {
               delete $watchers{$id};
 
               if($sockaddr){
-                      uSAC::IO::asay "IN socket connect callback: ";
                       $on_connect and $on_connect->($socket, $addr);
               }
               else {
@@ -235,7 +239,7 @@ sub cancel_accept {
 
 # Code to setup event loop before it starts
 sub _pre_loop {
-  uSAC::IO::asay $STDERR, "CALLING PRE LOOP $$\n";
+  #uSAC::IO::asay $STDERR, "CALLING PRE LOOP $$\n";
   $will_exit=undef;
   # Create a cv; 
   $CV=AE::cv;# unless $CV;
@@ -243,15 +247,16 @@ sub _pre_loop {
 }
 
 sub _post_loop {
-  uSAC::IO::asay $STDERR, "CALLING POST LOOP $$ .. raw timer? $tick_timer_raw\n";
+  #uSAC::IO::asay $STDERR, "CALLING POST LOOP $$ .. raw timer? $tick_timer_raw\n";
   # Create a tick timer, which isn't part of the normal watcher list
   # When no watchers are present, 
   unless($tick_timer_raw){
     $tick_timer_raw=1; # Synchronous true until asap is called
-    uSAC::IO::asay $STDERR, "in tick timer check----";
+    #uSAC::IO::asay $STDERR, "in tick timer check----";
     asap sub {
+      #uSAC::IO::asay $STDERR, "---DOING ASAP FOR TICK TIMER=======";
       my $id=timer 0, 0.1, sub {
-        asay $STDERR, "--raw timer callback--";
+        #uSAC::IO::asay $STDERR, "--raw timer callback--";
         $uSAC::IO::Clock=time;
         #print STDERR "WATCHERS for $$ ARE ". join " ", %watchers;
         #print STDERR "\n";
@@ -262,25 +267,22 @@ sub _post_loop {
     };
   }
   # Only execute run loop if exit hasn't been called
-  print STDERR "Willl exit for $$ : $will_exit  CV $CV\n";
-  uSAC::IO::asay $STDERR, "CV for $$ is $CV\n";
+  #print STDERR "Willl exit for $$ : $will_exit  CV $CV\n";
+  #uSAC::IO::asay $STDERR, "CV for $$ is $CV\n";
   !$will_exit and $CV and $CV->recv;
 }
 
 sub _post_fork {
 
-  print STDERR "POST FORK $$ ====\n";
+  #print STDERR "POST FORK $$ ====\n";
   cancel $tick_timer_raw;
   $tick_timer_raw=undef;
   $asap_timer=undef;
   %watchers=();
   %sig_watchers=();
-  #$CV->send();
-  #$CV=undef;
   $will_exit=undef;
-  #$CV=undef;
 
-  print STDERR "RESET AFTER FORK\n";
+  #print STDERR "RESET AFTER FORK\n";
 
 }
 

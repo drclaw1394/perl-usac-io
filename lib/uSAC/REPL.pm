@@ -15,25 +15,31 @@ sub start {
   $reader= $STDIN; #$uSAC::IO::STDIN; #uSAC::IO::reader fileno(STDIN); 
 
   $reader->on_read=sub {
-    local $@="";
-    my @res;
-    {
-      package main;
-      @res=eval $_[0][0];
-    }
-
-    if($@){
-      # handle syntax errors
-      asay $STDERR, "ERROR: $@";
-      asay $STDERR, Error::Show::context error=>$@, program=>$_[0][0];
-    }
-    else {
-      # Print results
-      asay $STDERR, dump @res;
-    }
-
+    #$reader->pause;
+    #$reader->on_read=undef;
     # Consume input buffer
+    my $line=$_[0][0];
     $_[0][0]="";
+    asap sub {
+      local $@="";
+      my $res;
+      {
+        #package main;
+        $res=eval "sub { $line }";
+      }
+
+      if($@){
+        # handle syntax errors
+        asay $STDERR, "$$ ERROR in eval: $@";
+        asay $STDERR, Error::Show::context error=>$@, program=>$line;
+      }
+      else {
+        # Print results
+        asay $STDERR, dump $res->();
+      }
+      #$reader->start;
+    };
+
   };
 
 

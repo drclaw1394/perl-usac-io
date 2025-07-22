@@ -18,7 +18,15 @@ use Fcntl qw(F_GETFL F_SETFL O_NONBLOCK :mode);
 use Errno qw(EAGAIN EINTR);
 
 field $_rw;
-field $_reader;
+field $_reader; 
+
+field $_on_read; 
+field $_on_eof;
+field $_on_error;
+field $_time;
+field $_clock;
+field $_fh;
+
 		
 #field $_rfh;
 
@@ -43,6 +51,10 @@ method start :override ($fh=undef) {
     $_reader//=$self->_make_reader;
     $_rw= AE::io $self->fh, 0, $_reader;
   }
+
+  # Refresh the local copy of on read
+  #$_on_read=$self->on_read; 
+  #$_on_eof=$self->on_eof;
   $uSAC::IO::AE::IO::watchers{$self}=$_rw;
 
 	$self;
@@ -51,8 +63,8 @@ method start :override ($fh=undef) {
 method _make_reader  :override {
 #alias variables and create io watcher
 	
-  my $on_read;
-  my $on_eof;
+  #my $on_read;
+  #my $on_eof;
 	#NOTE: Object::Pad does not allow child classes to have access to 
 	#parent fields. Here we alias what we need so 'runtime' access is
 	#not impacted
@@ -61,8 +73,8 @@ method _make_reader  :override {
 	my $buf=$self->buffer;
 	my $max_read_size=$self->max_read_size;
 	my $rfh=$self->fh;
-	my $time=$self->time;
-	my $clock=$self->clock;
+  #my $time=$self->time;
+  #my $clock=$self->clock;
   my $sysread=$self->sysread;
 	my $len;
   my $_cb=sub {}; # Dummy for now
@@ -70,25 +82,25 @@ method _make_reader  :override {
 
 	sub {
 
-	  $on_read//=$self->on_read; 
-    $on_eof//=$self->on_eof;
-		$$time=$$clock;
+    #$_on_read//=$self->on_read; 
+    #$_on_eof//=$self->on_eof;
+		$$_time=$$_clock;
 		$len = $sysread->($rfh, $buf->[0], $max_read_size, length $buf->[0] );
-		$len>0 and return($on_read and $on_read->($buf,$_cb));
+		$len>0 and return($_on_read and $_on_read->($buf,$_cb));
 		not defined($len) and ($! == EAGAIN or $! == EINTR) and return;
 
     # End of file
     if($len==0){
       delete $uSAC::IO::AE::IO::watchers{$self};
       undef $_rw;
-      $on_eof and $on_eof->($buf);
+      $_on_eof and $_on_eof->($buf);
     }
     # Error
     #Log::OK::ERROR and log_error "ERROR IN READER: $!";
 		$_rw=undef;
     delete $uSAC::IO::AE::IO::watchers{$self};
-    my $on_error=$self->on_error;
-		$on_error and $on_error->(undef, $buf);
+    #my $_on_error=$self->on_error;
+		$_on_error and $_on_error->(undef, $buf);
 		return;
 	};
 }
@@ -98,6 +110,7 @@ method _make_reader  :override {
 method pause :override {
 	undef $_rw;
   delete $uSAC::IO::AE::IO::watchers{$self};
+  $_reader=undef;
 	$self;
 }
 
@@ -107,6 +120,29 @@ method destroy :override {
   $_rw=undef;
   $_reader=undef;
 
+}
+
+method on_read :lvalue :override{
+  $_on_read;
+}
+
+method on_error :lvalue :override{
+  $_on_error;
+}
+
+method on_eof :lvalue :override {
+  $_on_eof;
+}
+
+method time :lvalue :override {
+  $_time;
+}
+
+method clock :lvalue :override {
+  $_clock;
+}
+method fh :lvalue :override {
+  $_fh;
 }
 
 1;
