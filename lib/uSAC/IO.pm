@@ -9,6 +9,7 @@ use feature "current_sub";
 our $VERSION="v0.1.0";
 
 use Data::FastPack::Meta;
+use Data::Combination;
 use constant::more DEBUG=>0;
 
 #Datagram
@@ -431,13 +432,13 @@ sub _prep_spec{
 
   for($r->{socktype}->@*){
     unless(Scalar::Util::looks_like_number $_){
-      ($_)=string_to_socktype $_;
+      ($_)=Socket::More::string_to_socktype $_;
     }
   }
 
   for($r->{family}->@*){
     unless(Scalar::Util::looks_like_number $_){
-      ($_)=string_to_family $_;
+      ($_)=Socket::More::string_to_family $_;
     }
   }
   # End
@@ -519,7 +520,7 @@ sub _prep_spec{
       IPV6_ANY,
       "0",
       {flags=>AI_NUMERICHOST|AI_NUMERICSERV, family=>AF_INET6},
-      @results
+      \@results
     );
 
     push @new_interfaces, ({name=>IPV6_ANY, addr=>$results[0]{addr}});
@@ -640,11 +641,11 @@ sub _prep_spec{
         DEBUG and asay  $STDERR, "Address needs to be filled";
         if($fam == AF_INET){
           DEBUG and asay $STDERR, "DOING IPv4";
-          my (undef, $ip)=unpack_sockaddr_in($interface->{addr});
+          my (undef, $ip)=Socket::More::unpack_sockaddr_in($interface->{addr});
           Socket::More::Lookup::getnameinfo($interface->{addr}, my $host="", my $port="", NI_NUMERICHOST|NI_NUMERICSERV);
 
           $clone->{address}=$host;
-          $clone->{addr}=pack_sockaddr_in($_->{port}, $ip);
+          $clone->{addr}=Socket::More::pack_sockaddr_in($_->{port}, $ip);
           if($enable_group){
             require Socket::More::IPRanges;
             $clone->{group}=Socket::More::IPRanges::ipv4_group($clone->{address});
@@ -693,7 +694,7 @@ sub _prep_spec{
         # Address exists so we (potentially need to) lookup to generate binary addr field
         #
           my @results;
-          Socket::More::Lookup::getaddrinfo($_->{address},$_->{port},$_, @results);
+          Socket::More::Lookup::getaddrinfo($_->{address},$_->{port},$_, \@results);
           $clone->{addr}=$results[0]{addr};
           DEBUG and asay $STDERR, "RESULTS ", Dumper @results;
           DEBUG and asay $STDERR, "spec ", Dumper $_;

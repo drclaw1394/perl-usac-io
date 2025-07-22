@@ -28,7 +28,7 @@ field $_fh :param;
 #field $_on_error :mutator :param = undef;
 #
 field $_max_read_size :mutator :param = undef;
-field $_buffer	:mutator;
+#field $_buffer	:mutator;
 field $_sysread :mutator :param =undef;
 		
 	
@@ -41,7 +41,7 @@ BUILD{
 	$self->on_error= $self->on_eof=sub{};
 
 	$_max_read_size//=4096*4;
-	$_buffer=[IO::FD::SV($_max_read_size)];#"";
+	$self->buffer=[IO::FD::SV($_max_read_size)];#"";
   $_sysread//=\&IO::FD::sysread;
 
 	
@@ -69,6 +69,10 @@ method time {
 method clock {
 }
 
+method buffer {
+
+}
+
 # Accessor API
 #
 #Set the external variables to use as clock source and timer
@@ -84,14 +88,15 @@ method fh {
 
 #manually call on_read if buffer is not empty
 method pump {
-	self->on_read->($_buffer, undef); # if $_buffer;
+	self->on_read->($self->buffer, undef); # if $_buffer;
 }
 
 method read {
 	my $size=$_[1]//4096*4;
+  my $buffer=$self->buffer;
 	#force a manual read into buffer
-  $_sysread->($self->fh, $size, $_buffer);
-	$self->on_read->($_buffer, undef) if $_buffer;
+  $_sysread->($self->fh, $size, $buffer->[0]);
+	$self->on_read->($buffer, undef) if $buffer->[0];
 }
 
 

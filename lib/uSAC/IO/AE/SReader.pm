@@ -26,6 +26,7 @@ field $_on_error;
 field $_time;
 field $_clock;
 field $_fh;
+field $_buffer;#	:mutator;
 
 		
 #field $_rfh;
@@ -40,7 +41,7 @@ method start :override ($fh=undef) {
     $self->fh=$fh;
 
     #reset buffer if new fh
-    $self->buffer=[""];
+    $_buffer=[""];
 
     $_reader=undef;
     $_reader=$self->_make_reader;
@@ -70,9 +71,9 @@ method _make_reader  :override {
 	#not impacted
 	#
 	#\my $rw=\$self->[rw_];
-	my $buf=$self->buffer;
+  #my $buf=$self->buffer;
 	my $max_read_size=$self->max_read_size;
-	my $rfh=$self->fh;
+  #my $rfh=$self->fh;
   #my $time=$self->time;
   #my $clock=$self->clock;
   my $sysread=$self->sysread;
@@ -85,22 +86,22 @@ method _make_reader  :override {
     #$_on_read//=$self->on_read; 
     #$_on_eof//=$self->on_eof;
 		$$_time=$$_clock;
-		$len = $sysread->($rfh, $buf->[0], $max_read_size, length $buf->[0] );
-		$len>0 and return($_on_read and $_on_read->($buf,$_cb));
+		$len = $sysread->($_fh, $_buffer->[0], $max_read_size, length $_buffer->[0] );
+		$len>0 and return($_on_read and $_on_read->($_buffer,$_cb));
 		not defined($len) and ($! == EAGAIN or $! == EINTR) and return;
 
     # End of file
     if($len==0){
       delete $uSAC::IO::AE::IO::watchers{$self};
       undef $_rw;
-      $_on_eof and $_on_eof->($buf);
+      $_on_eof and $_on_eof->($_buffer);
     }
     # Error
     #Log::OK::ERROR and log_error "ERROR IN READER: $!";
 		$_rw=undef;
     delete $uSAC::IO::AE::IO::watchers{$self};
     #my $_on_error=$self->on_error;
-		$_on_error and $_on_error->(undef, $buf);
+		$_on_error and $_on_error->(undef, $_buffer);
 		return;
 	};
 }
@@ -110,7 +111,7 @@ method _make_reader  :override {
 method pause :override {
 	undef $_rw;
   delete $uSAC::IO::AE::IO::watchers{$self};
-  $_reader=undef;
+  #$_reader=undef;
 	$self;
 }
 
@@ -143,6 +144,9 @@ method clock :lvalue :override {
 }
 method fh :lvalue :override {
   $_fh;
+}
+method buffer :lvalue :override {
+  $_buffer;
 }
 
 1;
