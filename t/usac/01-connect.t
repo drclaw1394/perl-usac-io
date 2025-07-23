@@ -1,11 +1,10 @@
 use v5.36;
 use Test::More;
-use AnyEvent;
 use uSAC::IO ();
 
 use Socket::More;
 use Socket::More::Constants;
-use Socket::More::Lookup ();
+#use Socket::More::Lookup ();
 use POSIX qw<strerror>;
 
 use Socket ();
@@ -23,12 +22,12 @@ sub mut {
   }
 }
 my $err= sub {
-    say STDERR "Error on socket $_[0], ", $_[1];
-    say STDERR Dumper @_;
+    asay $STDERR, "Error on socket $_[0], ", $_[1];
+    asay $STDERR, Dumper @_;
     done_testing();
     exit(-1);
   };
-
+my $a;
 my $hints;
 $hints={port=>$port, address=>$host, socktype=>SOCK_STREAM, protocol=>IPPROTO_TCP, flags=>0,
   data=>{
@@ -50,14 +49,14 @@ $hints={port=>$port, address=>$host, socktype=>SOCK_STREAM, protocol=>IPPROTO_TC
 
     on_connect=>sub {
       my $socket=$_[0];
-      say STDERR "connected";
+      asay $STDERR, "connected";
       ok 1, "connected";
       mut;
     },
 
     on_accept =>sub {
       ok 1, "on accept";
-      say STDERR "on_accept";
+      asay $STDERR, "on_accept";
       mut;
     }
   },
@@ -74,10 +73,11 @@ uSAC::IO::socket_stage $hints, \&uSAC::IO::bind;
 #
 sub do_connect {
   my (undef, $hints)=@_;
-  say STDERR "Made it to do_connect";
+  asay $STDERR, "======$$ Made it to do_connect";
   uSAC::IO::socket_stage $hints, \&uSAC::IO::connect;
 
 }
 
+#timer 4, 0 , sub {asay $STDERR, "ljkadslkjasdlfkjasldkjfalskdjfalksdjf"};
 
 

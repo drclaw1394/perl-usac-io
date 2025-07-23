@@ -2,13 +2,15 @@
 
 use uSAC::IO;
 use Data::Dumper;
+use Socket::More::Constants;
 #my $w=uSAC::Worker->new();
 uSAC::IO::getaddrinfo("google.com",80, {}, sub {
     asay $STDERR, "GAI RETURN--------";
     asay $STDERR, Dumper @_[0];
-    uSAC::IO::getnameinfo($_[0][0]{addr}, 0, sub {
+    uSAC::IO::getnameinfo($_[0]{addr}, NI_NUMERICHOST|NI_NUMERICSERV, sub {
       asay $STDERR, "GNI RETURN--------";
-      asay $STDERR, Dumper @_[0];
+      asay $STDERR, Dumper @_;
+      exit;
       });
   },
   sub {

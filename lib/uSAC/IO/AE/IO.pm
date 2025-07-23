@@ -31,13 +31,17 @@ my $tick_timer_raw;
 
 
 sub _shutdown_loop {
-  #print "SHUTDOWN LOOP CALLED\n";
+  #uSAC::IO::asay $STDERR, "SHUTDOWN LOOP CALLED";
   $CV and $CV->send;
 }
 
 sub _exit {
+  $uSAC::Main::exit_code=shift//0;
+  $uSAC::Main::POOL->close if $uSAC::Main::POOL;
+
   # Do any cleanup before exiting 
   # Mark with will_exit to prevent blocking on undefined $CV
+  #
   $tick_timer_raw=undef;
   $will_exit=1;
   $uSAC::Main::USAC_RUN=0;

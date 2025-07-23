@@ -158,7 +158,7 @@ sub import {
 
 
 # Redefine exit to call f
-my @exit_args;
+our $exit_code;
 our $restart_loop=1;
 our $worker_flag=0;
 
@@ -298,7 +298,7 @@ sub _main {
   sub _do_it {
     $Default_Broker->_post_fork;
     $Default_Broker->broadcast(undef,"post-fork", 1);
-    $POOL=undef;
+    #$POOL=undef;
     uSAC::IO::asap($worker_sub?$worker_sub:$parent_sub, $$);  # Call user code in a schedualled fashion
     $worker_sub=undef;
     # NOTE: THis while loop is important. no really any easy way to recall the run loop, without it
@@ -307,8 +307,7 @@ sub _main {
       uSAC::IO::_pre_loop;          # Setup up event loop ie create cv or do nothing
       uSAC::IO::_post_loop;     # run event loop ie wait for cv or call  run
     }
-    CORE::exit(@exit_args);  # Exit perl with code
-
+    CORE::exit($exit_code);  # Exit perl with code
   }
 
 1;

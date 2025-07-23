@@ -33,6 +33,7 @@ my $t2; $t2=timer 0, 1, sub {
   for(@workers){
     if($i>=10){
       $_->close;
+      timer_cancel $t2;
     }
     else {
       $_->eval(" for(1..1000000){sin 10*10};time", sub {

@@ -27,12 +27,14 @@ field $_broker      :param = undef;
 field $_bridge;
 field $_seq;
 field $_active;
+field $_register;
 
 
 BUILD {
   DEBUG and asay $STDERR , "--CALLING CREATE WORKER----";
   $_seq=0;
   $_active={};
+  $_register=[];
   $_broker//=$uSAC::Main::Default_Broker;
 
   # install Eval rpc call
@@ -107,6 +109,8 @@ method rpc {
 
 method close {
   $_bridge->close;
+
+
   sub_process_cancel $_wid;
   @$_io=undef;
   #$_wid=undef;
@@ -114,9 +118,12 @@ method close {
 
 method _clean_up {
   DEBUG and asay $STDERR, "---- CLEAN UP WORKER----";
-  my $forward_sub=$_bridge->forward_message_sub;
+  #my $forward_sub=$_bridge->forward_message_sub;
 
-  $_broker->ignore($_bridge->source_id, "^worker/$_wid/", $forward_sub);
+  #$_broker->ignore($_bridge->source_id, "^worker/$_wid/", $forward_sub);
+  for(@$_register){
+    $_broker->ingore(@$_);
+  }
 }
 
 # Setup child bridge to parent
@@ -238,88 +245,75 @@ method _parent_setup {
   my $forward_sub=$_bridge->forward_message_sub;
   $_broker->add_bridge($_bridge);
 
+  my $r;
   # Listen for any local messages and forward to other end of bridge
   #
-  $_broker->listen($_bridge->source_id, "^worker/$_wid/", $forward_sub);
+  $r=[$_bridge->source_id, "^worker/$_wid/", $forward_sub];
+  $_broker->listen(@$r);
+  push @$_register, $r;
   #$_broker->listen(undef, "^worker/$_wid/", $forward_sub);
   
-  # Add Eval support
-  #######################################################################
-  # $_broker->listen(undef, "^worker/$_wid/eval-return/(\\d+)\$", sub { #
-  #     #asay $STDERR, "====REsults from eval ". Dumper @_;             #
-  #   shift $_[0]->@*;                                                  #
-  #   for my ($msg, $cap)($_[0][0]->@*){                                #
-  #     my $i=$cap->[0];                                                #
-  #     my $cb=delete $_active->{$i};                                   #
-  #     $cb and $cb->($msg->[FP_MSG_PAYLOAD]);                          #
-  #   }                                                                 #
-  #                                                                     #
-  # });                                                                 #
-  #                                                                     #
-  # $_broker->listen(undef,"^worker/$_wid/eval-error/(\\d+)\$", sub {   #
-  #   shift $_[0]->@*;                                                  #
-  #   asay $STDERR, "====REsults from eval ". Dumper @_;                #
-  #   for my ($msg, $cap)($_[0][0]->@*){                                #
-  #     my $i=$cap->[0];                                                #
-  #     my $cb=delete $_active->{$i};                                   #
-  #     $cb and $cb->($msg->[FP_MSG_PAYLOAD]);                          #
-  #   }                                                                 #
-  #                                                                     #
-  # });                                                                 #
-  #                                                                     #
-  #######################################################################
-
-
+  $r=[undef, "^worker/$_wid/rpa-return/(\\w+)/(\\d+)\$", sub {
+      shift $_[0]->@*;
+      for my ($msg, $cap)($_[0][0]->@*){
+        my $name=$cap->[0];
+        my $i=$cap->[1];   
+        DEBUG and asay $STDERR, "RPA RETURN----- $_wid  $name";
+        my $cb=delete $_active->{$i};
+        $cb and $cb->($msg->[FP_MSG_PAYLOAD]);
+      }
+    }];
   # Add RPA support
-  $_broker->listen(undef, "^worker/$_wid/rpa-return/(\\w+)/(\\d+)\$", sub {
-    shift $_[0]->@*;
-    for my ($msg, $cap)($_[0][0]->@*){
-      my $name=$cap->[0];
-      my $i=$cap->[1];   
-      DEBUG and asay $STDERR, "RPA RETURN----- $_wid  $name";
-      my $cb=delete $_active->{$i};
-      $cb and $cb->($msg->[FP_MSG_PAYLOAD]);
-    }
-  });
+  $_broker->listen(@$r);
+  push @$_register, $r;
 
-  $_broker->listen(undef, "^worker/$_wid/rpa-error/(\\w+)/(\\d+)\$", sub {
-    shift $_[0]->@*;
-    for my ($msg, $cap)($_[0][0]->@*){
-      my $i=$cap->[1];   
-      my $name=$cap->[0];
-      DEBUG and asay $STDERR, "RPA ERROR----- $_wid  $name";
-      my $cb=delete $_active->{$i};
-      $cb and $cb->($msg->[FP_MSG_PAYLOAD]);
-    }
+  $r=[
+    undef, "^worker/$_wid/rpa-error/(\\w+)/(\\d+)\$", sub {
+      shift $_[0]->@*;
+      for my ($msg, $cap)($_[0][0]->@*){
+        my $i=$cap->[1];   
+        my $name=$cap->[0];
+        DEBUG and asay $STDERR, "RPA ERROR----- $_wid  $name";
+        my $cb=delete $_active->{$i};
+        $cb and $cb->($msg->[FP_MSG_PAYLOAD]);
+      }
 
-  });
+    }
+  ];
+  $_broker->listen(@$r);
+  push @$_register, $r;
+  $r=[
+    undef, "^worker/$_wid/rpc-return/(\\w+)/(\\d+)\$", sub {
+      DEBUG and asay $STDERR, "$$ RPC RETURN in server----- ". Dumper @_;
+      shift $_[0]->@*;
+      for my ($msg, $cap)($_[0][0]->@*){
+        my $name=$cap->[0];
+        my $i=$cap->[1];   
+        DEBUG and asay $STDERR, "RPC RETURN----- $_wid  $name";
+        my $e=delete $_active->{$i};
+        $e->[0] and $e->[0]->($msg->[FP_MSG_PAYLOAD]);
+      }
+    }
+  ];
 
   # Add RPC support
-  $_broker->listen(undef, "^worker/$_wid/rpc-return/(\\w+)/(\\d+)\$", sub {
-    DEBUG and asay $STDERR, "$$ RPC RETURN in server----- ". Dumper @_;
-    shift $_[0]->@*;
-    for my ($msg, $cap)($_[0][0]->@*){
-      my $name=$cap->[0];
-      my $i=$cap->[1];   
-      DEBUG and asay $STDERR, "RPC RETURN----- $_wid  $name";
-      my $e=delete $_active->{$i};
-      $e->[0] and $e->[0]->($msg->[FP_MSG_PAYLOAD]);
+  $_broker->listen(@$r);
+  push @$_register,$r;
+  $r=[
+    undef, "^worker/$_wid/rpc-error/(\\w+)/(\\d+)\$", sub {
+      shift $_[0]->@*;
+      for my ($msg, $cap)($_[0][0]->@*){
+        my $i=$cap->[1];   
+        my $name=$cap->[0];
+        DEBUG and asay $STDERR, "RPC ERROR----- $_wid  $name $msg->[FP_MSG_PAYLOAD]";
+        my $e=delete $_active->{$i};
+        $e->[1] and $e->[1]->($msg->[FP_MSG_PAYLOAD]);
+      }
     }
-  });
+  ];
 
-  $_broker->listen(undef, "^worker/$_wid/rpc-error/(\\w+)/(\\d+)\$", sub {
-    shift $_[0]->@*;
-    for my ($msg, $cap)($_[0][0]->@*){
-      my $i=$cap->[1];   
-      my $name=$cap->[0];
-      DEBUG and asay $STDERR, "RPC ERROR----- $_wid  $name $msg->[FP_MSG_PAYLOAD]";
-      my $e=delete $_active->{$i};
-      $e->[1] and $e->[1]->($msg->[FP_MSG_PAYLOAD]);
-    }
-
-  });
-
-
+  $_broker->listen(@$r);
+  push @$_register, $r;
 
 
   $_io->[2]->pipe_to($STDERR);

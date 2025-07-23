@@ -68,8 +68,8 @@ method rpc {
   my ($name, $string, $cb, $error)=@_;
   my $w=$self->next_worker;
   $w->rpc($name, $string, sub {
-      asay $STDERR, "RPC callback in pool";
-      asay $STDERR, Dumper @_;
+      #asay $STDERR, "RPC callback in pool";
+      #asay $STDERR, Dumper @_;
       # REmove from the in_use
       delete $_in_use->{$w};
       # Add back to the live pool unless it is an urgent (more than max)
@@ -81,6 +81,12 @@ method rpc {
   },
   $error
 );
+}
+
+method close {
+  for(@$_workers){
+      $_->close;
+  }
 }
    
 

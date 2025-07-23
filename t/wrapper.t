@@ -12,7 +12,6 @@ for(@files){
   `script/usac --backend AnyEvent t/usac/$filename @ARGV`;
   ok $? == 0,  "Sub file passed";
 }
-
 ok 1;
 done_testing;
 

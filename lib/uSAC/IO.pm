@@ -146,7 +146,7 @@ sub _create_socket {
         $on_error && asap $on_error, $socket, $!;
         return;
       }
-      DEBUG and asay $STDERR, "ON socket", $on_socket;
+      DEBUG and asay $STDERR, "ON socket ".$on_socket;
       $on_socket and asap $on_socket, $socket, $_;
     }
     else {
@@ -200,7 +200,7 @@ sub socket_stage($$){
 
   DEBUG and asay $STDERR, "about to prepare specs";
   _prep_spec($_, $on_spec) for @specs;
-  DEBUG and asay "after to prepare specs";
+  DEBUG and asay $STDERR, "after to prepare specs";
 
   1;
 
@@ -232,8 +232,9 @@ sub fd_2_fh {
 # The socket and hints are passed to the callback on_bind
 sub bind ($$) {
 
-  DEBUG and asay $STDERR, "BIND CALLED";
   my ($socket, $hints)=@_;
+  DEBUG and asay $STDERR, "$$ BIND CALLED";
+  DEBUG and asay $STDERR, "$$ ". Dumper $socket, $hints;
 
   _create_socket $socket, $hints, __SUB__  and return;
 
@@ -267,7 +268,8 @@ sub bind ($$) {
             $copy{port}=$port;
           }
       }
-      DEBUG and asay $STDERR, "Call on_bind", $on_bind;
+      DEBUG and asay $STDERR, "Call on_bind " .$on_bind;
+      DEBUG and asay $STDERR, Dumper $socket, \%copy;
       $on_bind and $on_bind->($socket, \%copy);
     }
     else {
@@ -309,6 +311,7 @@ sub connect ($$){
   $fam=$hints->{family}//=Socket::More::sockaddr_family(IO::FD::DWIM::getsockname $socket);
 
 	if($fam==AF_INET or $fam==AF_INET6){
+    DEBUG and asay $STDERR, "===connect AF INET/6";
 		#Convert to address structures. DO NOT do a name lookup
     #$ok=Socket::More::Resolver::getaddrinfo(
 		$ok=uSAC::IO::getaddrinfo(
@@ -316,21 +319,23 @@ sub connect ($$){
 			$port,
       $hints,
       sub {
-        DEBUG and asay $STDERR, "LOOKUP callback"; 
+        DEBUG and asay $STDERR, "$$ LOOKUP callback ". Dumper  @_; 
         my @addresses=@_;
         $addr=$addresses[0]{addr};
+        DEBUG and asay $STDERR, "$$ socket: $socket, addr ". Dumper $addr; 
 	      connect_addr($socket, $addr, $on_connect, $on_error);
         DEBUG and asay $STDERR, time;
       },
 
       sub{
-        DEBUG and asay $STDERR, "LOOKUP ERROR"; 
+        DEBUG and asay $STDERR, "$$ LOOKUP ERROR"; 
         DEBUG and asay $STDERR, Dumper $hints;
         $on_error and $on_error->($socket, gai_strerror $!);
       }
 		);
 	}
 	elsif($fam==AF_UNIX){
+    DEBUG and asay $STDERR, "===connect AF UNIX";
 		$addr=pack_sockaddr_un $host;
 	  connect_addr($socket, $addr, $on_connect, $on_error);
 	}
@@ -341,7 +346,7 @@ sub connect ($$){
 }
 
 sub listen ($$){
-  DEBUG and asay $STDERR, "Listen called";
+  DEBUG and asay $STDERR, "Listen called with ". Dumper @_;
   my ($socket, $hints)=@_;
 
   _create_socket $socket, $hints, \&bind and return;
@@ -374,13 +379,14 @@ sub accept($$){
     fh=>$socket, 
     on_accept=>sub {
       $hints->{acceptor}=$a;    #Add reference to prevent destruction
-      DEBUG and asay "INTERNAL CALLBACK FOR ACCEPT";
+      DEBUG and asay $STDERR, "INTERNAL CALLBACK FOR ACCEPT";
       # Call the on_accept with new fds ref, peers, ref, listening fd and listening hints
       $hints->{data}{on_accept}->(@_, $hints);
     },
     on_error=> $hints->{data}{on_error}
   );
   $a->start;
+  $a;
   
 }
 
@@ -504,7 +510,7 @@ sub _prep_spec{
       IPV4_ANY,
       "0",
       {flags=>AI_NUMERICHOST|AI_NUMERICSERV, family=>AF_INET},
-      @results
+      \@results
     );
 
 
@@ -546,11 +552,12 @@ sub _prep_spec{
   
 
   $r->{address}=$address;
-
+  DEBUG and asay $STDERR, "==== Structure used for combinations======";
   DEBUG and asay $STDERR, Dumper $r;
 	#Generate combinations
 	my $result=Data::Combination::combinations $r;
 	
+  DEBUG and asay $STDERR, "==== Results combinations======";
   DEBUG and asay $STDERR, Dumper $result;
 
 	#Retrieve the interfaces from the os
@@ -620,7 +627,7 @@ sub _prep_spec{
 			$clone->{data}=$data;
       $clone->{flags}=$flags;
 
-
+      DEBUG and asay $STDERR, "=====SETUP CLONE";
       DEBUG and asay $STDERR, Dumper $clone;
       if($fam == AF_UNIX){
         # Assume no lookup is needed for this
@@ -665,6 +672,7 @@ sub _prep_spec{
         }
         else {
           # Unsupported AF
+          DEBUG and asay $STDERR, "====UNSPPORTED AF";
         }
 
         # break synchronous callback
@@ -685,7 +693,7 @@ sub _prep_spec{
 
         if(!$found){
           push @seen, $clone;
-          asay $STDERR, "calling on spec for $clone";
+          DEBUG and asay $STDERR, "calling on spec for $clone";
           $on_spec and asap $on_spec, undef, $clone;
         }
       }
@@ -696,14 +704,17 @@ sub _prep_spec{
           my @results;
           Socket::More::Lookup::getaddrinfo($_->{address},$_->{port},$_, \@results);
           $clone->{addr}=$results[0]{addr};
-          DEBUG and asay $STDERR, "RESULTS ", Dumper @results;
-          DEBUG and asay $STDERR, "spec ", Dumper $_;
+          DEBUG and asay $STDERR, "$$ RESULTS ", Dumper @results;
+          DEBUG and asay $STDERR, "$$ spec ", Dumper $_;
 
           #Socket::More::Resolver::getaddrinfo($_->{address},$_->{port},$_, 
-          uSAC::IO::getaddrinfo($_->{address},$_->{port},$_, 
+          uSAC::IO::getaddrinfo($_->{address},$_->{port}, $_, 
             sub {
+              DEBUG and asay $STDERR, "++++++$$ GAI CALLBACK++++ ". Dumper @_;
+
               # NOTE ONLY USES THE FIRST RESULT
               $clone->{addr}=$_[0]{addr};
+              DEBUG and asay $STDERR, "++++++$$ GAI CLONE". Dumper $clone;
               return unless grep {$clone->{address}=~ /$_/i } @$address;
               if($enable_group){
                 return unless grep {$clone->{group}=~ /$_/i } @$group;
@@ -720,7 +731,7 @@ sub _prep_spec{
 
               if(!$found){
                 push @seen, $clone;
-                asay $STDERR, "calling on spec for  existing addresss $clone";
+                DEBUG and asay $STDERR, "calling on spec for  existing addresss $clone";
                 $on_spec and $on_spec->(undef, $clone);
               }
 
@@ -940,6 +951,7 @@ sub sub_process ($;$$$$){
     #$STDIN->pause;
     # Close parent ends
     DEBUG and asay $STDERR, "IN CHILD FORK $$";
+    $uSAC::Main::POOL=undef;
     my $cpid=$$;
     IO::FD::close $pipes[w_CIPO];
     IO::FD::close $pipes[r_COPI];
@@ -1191,9 +1203,11 @@ sub asay {
     $w=shift @_;
   } 
   
-  if(ref $_[$#_] eq "CODE"){
-    $cb=pop @_;
-  }
+  ##############################
+  # if(ref $_[$#_] eq "CODE"){ #
+  #   $cb=pop @_;              #
+  # }                          #
+  ##############################
 
   $w->write([join("", @_, "\n")], $cb);
   ();
@@ -1242,9 +1256,9 @@ sub _make_pool {
       getaddrinfo=>sub {
 
         use Data::Dumper;
-        asay $STDERR, "$$ CALLED GETADDRINFO with @_". Dumper @_; 
-        my $input=decode_meta_payload $_[0];
-        asay $STDERR, "$$ DECODED ". Dumper $input;
+        DEBUG and asay $STDERR, "$$ CALLED GETADDRINFO with @_". Dumper @_; 
+        my $input=decode_meta_payload $_[0], 1;
+        DEBUG and asay $STDERR, "$$ DECODED ". Dumper $input;
 
         my $return_out="";
         my @results;
@@ -1262,14 +1276,14 @@ sub _make_pool {
         unless (defined $rc){
 
         }
-        asay $STDERR, "$$ Results ". Dumper \@results;
-        $return_out=encode_meta_payload \@results;
+        DEBUG and asay $STDERR, "$$ Results ". Dumper \@results;
+        $return_out=encode_meta_payload \@results, 1;
       },
 
       getnameinfo=>sub {
-        asay $STDERR, "CALLED getnameinfo"; 
+        DEBUG and asay $STDERR, "CALLED getnameinfo"; 
 
-        my $input=decode_meta_payload $_[0];
+        my $input=decode_meta_payload $_[0],1;
 
         my $return_out="";
         my @results;
@@ -1278,7 +1292,7 @@ sub _make_pool {
         unless (defined $rc){
 
         }
-        $return_out=encode_meta_payload {host=>$host, port=>$port};
+        $return_out=encode_meta_payload {host=>$host, port=>$port}, 1;
       }
     };
     $uSAC::Main::POOL=uSAC::Pool->new(rpc=>$rpc);
@@ -1289,16 +1303,29 @@ sub _make_pool {
 sub getaddrinfo {
   my ($host, $port, $hints, $cb, $error)=@_;
   my $pool=_make_pool;
-  my $enc=encode_meta_payload {host=>$host, port=>$port, hints=>$hints};
-  my $__cb=sub {$cb->(decode_meta_payload $_[0])};
+  DEBUG and asay $STDERR, "===getaddinfo args ".Dumper $host,$port, $hints;
+  my $h={
+    flags=>$hints->{flags}, family=>$hints->{family}, socktype=>$hints->{socktype}, protocol=>$hints->{protocol}, address=>$hints->{address}, port=>$hints->{port}
+  };
+  my $enc=encode_meta_payload {host=>$host, port=>$port, hints=>$h}, 1;
+  my $__cb=sub {
+      DEBUG and asay $STDERR, "Callback in getaddinfo";
+      DEBUG and asay $STDERR, Dumper @_;
+      my $p=decode_meta_payload $_[0], 1;
+      DEBUG and asay $STDERR, Dumper $p;
+    $cb->(@$p)
+  };
   $pool->rpc("getaddrinfo", $enc, $__cb, $error);
 }
 
 sub getnameinfo {
   my ($addr, $flags, $cb, $error)=@_;
   my $pool=_make_pool;
-  my $enc=encode_meta_payload {addr=>$addr, flags=>$flags};
-  my $__cb=sub {$cb->(decode_meta_payload $_[0])};
+  my $enc=encode_meta_payload {addr=>$addr, flags=>$flags},1;
+  my $__cb=sub {
+    my $d=decode_meta_payload $_[0],1;
+    $cb->($d->{host}, $d->{port});
+  };
   $pool->rpc("getnameinfo", $enc, $__cb, $error);
 }
 
