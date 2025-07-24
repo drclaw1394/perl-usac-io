@@ -21,7 +21,7 @@ no warnings "experimental";
 field $_rpc         :param = undef;
 field $_on_complete :param = undef;
 field $_work        :param = undef;
-field $_wid         :reader;
+field $_wid         :reader;          #The backend process id
 field $_io;
 field $_broker      :param = undef;
 field $_bridge;
@@ -29,10 +29,14 @@ field $_seq;
 field $_active;
 field $_register;
 
+field $_call_max   :param = 5;     # Max calls of a single process. a new process is created after this count
+field $_call_count;
+
 
 BUILD {
   DEBUG and asay $STDERR , "--CALLING CREATE WORKER----";
   $_seq=0;
+  $_call_count=0;
   $_active={};
   $_register=[];
   $_broker//=$uSAC::Main::Default_Broker;
@@ -44,10 +48,15 @@ BUILD {
   };
 
   DEBUG and asay $STDERR, Dumper $_rpc;
+  #$self->_sub_process;
+
+}
+
+# Create the actual process
+method _sub_process {
+  DEBUG and asay $STDERR, "---CALLED _subprocess in worker";
   my $__on_complete=sub {
     # unregister worker?
-    $self->_clean_up;
-
     $_on_complete and &$_on_complete
   };
 
@@ -59,8 +68,10 @@ BUILD {
     $_work and &$_work;
   };
 
+  DEBUG and asay $STDERR, "---Just before sub_process IO call";
   @$_io=sub_process $__work, $__on_complete;
   $_wid=$_io->[3]; #NOte this is only in parent
+  DEBUG and asay $STDERR, "____CALLING SUB_PROCESS IN WORKER .. new id $_wid";
   DEBUG and asay $STDERR, "======asdfasdfasdfasdfasdfasdf $_wid";
   if(@$_io){
     #Do parent stuff here
@@ -70,7 +81,7 @@ BUILD {
   }
   else {
     # Error in parent
-
+    DEBUG and asay $STDERR, "---- ERROR IN PARENT";
   }
 }
 
@@ -96,13 +107,23 @@ method rpa {
 }
 
 method rpc {
-  my $name=shift;
+  DEBUG and asay $STDERR, "---WORKER RPC CALLED";
+  my $name=shift; # Name could be code ref
   my $string=shift;
   my $cb=shift;
   my $error=shift;
-  $_active->{++$_seq}=[$cb, $error];
-  $_broker->broadcast(undef,"worker/$_wid/rpc/$name/$_seq", $string);
-  $_seq;
+  if($_rpc->{$name}){
+    DEBUG and asay $STDERR, "WORKER id before  sub process $_wid";
+    $self->_sub_process unless $_wid;
+    $_call_count++;
+    $_active->{++$_seq}=[$cb, $error];
+    $_broker->broadcast(undef,"worker/$_wid/rpc/$name/$_seq", $string);
+    return $_seq;
+  }
+  else {
+    DEBUG and asay $STDERR, "--RPC name not it worker $name";
+  }
+  undef;
 }
 
 
@@ -110,10 +131,9 @@ method rpc {
 method close {
   $_bridge->close;
 
-
   sub_process_cancel $_wid;
-  @$_io=undef;
-  #$_wid=undef;
+  @$_io=();#undef;
+  $_wid=undef;
 }
 
 method _clean_up {
@@ -122,13 +142,16 @@ method _clean_up {
 
   #$_broker->ignore($_bridge->source_id, "^worker/$_wid/", $forward_sub);
   for(@$_register){
-    $_broker->ingore(@$_);
+    $_broker->ignore(@$_);
   }
+  $_register=[];
+  $_call_count=0;
+  DEBUG and asay $STDERR, "---- END OF CLEAN UP WORKER----";
 }
 
 # Setup child bridge to parent
 method _child_setup {
-  Log::OK::TRACE and log_trace "Configuring worker (rpc) interface in child"; 
+  DEBUG and Log::OK::TRACE and log_trace "Configuring worker (rpc) interface in child"; 
   # TODO: remove all worker registrations in broker as we are not interested in  existing working registrations
   #
 
@@ -191,31 +214,6 @@ method _child_setup {
       }
     });
 
-  ######################################################################################
-  # $_broker->listen(undef, "^worker/$_wid/eval/(\\d+)", sub {                         #
-  #                                                                                    #
-  #     #DEBUG and asay $STDERR, " IN CLIENT EVAL LISTENER============== ". Dumper @_; #
-  #     # call a procedure                                                             #
-  #     my $sender=shift $_[0]->@*;                                                    #
-  #     for my ($msg, $cap)($_[0][0]->@*){                                             #
-  #       #asay $STDERR, " IN CLIENT EVAL LISTENER msg ============== ". Dumper $msg;  #
-  #       my $seq= $cap->[0];                                                          #
-  #                                                                                    #
-  #         local $@;                                                                  #
-  #         my $res=eval $msg->[FP_MSG_PAYLOAD];                                       #
-  #         #asay $STDERR, "WORKER Result of EVAL REQUEST Is $res  for seq $seq====="; #
-  #         unless($@){                                                                #
-  #           $_broker->broadcast(undef, "worker/$_wid/eval-return/$seq", $res);       #
-  #         }                                                                          #
-  #         else{                                                                      #
-  #                                                                                    #
-  #           my $error=Error::Show::context error=>$@;                                #
-  #           asay $STDERR,  $error;                                                   #
-  #           $_broker->broadcast(undef,"worker/$_wid/eval-error/$seq", $error);       #
-  #         }                                                                          #
-  #     }                                                                              #
-  #   });                                                                              #
-  ######################################################################################
 
   my $sub;
   $sub= sub {
@@ -291,6 +289,12 @@ method _parent_setup {
         my $i=$cap->[1];   
         DEBUG and asay $STDERR, "RPC RETURN----- $_wid  $name";
         my $e=delete $_active->{$i};
+        if($_call_count >= $_call_max){
+          DEBUG and asay $STDERR, "=======MAX CALL COUNT REACHED";
+          $self->_clean_up;
+          $self->close;
+        }
+        DEBUG and asay $STDERR, "======= about to do callback";
         $e->[0] and $e->[0]->($msg->[FP_MSG_PAYLOAD]);
       }
     }

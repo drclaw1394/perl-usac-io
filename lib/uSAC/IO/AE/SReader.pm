@@ -54,8 +54,6 @@ method start :override ($fh=undef) {
   }
 
   # Refresh the local copy of on read
-  #$_on_read=$self->on_read; 
-  #$_on_eof=$self->on_eof;
   $uSAC::IO::AE::IO::watchers{$self}=$_rw;
 
 	$self;
@@ -64,7 +62,6 @@ method start :override ($fh=undef) {
 method _make_reader  :override {
 #alias variables and create io watcher
 	
-  #my $on_read;
   #my $on_eof;
 	#NOTE: Object::Pad does not allow child classes to have access to 
 	#parent fields. Here we alias what we need so 'runtime' access is
@@ -82,8 +79,8 @@ method _make_reader  :override {
 	$_rw=undef;
 
 	sub {
-
-    #$_on_read//=$self->on_read; 
+    use feature "try";
+    try {
     #$_on_eof//=$self->on_eof;
 		$$_time=$$_clock;
 		$len = $sysread->($_fh, $_buffer->[0], $max_read_size, length $_buffer->[0] );
@@ -103,6 +100,10 @@ method _make_reader  :override {
     #my $_on_error=$self->on_error;
 		$_on_error and $_on_error->(undef, $_buffer);
 		return;
+  }
+  catch($e){
+    uSAC::IO::AE::IO::_exception($e);
+  }
 	};
 }
 

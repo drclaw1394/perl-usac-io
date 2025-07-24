@@ -44,29 +44,31 @@ method next_worker {
   my $w=shift @$_available;
   unless(defined $w){
     # No available worker 
-    if(@$_workers < $_max_size){
-      $w=uSAC::Worker->new(rpc=>$_rpc);
+    if($urgent or (@$_workers < $_max_size)){
+      $w=uSAC::Worker->new(rpc=>$_rpc, on_complete=>sub{
+          # Push back ti available
+          push @$_available, $w;
+          delete $_in_use->{$w};
+
+        });
+      push @$_workers, $w;
     }
-    else {
-      # at max size or more already. Only create a new worker if urgent is used
-      $w=uSAC::Worker->new(rpc=>$_rpc) if $urgent
-    }
-    push @$_workers, $w;
   }
   else {
     # existing. reuse
   }
 
   # Push the inuse 
-  $_in_use->{$w}=1;
-
+  $_in_use->{$w}=1 if defined $w;
 
   $w;
 }
 
+# Call a named / stored routine
 method rpc {
   my ($name, $string, $cb, $error)=@_;
   my $w=$self->next_worker;
+  asay $STDERR , "-=-=-=-==-=-=-=next worker is $w";
   $w->rpc($name, $string, sub {
       #asay $STDERR, "RPC callback in pool";
       #asay $STDERR, Dumper @_;
@@ -78,9 +80,23 @@ method rpc {
 
       # Execute client callback
       &$cb;
-  },
-  $error
-);
+    },
+    $error
+  );
+}
+
+# make a named sub. 
+method add_rpc {
+  my $name=shift;
+  my $code=shift;
+  $_rpc->{$name}=$code;
+  
+  #Need to mark all workers to be ended
+}
+
+method remove_rpc {
+  my $name=shift;
+  delete $_rpc->{$name};
 }
 
 method close {
@@ -88,6 +104,6 @@ method close {
       $_->close;
   }
 }
-   
+
 
 1;

@@ -71,18 +71,7 @@ my $asap_sub=sub {
     $entry->(@$args);
   }
   catch($e){
-    #uSAC::IO::asay $STDERR, "IN ASAP EXCEPTION HANDLER";
-    use Error::Show;
-    if($e=~/(\d+) RETURN/){
-      ## NOTE SPECIAL EXCEPTION TO HANDLE CHILD FORK
-       _post_fork();
-       uSAC::Main::_do_it();
-    }
-    else {
-      # NORMAL Execiption handling
-      uSAC::IO::asay $STDERR, Error::Show::context $e;
-    }
-    return; 
+    _exception($e);
   }
 
   # Destroy the idle watcher/timer if nothing left to process!
@@ -116,10 +105,15 @@ sub timer ($$$){
     my $id=\$s;
     $watchers{$id}=AE::timer $offset, $repeat, sub{
       delete $watchers{$id} unless($repeat);
-      $sub->($id)
+      try {
+        $sub->($id)
+      }
+      catch($e){
+        _exception($e);
+      }
     };
     $id;
-}
+  }
 
 
 ##############################
@@ -290,5 +284,20 @@ sub _post_fork {
 
 }
 
+sub _exception{
+  my $e=shift;
+        uSAC::IO::asay($STDERR, "IN ASAP EXCEPTION HANDLER $e");
+        use Error::Show;
+        if($e=~/(\d+) RETURN/){
+          ## NOTE SPECIAL EXCEPTION TO HANDLE CHILD FORK
+          _post_fork();
+          uSAC::Main::_do_it();
+        }
+        else {
+          # NORMAL Execiption handling
+          uSAC::IO::asay($STDERR, Error::Show::context $e);
+        }
+        return; 
+}
 
 1;

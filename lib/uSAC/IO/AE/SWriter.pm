@@ -72,6 +72,8 @@ method _make_writer :override {
   #my $dummy_cb=sub { };
   my $entry;
   my $sub=sub {
+      use feature "try";
+        try {
         unless($_wfh){
           DEBUG and Log::OK::TRACE and log_trace "SIO Writer: file handle undef, but write watcher still active";
           return;
@@ -108,6 +110,10 @@ method _make_writer :override {
           $on_error and $on_error->($!);
           #$cb and $cb->();
         }
+      }
+      catch($e){
+        uSAC::IO::AE::IO::_exception($e);
+      }
       };
 
   sub {

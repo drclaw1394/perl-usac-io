@@ -899,8 +899,13 @@ sub sub_process ($;$$$$){
 
   # Fork and then exec? . Or do we use a template process
   my $pid=fork;
+  DEBUG and print STDERR "PID AFTER FORK--- $pid \n";
   if($pid){
     DEBUG and asay $STDERR, "IN PARENT FORK $$";
+    use feature "state";
+    state $i=0;
+    $i++; 
+
     # parent
     # Close the ends of the pipe not needed
     IO::FD::close $pipes[r_CIPO];
@@ -943,6 +948,7 @@ sub sub_process ($;$$$$){
         #asay $STDERR, "AFTER WHILE $ppid";
     };
 
+    #exit if $i >=2;
     #$uSAC::IO::AE::IO::CV->send();
     return ($writer, $reader, $error, $pid);
   }
@@ -991,7 +997,7 @@ sub sub_process ($;$$$$){
     }
     elsif(defined $cmd) {
       $uSAC::Main::worker_sub =$cmd; #, $pid; #Shedual
-      DEBUG and asay $STDERR, "CMD IS A CODE REF======= $cmd";
+      DEBUG and asay $STDERR, "$cpid CMD IS A CODE REF======= $cmd";
       # Stop all watchers, and stop the event loop
       die " $cpid RETURN FROM CHILD";
 
@@ -1221,9 +1227,11 @@ sub aprint {
     $w=shift @_;
   } 
   
-  if(ref $_[$#_] eq "CODE"){
-    $cb=pop @_;
-  }
+  ##############################
+  # if(ref $_[$#_] eq "CODE"){ #
+  #   $cb=pop @_;              #
+  # }                          #
+  ##############################
 
   $w->write([join("", @_, "")], $cb);
   ();
@@ -1237,9 +1245,11 @@ sub adump {
     $w=shift @_;
   } 
   
-  if(ref $_[$#_] eq "CODE"){
-    $cb=pop @_;
-  }
+  ##############################
+  # if(ref $_[$#_] eq "CODE"){ #
+  #   $cb=pop @_;              #
+  # }                          #
+  ##############################
 
   $w->write([Dumper @_], $cb);
   ();
