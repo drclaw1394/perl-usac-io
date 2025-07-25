@@ -884,7 +884,7 @@ sub interval {
 # }                                       #
 ###########################################
 
-my %procs;
+our %procs;
 # Internal for and of fork/exec
 # Creates pipes for communicating to child processes
 sub sub_process ($;$$$$){
@@ -935,15 +935,6 @@ sub sub_process ($;$$$$){
           $procs{$ppid}{pid}=0; # Mark as done
         }
 
-        #my $dc=delete $procs{$ppid}; 
-        # Close pipes
-        #IO::FD::close $pipes[w_CIPO];
-        #IO::FD::close $pipes[r_COPI];
-        #IO::FD::close $pipes[r_CEPI];
-        
-        # remove the watchers
-        #$reader->pause;
-        #$error->pause;
         $on_complete and  $on_complete->($status, $ppid); #Status first to match perl system command
         #asay $STDERR, "AFTER WHILE $ppid";
     };
@@ -956,8 +947,9 @@ sub sub_process ($;$$$$){
     # child
     #$STDIN->pause;
     # Close parent ends
-    DEBUG and asay $STDERR, "IN CHILD FORK $$";
-    $uSAC::Main::POOL=undef;
+    #DEBUG and 
+    asay $STDERR, "IN CHILD FORK $$";
+    #$uSAC::Main::POOL=undef;
     my $cpid=$$;
     IO::FD::close $pipes[w_CIPO];
     IO::FD::close $pipes[r_COPI];
@@ -1319,7 +1311,7 @@ sub getaddrinfo {
   };
   my $enc=encode_meta_payload {host=>$host, port=>$port, hints=>$h}, 1;
   my $__cb=sub {
-      DEBUG and asay $STDERR, "Callback in getaddinfo";
+      DEBUG and asay $STDERR, "$$ Callback in getaddinfo";
       DEBUG and asay $STDERR, Dumper @_;
       my $p=decode_meta_payload $_[0], 1;
       DEBUG and asay $STDERR, Dumper $p;

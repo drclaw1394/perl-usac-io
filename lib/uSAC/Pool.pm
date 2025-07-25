@@ -47,8 +47,9 @@ method next_worker {
     if($urgent or (@$_workers < $_max_size)){
       $w=uSAC::Worker->new(rpc=>$_rpc, on_complete=>sub{
           # Push back ti available
-          push @$_available, $w;
-          delete $_in_use->{$w};
+          #asay $STDERR, "-----WORKER PUSHED BACK----";
+          #push @$_available, $w;
+          #delete $_in_use->{$w};
 
         });
       push @$_workers, $w;
@@ -67,20 +68,23 @@ method next_worker {
 # Call a named / stored routine
 method rpc {
   my ($name, $string, $cb, $error)=@_;
+  asay $STDERR, "Available is " . @$_available;
+  asay $STDERR, "$self workers is " . @$_workers;
   my $w=$self->next_worker;
-  asay $STDERR , "-=-=-=-==-=-=-=next worker is $w";
+  asay $STDERR , "$$ -=-=-=-==-=-=-=next worker is $w";
   $w->rpc($name, $string, sub {
       #asay $STDERR, "RPC callback in pool";
       #asay $STDERR, Dumper @_;
       # REmove from the in_use
       delete $_in_use->{$w};
       # Add back to the live pool unless it is an urgent (more than max)
-      push @$_available, $w if @$_available < $_max_size;
+      push @$_available, $w;# if @$_available < $_max_size;
 
 
       # Execute client callback
       &$cb;
     },
+
     $error
   );
 }
@@ -99,10 +103,13 @@ method remove_rpc {
   delete $_rpc->{$name};
 }
 
+# The c
 method close {
+  asay $STDERR, "---CLOSING POOL----";
   for(@$_workers){
       $_->close;
   }
+  @$_workers=();
 }
 
 

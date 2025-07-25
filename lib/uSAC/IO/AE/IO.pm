@@ -257,6 +257,7 @@ sub _post_loop {
         #uSAC::IO::asay $STDERR, "--raw timer callback--";
         $uSAC::IO::Clock=time;
         #print STDERR "WATCHERS for $$ ARE ". join " ", %watchers;
+        #print STDERR "PROCs for $$ ARE ". join " ", %uSAC::IO::procs;
         #print STDERR "\n";
         _exit unless %watchers;
       };
@@ -278,7 +279,11 @@ sub _post_fork {
   $asap_timer=undef;
   %watchers=();
   %sig_watchers=();
+  %uSAC::IO::procs=();
   $will_exit=undef;
+  @asap=();
+  @asap_args=();
+
 
   #print STDERR "RESET AFTER FORK\n";
 

@@ -32,6 +32,7 @@ field $_register;
 field $_call_max   :param = 5;     # Max calls of a single process. a new process is created after this count
 field $_call_count;
 
+field $_queue;
 
 BUILD {
   DEBUG and asay $STDERR , "--CALLING CREATE WORKER----";
@@ -40,7 +41,7 @@ BUILD {
   $_active={};
   $_register=[];
   $_broker//=$uSAC::Main::Default_Broker;
-
+  $_queue=[];
   # install Eval rpc call
 
   $_rpc->{eval}=sub {
@@ -107,11 +108,26 @@ method rpa {
 }
 
 method rpc {
-  DEBUG and asay $STDERR, "---WORKER RPC CALLED";
   my $name=shift; # Name could be code ref
   my $string=shift;
   my $cb=shift;
   my $error=shift;
+  push @$_queue, [$name, $string, $cb, $error];
+  unless(keys %$_active){
+    # Kick start
+    $self->do_rpc;
+  }
+}
+
+method do_rpc {
+  return unless @$_queue;
+  my $e=shift @$_queue;
+  DEBUG and asay $STDERR, "---WORKER RPC CALLED";
+  my $name=shift @$e; # Name could be code ref
+  my $string=shift @$e;
+  my $cb=shift @$e;
+  my $error=shift @$e;
+
   if($_rpc->{$name}){
     DEBUG and asay $STDERR, "WORKER id before  sub process $_wid";
     $self->_sub_process unless $_wid;
@@ -129,19 +145,25 @@ method rpc {
 
 
 method close {
+  asay $STDERR, "---CLOSING WORKER---";
+  return unless $_wid;
   $_bridge->close;
 
   sub_process_cancel $_wid;
   @$_io=();#undef;
   $_wid=undef;
+  $self->_clean_up;
+
 }
 
 method _clean_up {
   DEBUG and asay $STDERR, "---- CLEAN UP WORKER----";
   #my $forward_sub=$_bridge->forward_message_sub;
 
+  DEBUG and asay $STDERR, Dumper $_register;
   #$_broker->ignore($_bridge->source_id, "^worker/$_wid/", $forward_sub);
   for(@$_register){
+    DEBUG and asay $STDERR, " to ignore in cleanup ".Dumper $_;
     $_broker->ignore(@$_);
   }
   $_register=[];
@@ -151,6 +173,8 @@ method _clean_up {
 
 # Setup child bridge to parent
 method _child_setup {
+  # remove existing registrations
+  $self->_clean_up;
   DEBUG and Log::OK::TRACE and log_trace "Configuring worker (rpc) interface in child"; 
   # TODO: remove all worker registrations in broker as we are not interested in  existing working registrations
   #
@@ -227,6 +251,9 @@ method _child_setup {
   };
   timer 1, 0, $sub;
 
+  $uSAC::Main::WORKER=$self;
+  
+
   ################################################
   # asay $STDERR, "--SETUP UP CHILDE TIMER=---"; #
   # my $t = timer 0, 1, sub {                    #
@@ -282,7 +309,8 @@ method _parent_setup {
   push @$_register, $r;
   $r=[
     undef, "^worker/$_wid/rpc-return/(\\w+)/(\\d+)\$", sub {
-      DEBUG and asay $STDERR, "$$ RPC RETURN in server----- ". Dumper @_;
+      #DEBUG and 
+      asay $STDERR, "$$ RPC RETURN in server----- ". Dumper @_;
       shift $_[0]->@*;
       for my ($msg, $cap)($_[0][0]->@*){
         my $name=$cap->[0];
@@ -296,6 +324,7 @@ method _parent_setup {
         }
         DEBUG and asay $STDERR, "======= about to do callback";
         $e->[0] and $e->[0]->($msg->[FP_MSG_PAYLOAD]);
+        $self->do_rpc;
       }
     }
   ];
@@ -303,6 +332,7 @@ method _parent_setup {
   # Add RPC support
   $_broker->listen(@$r);
   push @$_register,$r;
+
   $r=[
     undef, "^worker/$_wid/rpc-error/(\\w+)/(\\d+)\$", sub {
       shift $_[0]->@*;
@@ -327,14 +357,21 @@ method _parent_setup {
 
   # Now register for messages from worker
   #
-  $_broker->listen(undef, "^worker/$_wid/status/(\\d+)\$", sub {
+  $r=[
+    undef, "^worker/$_wid/status/(\\d+)\$", sub {
   #$broker->listen(undef, ".*", sub {
       # Trigger the reporting of worker status
       #
       #asay $STDERR, "STAUTS FROM WORKER is: ".Dumper @_;
 
-    });
+    }
+  ];
+
+  $_broker->listen(@$r);
+  push @$_register, $r;
   
+
+  asay $STDERR, "END OF PARENT SETUP: ".Dumper $_register;
   ################################################
   # asay $STDERR, "--SETUP UP PARENT TIMER=---"; #
   # my $t = timer 0, 1, sub {                    #

@@ -6,10 +6,10 @@ use Socket::More::Constants;
 my $do_it;
 my $count=0;
 $do_it=sub {
-  $count++;
-  exit if $count>=10000;
+  $count=$count+1;
+  exit if $count>=100;
 
-  asay $STDERR , "---DO NEXT--- $count";
+  asay $STDERR , "$$ ---DO NEXT--- $count";
 uSAC::IO::getaddrinfo("google.com",80, {}, sub {
     asay $STDERR, "GAI RETURN--------";
     asay $STDERR, Dumper @_[0];
@@ -25,5 +25,8 @@ uSAC::IO::getaddrinfo("google.com",80, {}, sub {
   }
 );
 };
+$do_it->();
+$do_it->();
+$do_it->();
 $do_it->();
 1;

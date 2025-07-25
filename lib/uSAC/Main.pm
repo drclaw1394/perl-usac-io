@@ -30,6 +30,7 @@ use uSAC::Pool;
 
 our $POOL;
 our $USAC_RUN=1;
+our $WORKER;
 
 
 # Create Setup the default broker entry points
@@ -296,9 +297,10 @@ sub _main {
     _do_it();
 }
   sub _do_it {
+    $uSAC::Main::POOL->close if $uSAC::Main::POOL;
     $Default_Broker->_post_fork;
     $Default_Broker->broadcast(undef,"post-fork", 1);
-    #$POOL=undef;
+    $POOL=undef;
     uSAC::IO::asap($worker_sub?$worker_sub:$parent_sub, $$);  # Call user code in a schedualled fashion
     $worker_sub=undef;
     # NOTE: THis while loop is important. no really any easy way to recall the run loop, without it
