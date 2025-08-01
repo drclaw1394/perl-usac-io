@@ -68,10 +68,10 @@ method next_worker {
 # Call a named / stored routine
 method rpc {
   my ($name, $string, $cb, $error)=@_;
-  asay $STDERR, "Available is " . @$_available;
-  asay $STDERR, "$self workers is " . @$_workers;
+  #asay $STDERR, "Available is " . @$_available;
+  #asay $STDERR, "$self workers is " . @$_workers;
   my $w=$self->next_worker;
-  asay $STDERR , "$$ -=-=-=-==-=-=-=next worker is $w";
+  #asay $STDERR , "$$ -=-=-=-==-=-=-=next worker is $w";
   $w->rpc($name, $string, sub {
       #asay $STDERR, "RPC callback in pool";
       #asay $STDERR, Dumper @_;
@@ -105,7 +105,7 @@ method remove_rpc {
 
 # The c
 method close {
-  asay $STDERR, "---CLOSING POOL----";
+  #asay $STDERR, "---CLOSING POOL----";
   for(@$_workers){
       $_->close;
   }

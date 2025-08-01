@@ -19,16 +19,7 @@ use IO::FD;
 
 field $_ctx;
 field $_fh :param;
-#field $_reader 	:mutator;
-#
-#field $_time	:mutator :param = undef;
-#field $_clock	 :mutator :param = undef;
-#field $_on_read :mutator :param = undef;
-#field $_on_eof  :mutator :param = undef;
-#field $_on_error :mutator :param = undef;
-#
 field $_max_read_size :mutator :param = undef;
-#field $_buffer	:mutator;
 field $_sysread :mutator :param =undef;
 		
 	
@@ -40,7 +31,7 @@ BUILD{
 	$self->on_read=sub {$self->pause};
 	$self->on_error= $self->on_eof=sub{};
 
-	$_max_read_size//=4096*4;
+	$_max_read_size//=4096*16;
 	$self->buffer=[IO::FD::SV($_max_read_size)];#"";
   $_sysread//=\&IO::FD::sysread;
 

@@ -948,7 +948,7 @@ sub sub_process ($;$$$$){
     #$STDIN->pause;
     # Close parent ends
     #DEBUG and 
-    asay $STDERR, "IN CHILD FORK $$";
+    #asay $STDERR, "IN CHILD FORK $$";
     #$uSAC::Main::POOL=undef;
     my $cpid=$$;
     IO::FD::close $pipes[w_CIPO];

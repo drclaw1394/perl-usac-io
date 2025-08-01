@@ -29,7 +29,7 @@ field $_seq;
 field $_active;
 field $_register;
 
-field $_call_max   :param = 5;     # Max calls of a single process. a new process is created after this count
+field $_call_max   :param = 5000000;     # Max calls of a single process. a new process is created after this count
 field $_call_count;
 
 field $_queue;
@@ -145,7 +145,7 @@ method do_rpc {
 
 
 method close {
-  asay $STDERR, "---CLOSING WORKER---";
+  #asay $STDERR, "---CLOSING WORKER---";
   return unless $_wid;
   $_bridge->close;
 
@@ -226,6 +226,7 @@ method _child_setup {
             my $res=$sub->($msg->[FP_MSG_PAYLOAD]);
             DEBUG and asay $STDERR, "child rpc result ". Dumper $res;
             $_broker->broadcast(undef, "worker/$_wid/rpc-return/$name/$seq", $res);
+            $_broker->broadcast(undef, "worker/$_wid/rpc-return/$name/$seq", undef);
           }
           catch($e){
             my $error=Error::Show::context error=>$e;
@@ -284,8 +285,8 @@ method _parent_setup {
         my $name=$cap->[0];
         my $i=$cap->[1];   
         DEBUG and asay $STDERR, "RPA RETURN----- $_wid  $name";
-        my $cb=delete $_active->{$i};
-        $cb and $cb->($msg->[FP_MSG_PAYLOAD]);
+        my $e=delete $_active->{$i};
+        $e->[0] and $e->[0]->($msg->[FP_MSG_PAYLOAD]);
       }
     }];
   # Add RPA support
@@ -299,8 +300,8 @@ method _parent_setup {
         my $i=$cap->[1];   
         my $name=$cap->[0];
         DEBUG and asay $STDERR, "RPA ERROR----- $_wid  $name";
-        my $cb=delete $_active->{$i};
-        $cb and $cb->($msg->[FP_MSG_PAYLOAD]);
+        my $e=delete $_active->{$i};
+        $e->[0] and $e->[0]->($msg->[FP_MSG_PAYLOAD]);
       }
 
     }
@@ -310,18 +311,21 @@ method _parent_setup {
   $r=[
     undef, "^worker/$_wid/rpc-return/(\\w+)/(\\d+)\$", sub {
       #DEBUG and 
-      asay $STDERR, "$$ RPC RETURN in server----- ". Dumper @_;
+      #asay $STDERR, "$$ RPC RETURN in server----- ". Dumper @_;
       shift $_[0]->@*;
       for my ($msg, $cap)($_[0][0]->@*){
         my $name=$cap->[0];
         my $i=$cap->[1];   
         DEBUG and asay $STDERR, "RPC RETURN----- $_wid  $name";
         my $e=delete $_active->{$i};
+
+        $_broker->broadcast(undef,"worker/$_wid/rpc/$name/$i", undef);
         if($_call_count >= $_call_max){
           DEBUG and asay $STDERR, "=======MAX CALL COUNT REACHED";
           $self->_clean_up;
           $self->close;
         }
+
         DEBUG and asay $STDERR, "======= about to do callback";
         $e->[0] and $e->[0]->($msg->[FP_MSG_PAYLOAD]);
         $self->do_rpc;
@@ -371,7 +375,7 @@ method _parent_setup {
   push @$_register, $r;
   
 
-  asay $STDERR, "END OF PARENT SETUP: ".Dumper $_register;
+  #asay $STDERR, "END OF PARENT SETUP: ".Dumper $_register;
   ################################################
   # asay $STDERR, "--SETUP UP PARENT TIMER=---"; #
   # my $t = timer 0, 1, sub {                    #

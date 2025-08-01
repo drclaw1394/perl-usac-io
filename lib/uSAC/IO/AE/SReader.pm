@@ -29,10 +29,9 @@ field $_fh;
 field $_buffer;#	:mutator;
 
 		
-#field $_rfh;
 
 BUILD {
-  #$_rfh=$self->fh;
+
 }
 
 method start :override ($fh=undef) {
@@ -67,12 +66,7 @@ method _make_reader  :override {
 	#parent fields. Here we alias what we need so 'runtime' access is
 	#not impacted
 	#
-	#\my $rw=\$self->[rw_];
-  #my $buf=$self->buffer;
 	my $max_read_size=$self->max_read_size;
-  #my $rfh=$self->fh;
-  #my $time=$self->time;
-  #my $clock=$self->clock;
   my $sysread=$self->sysread;
 	my $len;
   my $_cb=sub {}; # Dummy for now
