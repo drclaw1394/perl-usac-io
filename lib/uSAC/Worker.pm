@@ -35,7 +35,8 @@ field $_call_count;
 field $_queue;
 
 BUILD {
-  DEBUG and asay $STDERR , "--CALLING CREATE WORKER----";
+  #DEBUG and 
+  #asay $STDERR , "--CALLING CREATE WORKER----";
   $_seq=0;
   $_call_count=0;
   $_active={};
@@ -49,7 +50,7 @@ BUILD {
   };
 
   DEBUG and asay $STDERR, Dumper $_rpc;
-  #$self->_sub_process;
+  $self->_sub_process if defined $_work;
 
 }
 
@@ -173,6 +174,7 @@ method _clean_up {
 
 # Setup child bridge to parent
 method _child_setup {
+  #asay $STDERR, "-- IN CHILD SETUP";
   # remove existing registrations
   $self->_clean_up;
   DEBUG and Log::OK::TRACE and log_trace "Configuring worker (rpc) interface in child"; 
