@@ -11,6 +11,7 @@ WriteMakefile(
 				AnyEvent=>0,
 				"IO::FD"=>"v0.3.7",
 				"Log::ger"=>0,
+				"Log::ger::Output::Screen"=>0,
 				"Log::OK"=>0,
 				"Object::Pad"=>0,
         "Socket::More::Resolver"=>0,
