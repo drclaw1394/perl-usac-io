@@ -8,7 +8,7 @@ my $do_it;
 my $count=0;
 $do_it=sub {
   $count=$count+1;
-  if($count>=500000){
+  if($count>=200000){
     Devel::MAT::Dumper::dump("pmat.dat");
     exit 
   }

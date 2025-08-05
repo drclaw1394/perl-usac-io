@@ -27,11 +27,13 @@ field $_time;
 field $_clock;
 field $_fh;
 field $_buffer;#	:mutator;
+field $_id;
 
 		
 
 BUILD {
 
+  $_id="$self";
 }
 
 method start :override ($fh=undef) {
@@ -53,7 +55,8 @@ method start :override ($fh=undef) {
   }
 
   # Refresh the local copy of on read
-  $uSAC::IO::AE::IO::watchers{$self}=$_rw;
+  #$uSAC::IO::AE::IO::watchers{$self}=$_rw;
+  $uSAC::IO::AE::IO::watchers{$_id}=$_rw;
 
 	$self;
 }
@@ -83,14 +86,16 @@ method _make_reader  :override {
 
     # End of file
     if($len==0){
-      delete $uSAC::IO::AE::IO::watchers{$self};
+      #delete $uSAC::IO::AE::IO::watchers{$self};
+      delete $uSAC::IO::AE::IO::watchers{$_id};
       undef $_rw;
       $_on_eof and $_on_eof->($_buffer);
     }
     # Error
     #Log::OK::ERROR and log_error "ERROR IN READER: $!";
 		$_rw=undef;
-    delete $uSAC::IO::AE::IO::watchers{$self};
+    #delete $uSAC::IO::AE::IO::watchers{$self};
+    delete $uSAC::IO::AE::IO::watchers{$_id};
     #my $_on_error=$self->on_error;
 		$_on_error and $_on_error->(undef, $_buffer);
 		return;
@@ -105,7 +110,8 @@ method _make_reader  :override {
 #events
 method pause :override {
 	undef $_rw;
-  delete $uSAC::IO::AE::IO::watchers{$self};
+  #delete $uSAC::IO::AE::IO::watchers{$self};
+  delete $uSAC::IO::AE::IO::watchers{$_id};
   #$_reader=undef;
 	$self;
 }

@@ -31,8 +31,8 @@ BUILD{
 	$self->on_read=sub {$self->pause};
 	$self->on_error= $self->on_eof=sub{};
 
-	$_max_read_size//=4096*16;
-	$self->buffer=[IO::FD::SV($_max_read_size)];#"";
+	$_max_read_size//=4096*4;
+  $self->buffer=[IO::FD::SV($_max_read_size)];#"";
   $_sysread//=\&IO::FD::sysread;
 
 	
@@ -106,27 +106,35 @@ method _make_reader {
 method pipe_to ($writer, $limit=undef){
 	my $counter;
 	\my @queue=$writer->queue;
+
+
+  #################
+  #TODO: Why is this required?
+  my $me=$self;
+  use Scalar::Util qw<weaken>;
+  weaken($me);
+  #################
+
+
+
 	$self->on_read= sub {
-    #my $data=$_[0][0];	#Copy data
-    #$_[0][0]="";	#Consume input
 		if(!$limit  or $#queue < $limit){
 			#The next write cannot equal the limit so blaze ahead
 			#with no callback,
-      #$writer->write($data);
 			$writer->write($_[0]);
 		}
 		else{
 			#the next write will equal the limit,
 			#use a callback
-			$self->pause;	#Pause the reader
-      #$writer->write($data, sub{
+			$me->pause;	#Pause the reader
 			$writer->write($_[0], sub{
 				#restart the reader
-				$self->start;
+				$me->start;
 			});
 		}
 		$_[0][0]="";	#Consume input
 	};
+
   $self->start;
 	$writer; #Return writer to allow chaining
 }

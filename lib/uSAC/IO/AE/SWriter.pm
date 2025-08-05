@@ -22,11 +22,26 @@ field $_recursion_counter;
 field $_writer;
 field $_resetter;
 
+field $_on_error;# :mutator :param =undef;
+field $_on_eof;
+field $_on_drain;
+
 BUILD {
 	$_wfh=$self->fh;
   $_recursion_counter=0;
   $_writer=$self->_make_writer;
   $_resetter=$self->_make_reseter;
+}
+
+method on_error :override :lvalue {
+  $_on_error;
+}
+
+method on_drain :override :lvalue {
+  $_on_drain;
+}
+method on_eof :override :lvalue {
+  $_on_eof;
 }
 
 method set_write_handle :override ($wh){
@@ -56,7 +71,6 @@ method writer :override {
 #internal
 #Aliases variables for (hopefully) faster access in repeated calls
 method _make_writer :override {
-  #\my $on_error=\$self->on_error;
 
 	#\my $ww=\$self->[ww_];
 	my $queue=$self->queue;
@@ -106,9 +120,14 @@ method _make_writer :override {
           $_ww=undef;
           #$_wfh=undef;
           @$queue=();	#reset queue for session reuse
-	        my $on_error=$self->on_error;
-          $on_error and $on_error->($!);
-          #$cb and $cb->();
+
+          #
+          ##my $on_error=$self->on_error;
+          ##$on_error and $on_error->($!);
+          #
+
+          $_on_error and  $_on_error->($!);
+          ###$cb and $cb->();
         }
       }
       catch($e){
@@ -172,8 +191,13 @@ method _make_writer :override {
       #$cb and $cb->();
       $cb=undef;
 
-	    my $on_error=$self->on_error;
-      $on_error and $on_error->($!);
+      #
+      ##my $on_error=$self->on_error;
+      ##$on_error and $on_error->($!);
+      #
+      
+      $_on_error and  $_on_error->($!);
+
     }
     else {
       #The write did not send all the data. Queue it for async writing
@@ -185,6 +209,7 @@ method _make_writer :override {
     }
     return ();
   };
+
 }
 
 

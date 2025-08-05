@@ -29,7 +29,7 @@ field $_seq;
 field $_active;
 field $_register;
 
-field $_call_max   :param = 5000000;     # Max calls of a single process. a new process is created after this count
+field $_call_max   :param = 50;     # Max calls of a single process. a new process is created after this count
 field $_call_count;
 
 field $_queue;
@@ -169,6 +169,7 @@ method _clean_up {
   }
   $_register=[];
   $_call_count=0;
+  $_broker->remove_bridge($_bridge) if $_bridge;
   DEBUG and asay $STDERR, "---- END OF CLEAN UP WORKER----";
 }
 
@@ -239,6 +240,7 @@ method _child_setup {
           $_broker->broadcast(undef,"worker/$_wid/rpc-error/$name/$seq", "RPC NOT FOUND");
         }
       }
+      $_broker->clear_cache;
     });
 
 
@@ -330,6 +332,7 @@ method _parent_setup {
 
         DEBUG and asay $STDERR, "======= about to do callback";
         $e->[0] and $e->[0]->($msg->[FP_MSG_PAYLOAD]);
+        $_broker->clear_cache;
         $self->do_rpc;
       }
     }

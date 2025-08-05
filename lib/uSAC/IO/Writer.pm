@@ -14,9 +14,9 @@ field $_ctx;
 field $_fh :param :mutator;
 field $_time :mutator :param = undef;
 field $_clock :mutator :param = undef;
-field $_on_drain :mutator :param =undef;
-field $_on_eof   :mutator :param =undef;
-field $_on_error :mutator :param =undef;
+#field $_on_drain :mutator :param =undef;
+#field $_on_eof   :mutator :param =undef;
+#field $_on_error :mutator :param =undef;
 field $_writer;
 field $_resetter;
 field @_queue; 
@@ -26,7 +26,8 @@ field $_time_dummy;
 BUILD {
 	$_fh=fileno($_fh) if ref($_fh);	#Ensure we are working with a fd
 	IO::FD::fcntl($_fh, F_SETFL, O_NONBLOCK);
-	$_on_drain//=$_on_error//=sub{};
+  #$_on_drain//=$_on_error//=sub{};
+	$self->on_drain//=$self->on_error//=sub{};
   $_syswrite//=\&IO::FD::syswrite;
 	#$self->[writer_]=undef;
 	#@_queue;
@@ -48,6 +49,14 @@ ADJUST {
 	#make a writer
   $self->set_write_handle($_fh);
 
+}
+
+method on_error  {
+}
+method on_eof  {
+}
+
+method on_drain  {
 }
 
 method timing {
@@ -100,9 +109,12 @@ method queue {
 
 method destroy {
   Log::OK::TRACE and log_trace "--------DESTROY  in Writer\n";
-  $_on_drain=undef;
-  $_on_eof=undef;
-  $_on_error=undef;
+  #$_on_drain=undef;
+  $self->on_drain=undef;
+  #$_on_eof=undef;
+  $self->on_eof=undef;
+  #$_on_error=undef;
+  $self->on_error=undef;
   for(@_queue){
     $_->[2]=undef;
   }
