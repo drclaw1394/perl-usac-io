@@ -150,9 +150,26 @@ method _make_writer :override {
 
 
     #Push to queue if watcher is active or need to do a async call
-    if($_recursion_counter > RECUSITION_LIMIT or defined $_ww){
+    if(!$cb or $_recursion_counter > RECUSITION_LIMIT or defined $_ww){
       DEBUG and print STDERR "SWriter water exists for fd $_wfh. Pushing to queue\n";
-      push @$queue, [$_[0][0], 0, $cb];
+
+      if(@$queue){
+        for my ($entry) ($queue->[-1]){
+          if(!$entry->[2] and length($entry->[0]) < (4096*4)){
+            # Append to existing entry only if it doesn't have a callback defined
+            $entry->[0].=$_[0][0];
+            $entry->[2]=$cb;
+          }
+          else {
+            # Existing entry has callback, so create a new entry
+            push @$queue, [$_[0][0], 0, $cb];
+          }
+        }
+      }
+      else {
+        # Existing entry has callback, so create a new entry
+        push @$queue, [$_[0][0], 0, $cb];
+      }
       $_[0][0]=undef;
       $cb=undef;
       $_recursion_counter=0;

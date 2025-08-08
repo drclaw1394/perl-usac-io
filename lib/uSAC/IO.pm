@@ -1122,15 +1122,15 @@ sub _lines {
 # return accumulated results from stdout
 #
 sub _accumulate {
-  my $buffer="";
+  my $buffer=[""];
   sub {
     my ($next, $index, @options)=@_;
     sub {
       my $cb=pop;
-      $buffer .= $_ for @{$_[0]};
+      $buffer->[0] .= $_ for @{$_[0]};
 
       # Call next with no callback provided. Marks end or data
-      $next->([$buffer], $cb) unless $cb;
+      $next->($buffer, $cb) unless $cb;
     }
   }
 }
@@ -1191,59 +1191,24 @@ sub worker {
 }
 
 
-my $dummy=sub{};
 
-sub asay {
-  use feature "isa";
-  my $w=$STDOUT; # Use the std out if
-  my $cb=$dummy;
-  if($_[0] isa "uSAC::IO::Writer"){
-    $w=shift @_;
-  } 
-  
-  ##############################
-  # if(ref $_[$#_] eq "CODE"){ #
-  #   $cb=pop @_;              #
-  # }                          #
-  ##############################
+sub asay ($@){
+  my $w=shift;
 
-  $w->write([join("", @_, "\n")], $cb);
+  $w->write([join("", @_, "\n")], undef);
   ();
 }
 
-sub aprint {
-  use feature "isa";
-  my $w=$STDOUT; # Use the std out if
-  my $cb=$dummy;
-  if($_[0] isa "uSAC::IO::Writer"){
-    $w=shift @_;
-  } 
-  
-  ##############################
-  # if(ref $_[$#_] eq "CODE"){ #
-  #   $cb=pop @_;              #
-  # }                          #
-  ##############################
-
-  $w->write([join("", @_, "")], $cb);
+sub aprint ($@){
+  my $w=shift;
+  $w->write([join("", @_, "")], undef);
   ();
 }
 
-sub adump {
+sub adump ($@){
   use feature "isa";
-  my $w=$STDOUT; # Use the std out if
-  my $cb=$dummy;
-  if($_[0] isa "uSAC::IO::Writer"){
-    $w=shift @_;
-  } 
-  
-  ##############################
-  # if(ref $_[$#_] eq "CODE"){ #
-  #   $cb=pop @_;              #
-  # }                          #
-  ##############################
-
-  $w->write([Dumper @_], $cb);
+  my $w=shift;
+  $w->write([Dumper @_], undef);
   ();
 
 }
@@ -1257,7 +1222,6 @@ sub _make_pool {
       },
       getaddrinfo=>sub {
 
-        use Data::Dumper;
         DEBUG and asay $STDERR, "$$ CALLED GETADDRINFO with @_". Dumper @_; 
         my $input=decode_meta_payload $_[0], 1;
         DEBUG and asay $STDERR, "$$ DECODED ". Dumper $input;

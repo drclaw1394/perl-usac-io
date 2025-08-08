@@ -15,7 +15,7 @@ $do_it=sub {
 
   #asay $STDERR , "$$ ---DO NEXT--- $count";
 uSAC::IO::getaddrinfo("google.com",80, {}, sub {
-    #asay $count;
+    asay $count;
     #asay $STDERR, "GAI RETURN--------";
     #asay $STDERR, Dumper @_[0];
     uSAC::IO::getnameinfo($_[0]{addr}, NI_NUMERICHOST|NI_NUMERICSERV, sub {
@@ -31,7 +31,7 @@ uSAC::IO::getaddrinfo("google.com",80, {}, sub {
 );
 };
 $do_it->();
-#$do_it->();
-#$do_it->();
-#$do_it->();
+$do_it->();
+$do_it->();
+$do_it->();
 1;

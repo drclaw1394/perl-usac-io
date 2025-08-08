@@ -73,31 +73,31 @@ else {
 use Error::Show;
 sub _setup_log {
   
-  usac_listen("usac/log/fatal",   sub {
+  usac_listen(undef, "usac/log/fatal",   sub {
       asay $STDERR, $$." ".$_[0][1][0][2];
-
-      #LMain::log_fatal join "\n", $_[0][1][0][2];
-  });
-  usac_listen("usac/log/error",   sub {
+  },
+  "exact"
+);
+  usac_listen(undef, "usac/log/error",   sub {
       asay $STDERR, $$." ".$_[0][1][0][2];
-      #LMain::log_error join "\n", $_[0][1][0][2];
-  });
-  usac_listen("usac/log/warn",   sub {
+  },
+  "exact");
+  usac_listen(undef, "usac/log/warn",   sub {
       asay $STDERR, $$." ".$_[0][1][0][2];
-      #LMain::log_warn join "\n", $_[0][1][0][2];
-  });
-  usac_listen("usac/log/info",   sub {
+  },
+  "exact");
+  usac_listen(undef, "usac/log/info",   sub {
       asay $STDERR, $$." ".$_[0][1][0][2];
-      #LMain::log_info join "\n", $_[0][1][0][2];
-  });
-  usac_listen("usac/log/debug",   sub {
+  },
+  "exact");
+  usac_listen(undef, "usac/log/debug",   sub {
       asay $STDERR, $$." ".$_[0][1][0][2];
-      #LMain::log_debug join "\n", $_[0][1][0][2];
-  });
-  usac_listen("usac/log/trace",   sub {
+  },
+  "exact");
+  usac_listen(undef, "usac/log/trace",   sub {
       asay $STDERR, $$." ".$_[0][1][0][2];
-      #LMain::log_trace join "\n", $_[0][1][0][2];
-  });
+  },
+  "exact");
 }
 
 sub _cli{
