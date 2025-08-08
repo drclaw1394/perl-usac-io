@@ -18,6 +18,7 @@ WriteMakefile(
         "Socket::More"=>0,
         "Error::Show"=>0,
 	"Data::Dump::Color"=>0,
+  "Sub::Middler"=>v0.4.0,
 
 			}, 
     ABSTRACT_FROM     => 'lib/uSAC/IO.pod', 
