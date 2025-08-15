@@ -22,7 +22,7 @@ field $_recursion_counter;
 field $_writer;
 field $_resetter;
 
-field $_on_error;# :mutator :param =undef;
+field $_on_error :param =undef;
 field $_on_eof;
 field $_on_drain;
 
