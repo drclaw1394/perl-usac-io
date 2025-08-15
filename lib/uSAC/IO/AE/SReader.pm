@@ -20,11 +20,11 @@ use Errno qw(EAGAIN EINTR);
 field $_rw;
 field $_reader; 
 
-field $_on_read; 
-field $_on_eof;
-field $_on_error;
-field $_time;
-field $_clock;
+field $_on_read :param = undef; 
+field $_on_eof :param = undef;
+field $_on_error :param = undef;
+field $_time :param = undef;
+field $_clock :param = undef;
 field $_fh;
 field $_buffer;#	:mutator;
 field $_id;

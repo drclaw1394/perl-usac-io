@@ -84,7 +84,7 @@ method _make_writer :override {
 	#if no callback is provided, the session dropper is called.
 	#
   #my $dummy_cb=sub { };
-  my $entry;
+  #my $entry;
   my $sub=sub {
       use feature "try";
         try {
@@ -92,7 +92,7 @@ method _make_writer :override {
           DEBUG and Log::OK::TRACE and log_trace "SIO Writer: file handle undef, but write watcher still active";
           return;
         }
-        $entry=$queue->[0];
+        my $entry=$queue->[0];
         \my $buf=\$entry->[0];
         \my $offset=\$entry->[1];
         \my $cb=\$entry->[2];

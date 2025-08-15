@@ -79,7 +79,7 @@ method fh {
 
 #manually call on_read if buffer is not empty
 method pump {
-	self->on_read->($self->buffer, undef); # if $_buffer;
+	$self->on_read->($self->buffer, undef); # if $_buffer;
 }
 
 method read {
