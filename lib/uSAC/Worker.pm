@@ -256,6 +256,8 @@ method _child_setup {
   };
   timer 1, 0, $sub;
 
+  DEBUG and Log::OK::TRACE and log_trace "END Configuring worker (rpc) interface in child"; 
+
   $uSAC::Main::WORKER=$self;
   
 

@@ -283,6 +283,8 @@ sub _post_fork {
   $will_exit=undef;
   @asap=();
   @asap_args=();
+  $STDERR->reset;
+  $STDOUT->reset;
 
 
   #print STDERR "RESET AFTER FORK\n";

@@ -68,6 +68,17 @@ method writer :override {
   $_writer;
 }
 
+######################################
+# method flush {                     #
+#                                    #
+#   #Stop any event processing       #
+#   $_ww=undef;                      #
+#                                    #
+#                                    #
+#   # Synchronously loop though data #
+# }                                  #
+######################################
+
 #internal
 #Aliases variables for (hopefully) faster access in repeated calls
 method _make_writer :override {

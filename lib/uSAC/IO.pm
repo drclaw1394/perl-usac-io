@@ -10,7 +10,7 @@ our $VERSION="v0.1.0";
 
 use Data::FastPack::Meta;
 use Data::Combination;
-use constant::more DEBUG=>0;
+use constant::more DEBUG=>1;
 
 #Datagram
 use constant::more qw<r_CIPO=0 w_CIPO r_COPI w_COPI r_CEPI w_CEPI>;
@@ -888,8 +888,8 @@ our %procs;
 # Internal for and of fork/exec
 # Creates pipes for communicating to child processes
 sub sub_process ($;$$$$){
-
   my ($cmd, $on_complete, $on_fork)=@_;
+  asay $STDERR, 'TOP OF sub_Pocess : '. $cmd;
 
   my @pipes;
   # Create pipes?
@@ -899,7 +899,7 @@ sub sub_process ($;$$$$){
 
   # Fork and then exec? . Or do we use a template process
   my $pid=fork;
-  DEBUG and print STDERR "PID AFTER FORK--- $pid \n";
+  DEBUG and asay $STDERR, "PID AFTER FORK--- $pid \n";
   if($pid){
     DEBUG and asay $STDERR, "IN PARENT FORK $$";
     use feature "state";
@@ -982,6 +982,7 @@ sub sub_process ($;$$$$){
     # execution is stoped with a die call. This function never returns in the
     # client
     # 
+    #asay $STDERR, "------CHILD COMMAND IS $cmd";
     if(defined $cmd and ! ref $cmd){
       exec $cmd or asay $STDERR, $! and exit;
       #TODO signal to parent the exec failed somehow??
@@ -989,7 +990,7 @@ sub sub_process ($;$$$$){
     }
     elsif(defined $cmd) {
       $uSAC::Main::worker_sub =$cmd; #, $pid; #Shedual
-      DEBUG and asay $STDERR, "$cpid CMD IS A CODE REF======= $cmd";
+      #DEBUG and asay $STDERR, "$cpid CMD IS A CODE REF======= $cmd";
       # Stop all watchers, and stop the event loop
       die " $cpid RETURN FROM CHILD";
 
@@ -1192,21 +1193,20 @@ sub worker {
 
 
 
-sub asay ($@){
+sub asay ($$@){
   my $w=shift;
 
   $w->write([join("", @_, "\n")], undef);
   ();
 }
 
-sub aprint ($@){
+sub aprint ($$@){
   my $w=shift;
   $w->write([join("", @_, "")], undef);
   ();
 }
 
-sub adump ($@){
-  use feature "isa";
+sub adump ($$@){
   my $w=shift;
   $w->write([Dumper @_], undef);
   ();
