@@ -17,6 +17,7 @@ field $_broker;
 field $_seq;
 field $_procedures;
 field $_workers;
+field $_rr_index;
 
 field $_queue;
 field $_current_ids;        # hash of ids active and which worker it was sent to
@@ -28,10 +29,11 @@ field $_max_size;           # Max normal pool size
 field $_rpc     :param = {}; # Shared RPC, This is passed to all worker constructors
 
 BUILD {
-  $_max_size//=4;
+  $_max_size//=2;
   $_in_use={};
   $_available=[];
 
+  $_rr_index=0;
   $_seq=0;
   $_workers=[];
   
@@ -43,8 +45,11 @@ method next_worker {
   my $urgent=shift;
   my $w=shift @$_available;
   unless(defined $w){
-    # No available worker 
+    # No available worker. Either make a new one or if limits reached
+    # we queue in an already busy one
+    
     if($urgent or (@$_workers < $_max_size)){
+      # Make a new worker
       $w=uSAC::Worker->new(rpc=>$_rpc, on_complete=>sub{
           # Push back ti available
           #asay $STDERR, "-----WORKER PUSHED BACK----";
@@ -53,6 +58,14 @@ method next_worker {
 
         });
       push @$_workers, $w;
+    }
+    else {
+      # Queue in existing busy
+      $_rr_index++;
+      if($_rr_index >= @$_workers){
+        $_rr_index=0;
+      }
+      $w=$_workers->[$_rr_index]; 
     }
   }
   else {
@@ -68,10 +81,12 @@ method next_worker {
 # Call a named / stored routine
 method rpc {
   my ($name, $string, $cb, $error)=@_;
-  #asay $STDERR, "Available is " . @$_available;
-  #asay $STDERR, "$self workers is " . @$_workers;
   my $w=$self->next_worker;
-  #asay $STDERR , "$$ -=-=-=-==-=-=-=next worker is $w";
+  unless(defined $w){
+    $error and $error->("Could not get worker");
+    return;
+  }
+
   $w->rpc($name, $string, sub {
       #asay $STDERR, "RPC callback in pool";
       #asay $STDERR, Dumper @_;

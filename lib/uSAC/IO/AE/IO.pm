@@ -256,8 +256,8 @@ sub _post_loop {
       my $id=timer 0, 0.1, sub {
         #uSAC::IO::asay $STDERR, "--raw timer callback--";
         $uSAC::IO::Clock=time;
-        #print STDERR "WATCHERS for $$ ARE ". join " ", %watchers;
-        #print STDERR "PROCs for $$ ARE ". join " ", %uSAC::IO::procs;
+        #uSAC::IO::asay $STDERR, "WATCHERS for $$ ARE ". join " ", %watchers;
+        #uSAC::IO::asay $STDERR, "PROCs for $$ ARE ". join " ", %uSAC::IO::procs;
         #print STDERR "\n";
         _exit unless %watchers;
       };

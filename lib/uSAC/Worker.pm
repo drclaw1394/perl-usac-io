@@ -29,7 +29,7 @@ field $_seq;
 field $_active;
 field $_register;
 
-field $_call_max   :param = 500;     # Max calls of a single process. a new process is created after this count
+field $_call_max   :param = 5000;     # Max calls of a single process. a new process is created after this count
 field $_call_count;
 
 field $_queue;
