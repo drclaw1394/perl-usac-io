@@ -935,7 +935,7 @@ sub sub_process ($;$$$$){
           $procs{$ppid}{pid}=0; # Mark as done
         }
 
-        $on_complete and  $on_complete->($status, $ppid); #Status first to match perl system command
+        $on_complete and  $on_complete->([$status, $ppid]); #Status first to match perl system command
         #asay $STDERR, "AFTER WHILE $ppid";
     };
 
@@ -1157,7 +1157,7 @@ sub backtick {
         $m->([$buffer, $status, $pid],undef);
       }
       elsif(ref($on_result) eq "CODE"){
-        $on_result->([$buffer, $status, $pid], undef);
+        $on_result->([$status, $pid, $buffer], undef);
         
       }
   };
@@ -1176,6 +1176,8 @@ sub backtick {
   $io[1]->start;
   $io[2]->start;
 
+  # return the pid of th child process
+  $io[3];
 }
 
 

@@ -21,6 +21,7 @@ no warnings "experimental";
 field $_rpc         :param = undef;
 field $_on_complete :param = undef;
 field $_work        :param = undef;
+field $_args        :param = undef;
 field $_wid         :reader;          #The backend process id
 field $_io;
 field $_broker      :param = undef;
@@ -373,7 +374,7 @@ method _parent_setup {
   #$broker->listen(undef, ".*", sub {
       # Trigger the reporting of worker status
       #
-      #asay $STDERR, "STAUTS FROM WORKER is: ".Dumper @_;
+      #asay $STDERR, "STATUS FROM WORKER is: ".Dumper @_;
 
     }
   ];

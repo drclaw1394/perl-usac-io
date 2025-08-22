@@ -37,6 +37,7 @@ JOB_TEMPLATE_ID
 JOB_RETRY
 JOB_DEPS
 JOB_INFORM
+JOB_PROCESS
 >;
 
 my %keys=(
@@ -152,7 +153,9 @@ BUILD {
     Log::OK::TRACE and log_trace " latest job is $job";
     if($job){
       
-
+      # Update job state to show it is in the immediate list
+      #
+      $job->[JOB_STATE]= JOB_STATE_IMMEDIATE;
       # Now insert using priority into immediate 
       if(@$_immediate){
         my $i=priority_numeric_left($job, $_immediate);
@@ -186,98 +189,94 @@ BUILD {
       # Any items in immedate queue are processed fifo as long as workers are available
       my $job= pop @$_immediate;
 
-      if(ref $job->[JOB_WORK]){
-        # Code reference, use pool directly. Check if we know it
-        if(exists $_rpc->{$job->[JOB_WORK]}){
-          # we know that workers running already  have this so get the next one
-          $_pool->next_worker;
-        }
-        else {
-          # No worker will have this. Mark all workers to be shutdown after current work
-        }
-      }
-      else {
-        Log::OK::TRACE and log_trace "--about to do work $job->[JOB_WORK]";
-        $_current_concurrency++;
-        # Command always fork a new process, save stdout as results
-        $job->[JOB_STATE]=JOB_STATE_ACTIVE;
-        backtick $job->[JOB_WORK], sub {
+      Log::OK::TRACE and log_trace "--about to do work $job->[JOB_WORK]";
+      $_current_concurrency++;
+      # Command always fork a new process, save stdout as results
+      $job->[JOB_STATE]=JOB_STATE_ACTIVE;
+      my $cb=sub {
 
-          $_current_concurrency--;
-          $job->[JOB_RESULT]=$_[0];
+        $_current_concurrency--;
+        $job->[JOB_RESULT]=$_[0][2];
+        print STDOUT "RESULT IS: $job->[JOB_RESULT] \n";
 
-          # If the job is perioding, recalculate start and reinsert
-          if($job->[JOB_TYPE]==JOB_TYPE_PERIODIC()){
-            Log::OK::TRACE and log_trace "--PERIODIC job.. should we re schedual?";
-            $job->[JOB_START]+=$job->[JOB_INTERVAL];
-            $job->[JOB_START]=time if $job->[JOB_START] < time;
-            Log::OK::TRACE and log_trace "Start    $job->[JOB_START]";
-            Log::OK::TRACE and log_trace "interval $job->[JOB_INTERVAL]";
-            Log::OK::TRACE and log_trace "expiry   $job->[JOB_EXPIRY]";
-            Log::OK::TRACE and log_trace "time     @{[ time ]}";
+        # If the job is perioding, recalculate start and reinsert
+        if($job->[JOB_TYPE]==JOB_TYPE_PERIODIC()){
+          Log::OK::TRACE and log_trace "--PERIODIC job.. should we re schedual?";
+          $job->[JOB_START]+=$job->[JOB_INTERVAL];
+          $job->[JOB_START]=time if $job->[JOB_START] < time;
 
 
-            # Check for expriy, to see if we actuall reinsert
-            if($job->[JOB_EXPIRY]==0 or $job->[JOB_START] < $job->[JOB_EXPIRY]){
-              Log::OK::TRACE and log_trace "--PERIODIC job.. re added";
-              $self->schedual_job($job);
-            }
-            else {
-              Log::OK::TRACE and log_trace "--PERIODIC job.. done";
-              $job->[JOB_STATE]=JOB_STATE_COMPLETE;
-
-            }
+          # Check for expriy, to see if we actuall reinsert
+          if($job->[JOB_EXPIRY]==0 or $job->[JOB_START] < $job->[JOB_EXPIRY]){
+            Log::OK::TRACE and log_trace "--PERIODIC job.. re added";
+            $self->schedual_job($job);
           }
           else {
+            Log::OK::TRACE and log_trace "--PERIODIC job.. done";
+            $job->[JOB_STATE]=JOB_STATE_COMPLETE;
 
-              $job->[JOB_STATE]=JOB_STATE_COMPLETE;
           }
+        }
+        else {
+
+          $job->[JOB_STATE]=JOB_STATE_COMPLETE;
+        }
 
 
-          # Job has results or otherwise failed, now look at informed jobs to potentially add them
-          if($job->[JOB_STATE]==JOB_STATE_COMPLETE){
-            for($job->[JOB_INFORM]->@*){
-              Log::OK::TRACE and log_trace "------INFORMING  key $_";
-              my $j=$_jobs->{$_};
+        # Job has results or otherwise failed, now look at informed jobs to potentially add them
+        if($job->[JOB_STATE]==JOB_STATE_COMPLETE){
+          for($job->[JOB_INFORM]->@*){
+            Log::OK::TRACE and log_trace "------INFORMING  key $_";
+            my $j=$_jobs->{$_};
 
-              use Data::Dumper;
-              Log::OK::TRACE and log_trace "------job is ".Dumper $j;
-              if($j->[JOB_STATE]==JOB_STATE_SCHEDUALED){
-                my $ready=1;
+            use Data::Dumper;
+            Log::OK::TRACE and log_trace "------job is ".Dumper $j;
+            if($j->[JOB_STATE]==JOB_STATE_SCHEDUALED){
+              my $ready=1;
 
-                for ($j->[JOB_DEPS]->@*){
-                  my $jj=$_jobs->{$_};
-                  Log::OK::TRACE and log_trace "------INFORMING $jj";
-                  $ready&&=($jj->[JOB_STATE]==JOB_STATE_COMPLETE);
-                }
-
-                if($ready){
-                  # Acutaly add to the time based schedual
-                  Log::OK::TRACE and log_trace "------ADDING NEW JOB";
-                  my $i;
-                  if(@$_schedualed){
-                    $i=time_numeric_left($j, $_schedualed);
-                    splice @$_schedualed, $i, 0, $j; 
-                  }
-                  else {
-                    push @$_schedualed, $j;
-                  }
-                  if($i == @$_schedualed-1){
-                    # added to the end, so recalculate timer
-                    $self->_recalculate_timer;
-                  }
-                }
-
+              for ($j->[JOB_DEPS]->@*){
+                my $jj=$_jobs->{$_};
+                Log::OK::TRACE and log_trace "------INFORMING $jj";
+                $ready&&=($jj->[JOB_STATE]==JOB_STATE_COMPLETE);
               }
+
+              if($ready){
+                # Acutaly add to the time based schedual
+                Log::OK::TRACE and log_trace "------ADDING NEW JOB";
+
+                # Ensure a sane start time
+                $j->[JOB_START]=time if $j->[JOB_START] < time;
+                my $i;
+                if(@$_schedualed){
+                  $i=time_numeric_left($j, $_schedualed);
+                  splice @$_schedualed, $i, 0, $j; 
+                }
+                else {
+                  push @$_schedualed, $j;
+                  $i=0;
+                }
+                Log::OK::TRACE and log_trace "found index at $i";
+                if($i == @$_schedualed-1){
+                  # added to the end, so recalculate timer
+                  $self->_recalculate_timer;
+                }
+              }
+
             }
           }
+        }
 
-          #Log::OK::TRACE and log_trace "RESULTE FROM WORK: $job->[JOB_RESULT][0]";
-          asap $_process_sub; # retrigger
+        #Log::OK::TRACE and log_trace "RESULTE FROM WORK: $job->[JOB_RESULT][0]";
+        asap $_process_sub; # retrigger
 
-          # broadcast the id of the job that finished
+        # broadcast the id of the job that finished
 
-        };
+      };
+      if(ref $job->[JOB_WORK]){
+        my $w=uSAC::Worker->new(work=> $job->[JOB_WORK], on_complete=>$cb);
+      }
+      else {
+        my $pid=backtick $job->[JOB_WORK], $cb;
       }
 
     }
@@ -402,6 +401,46 @@ method schedual_job {
 }
 
 method cancel_job {
+  my $id=shift;
+  my $job=delete $_jobs->{$id};
+
+  return undef unless defined $job;
+
+
+  for($job->[JOB_STATE]){
+    if($_ == JOB_STATE_SCHEDUALED){
+      # In the schedualed list. Find by start time   and remove
+      my $i=time_numeric_left $job->[JOB_START], $_schedualed;
+      
+      # $i is left most index of duplicates.. so continue search upwards
+      while($i < @$_schedualed){
+        if($_schedualed->[$i][JOB_ID]==$job->[JOB_ID]){
+          splice @$_schedualed, $i, 1; 
+          last;
+        }
+        $i++;
+      }
+    }
+    elsif($_ == JOB_STATE_IMMEDIATE){
+      # In the schedualed list. Find by priority and remove
+      my $i=priority_numeric_left $job->[JOB_PRIORITY], $_schedualed;
+
+      # $i is left most index of duplicates.. so continue search upwards
+      while($i < @$_schedualed){
+        if($_schedualed->[$i][JOB_ID]==$job->[JOB_ID]){
+          splice @$_schedualed, $i, 1; 
+          last;
+        }
+        $i++;
+      }
+    }
+    elsif($_ ==JOB_STATE_COMPLETE){
+      # DO nothing.. aleady removed from hash
+    }
+    elsif($_ == JOB_STATE_ACTIVE){
+      #sub_process_cancel
+    }
+  }
 
 }
 
@@ -451,4 +490,5 @@ If an high priority job needed asap exectution, it would be scheduled with the
 current time (or less) as the start time, and the large value for the priority.
 This would force it to the front of the queue and then processed at the next
 available chance.
+
 
