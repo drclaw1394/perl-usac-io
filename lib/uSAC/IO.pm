@@ -321,6 +321,12 @@ sub connect ($$){
       sub {
         DEBUG and asay $STDERR, "$$ LOOKUP callback ". Dumper  @_; 
         my @addresses=@_;
+
+        unless(@addresses){
+          $on_error and $on_error->($socket, "Host $hints->{address} could not be found");
+          return;
+        }
+
         $addr=$addresses[0]{addr};
         DEBUG and asay $STDERR, "$$ socket: $socket, addr ". Dumper $addr; 
 	      connect_addr($socket, $addr, $on_connect, $on_error);
@@ -925,7 +931,6 @@ sub sub_process ($;$$$$){
     my $c={pid=>$pid, pipes=>\@pipes, reader=>$reader, error=>$error, writer=>$writer};
     $procs{$pid}=$c;
     DEBUG and asay $STDERR, "created child $pid";
-    #$uSAC::IO::AE::IO::CV->send;
 
     _shutdown_loop;
     uSAC::IO::child $pid, sub {
@@ -939,17 +944,10 @@ sub sub_process ($;$$$$){
         #asay $STDERR, "AFTER WHILE $ppid";
     };
 
-    #exit if $i >=2;
-    #$uSAC::IO::AE::IO::CV->send();
     return ($writer, $reader, $error, $pid);
   }
   else {
     # child
-    #$STDIN->pause;
-    # Close parent ends
-    #DEBUG and 
-    #asay $STDERR, "IN CHILD FORK $$";
-    #$uSAC::Main::POOL=undef;
     my $cpid=$$;
     IO::FD::close $pipes[w_CIPO];
     IO::FD::close $pipes[r_COPI];
@@ -1150,7 +1148,8 @@ sub backtick {
   my @io;
 
   (@io, $pid)= sub_process $cmd, sub {
-      ($status, $pid)=@_;
+      my $a=shift;
+      ($status, $pid,undef)=$a->@*;
       if(ref($on_result) eq "ARRAY"){
         my $m=linker $on_result;
 

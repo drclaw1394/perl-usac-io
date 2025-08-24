@@ -4,8 +4,8 @@ use uSAC::Log;
 use Log::OK;
 use Object::Pad;
 
-use List::Insertion {prefix=> "time",     type=>"numeric", duplicate=>"left", accessor=>'->[uSAC::Scheduler::JOB_START()]'};
-use List::Insertion {prefix=> "priority", type=>"numeric", duplicate=>"left", accessor=>'->[uSAC::Scheduler::JOB_PRIORITY()]'};
+use List::Insertion {prefix=> "time",     type=>"numeric", duplicate=>"left", accessor=>'->[JOB_START()]'};
+use List::Insertion {prefix=> "priority", type=>"numeric", duplicate=>"left", accessor=>'->[JOB_PRIORITY()]'};
 
 # Manages a schedualed list of jobs. Jobs are sorted by start time in the schedual
 # Once the current time is triggers a job, it is added to the immediate queue, which is sorted by priority
@@ -29,6 +29,7 @@ JOB_RESULT
 
 JOB_START
 JOB_INTERVAL
+JOB_DELAY
 JOB_EXPIRY
 
 JOB_ARGUMENT
@@ -38,6 +39,9 @@ JOB_RETRY
 JOB_DEPS
 JOB_INFORM
 JOB_PROCESS
+JOB_CB
+JOB_STATUS
+JOB_ATTEMPT
 >;
 
 my %keys=(
@@ -47,9 +51,12 @@ my %keys=(
   priority    =>      JOB_PRIORITY,
   name        =>      JOB_NAME,
   state       =>      JOB_STATE,
-  result      =>      JOB_RESULT,
+  on_result   =>      JOB_RESULT, # Can be a callback to stream the results as the come
+  on_complete =>      JOB_CB,     # Called when the job is complete
+  on_status   =>      JOB_STATUS, # Status if a worker is used
   start       =>      JOB_START,
   interval    =>      JOB_INTERVAL,
+  delay       =>      JOB_DELAY,
   expiry      =>      JOB_EXPIRY,
   argument    =>      JOB_ARGUMENT,
   work        =>      JOB_WORK,
@@ -97,8 +104,11 @@ field $_schedualed
 # Sorted by priority
 field $_immediate;
 
-# The worker pool
-field $_pool;
+# Failed jobs
+field $_failed;
+
+# back off
+field $_backoff;
 
 # How many active jobs can be run concurrently
 field $_max_concurrency;
@@ -193,75 +203,94 @@ BUILD {
       $_current_concurrency++;
       # Command always fork a new process, save stdout as results
       $job->[JOB_STATE]=JOB_STATE_ACTIVE;
+
       my $cb=sub {
 
+        my $details=shift;
+        #use Data::Dumper;
+        #Log::OK::TRACE and log_trace "---RETURN DETAILS: ".Dumper $details;
         $_current_concurrency--;
-        $job->[JOB_RESULT]=$_[0][2];
-        print STDOUT "RESULT IS: $job->[JOB_RESULT] \n";
 
-        # If the job is perioding, recalculate start and reinsert
-        if($job->[JOB_TYPE]==JOB_TYPE_PERIODIC()){
-          Log::OK::TRACE and log_trace "--PERIODIC job.. should we re schedual?";
-          $job->[JOB_START]+=$job->[JOB_INTERVAL];
-          $job->[JOB_START]=time if $job->[JOB_START] < time;
+        # Check the result code 
+        if($details->[0] != 0){
+          # Non zero return from process.. so assumed failure
+          #
+          $job->[JOB_STATE]=JOB_STATE_FAILED;
 
-
-          # Check for expriy, to see if we actuall reinsert
-          if($job->[JOB_EXPIRY]==0 or $job->[JOB_START] < $job->[JOB_EXPIRY]){
-            Log::OK::TRACE and log_trace "--PERIODIC job.. re added";
-            $self->schedual_job($job);
-          }
-          else {
-            Log::OK::TRACE and log_trace "--PERIODIC job.. done";
-            $job->[JOB_STATE]=JOB_STATE_COMPLETE;
+          # If we are allowed to retry...reschedual
+          if($job->[JOB_RETRY]){
+            # Re calculate start time if reties still available
+            my $back_off=(3600*24*2)**(1/$job->[JOB_RETRY]);#10;#$self->backoff_time();
+            $job->[JOB_START]=time+$back_off;
+            $job->[JOB_RETRY]--;
+            $self->_schedual($job);
 
           }
         }
         else {
+          # Zero return from process.. so assumed success
+          #
 
-          $job->[JOB_STATE]=JOB_STATE_COMPLETE;
-        }
 
 
-        # Job has results or otherwise failed, now look at informed jobs to potentially add them
-        if($job->[JOB_STATE]==JOB_STATE_COMPLETE){
-          for($job->[JOB_INFORM]->@*){
-            Log::OK::TRACE and log_trace "------INFORMING  key $_";
-            my $j=$_jobs->{$_};
 
-            use Data::Dumper;
-            Log::OK::TRACE and log_trace "------job is ".Dumper $j;
-            if($j->[JOB_STATE]==JOB_STATE_SCHEDUALED){
-              my $ready=1;
+          # SET result if this was an accumulated raw output (ie from backticK)
+          $job->[JOB_RESULT]=$details->[2] if $details->[2];
 
-              for ($j->[JOB_DEPS]->@*){
-                my $jj=$_jobs->{$_};
-                Log::OK::TRACE and log_trace "------INFORMING $jj";
-                $ready&&=($jj->[JOB_STATE]==JOB_STATE_COMPLETE);
+          #print STDOUT "RESULT IS: $job->[JOB_RESULT] \n";
+          $job->[JOB_CB] and asap sub {$job->[JOB_CB]->($job->[JOB_RESULT])};
+
+          # If the job is perioding, recalculate start and reinsert
+          if($job->[JOB_TYPE]==JOB_TYPE_PERIODIC()){
+            Log::OK::TRACE and log_trace "--PERIODIC job.. should we re schedual?";
+            $job->[JOB_START]+=$job->[JOB_INTERVAL];
+            $job->[JOB_START]=time if $job->[JOB_START] < time;
+
+
+            # Check for expriy, to see if we actuall reinsert
+            if($job->[JOB_EXPIRY]==0 or $job->[JOB_START] < $job->[JOB_EXPIRY]){
+              Log::OK::TRACE and log_trace "--PERIODIC job.. re added";
+              $self->schedual_job($job);
+            }
+            else {
+              Log::OK::TRACE and log_trace "--PERIODIC job.. done";
+              $job->[JOB_STATE]=JOB_STATE_COMPLETE;
+
+            }
+          }
+          else {
+
+            $job->[JOB_STATE]=JOB_STATE_COMPLETE;
+          }
+
+
+          # Job has results or otherwise failed, now look at informed jobs to potentially add them
+          if($job->[JOB_STATE]==JOB_STATE_COMPLETE){
+            for($job->[JOB_INFORM]->@*){
+              Log::OK::TRACE and log_trace "------INFORMING  key $_";
+              my $j=$_jobs->{$_};
+
+              use Data::Dumper;
+              Log::OK::TRACE and log_trace "------job is ".Dumper $j;
+              if($j->[JOB_STATE]==JOB_STATE_SCHEDUALED){
+                my $ready=1;
+
+                for ($j->[JOB_DEPS]->@*){
+                  my $jj=$_jobs->{$_};
+                  Log::OK::TRACE and log_trace "------INFORMING $jj";
+                  $ready&&=($jj->[JOB_STATE]==JOB_STATE_COMPLETE);
+                }
+
+                if($ready){
+                  # Acutaly add to the time based schedual
+                  Log::OK::TRACE and log_trace "------ADDING NEW JOB";
+
+                  # Ensure a sane start time
+                  $j->[JOB_START]=time if $j->[JOB_START] < time;
+                  $self->_schedual($j);
+                }
+
               }
-
-              if($ready){
-                # Acutaly add to the time based schedual
-                Log::OK::TRACE and log_trace "------ADDING NEW JOB";
-
-                # Ensure a sane start time
-                $j->[JOB_START]=time if $j->[JOB_START] < time;
-                my $i;
-                if(@$_schedualed){
-                  $i=time_numeric_left($j, $_schedualed);
-                  splice @$_schedualed, $i, 0, $j; 
-                }
-                else {
-                  push @$_schedualed, $j;
-                  $i=0;
-                }
-                Log::OK::TRACE and log_trace "found index at $i";
-                if($i == @$_schedualed-1){
-                  # added to the end, so recalculate timer
-                  $self->_recalculate_timer;
-                }
-              }
-
             }
           }
         }
@@ -273,10 +302,25 @@ BUILD {
 
       };
       if(ref $job->[JOB_WORK]){
-        my $w=uSAC::Worker->new(work=> $job->[JOB_WORK], on_complete=>$cb);
+        my $w=uSAC::Worker->new(work=> $job->[JOB_WORK], on_complete=>$cb, on_status=>$job->[JOB_STATUS], on_result=>sub { 
+            if(ref($job->[JOB_RESULT])){
+              # If a code ref... forward
+              my $v=$_[0];
+              asap sub {$job->[JOB_RESULT]->($v)}, 
+            }
+            else {
+              # otherwise append
+              asay $STDERR, "----append";
+              $job->[JOB_RESULT].=$_[0]
+            }
+          });
+        # Save the worker in job entry
+        $job->[JOB_PROCESS]=$w;
       }
       else {
         my $pid=backtick $job->[JOB_WORK], $cb;
+        # Not a woker, but we save the PID
+        $job->[JOB_PROCESS]=$pid;
       }
 
     }
@@ -320,16 +364,39 @@ method create_job{
   $job[JOB_INTERVAL]//=0;
   $job[JOB_START]//=time;
   $job[JOB_RETRY]//=5;
-  $job[JOB_RESULT]=undef;
   #$job[JOB_EXPIRY]=0;
   $job[JOB_PRIORITY]//=0;
   $job[JOB_DEPS]//=[];
   $job[JOB_STATE]//=JOB_STATE_UNSCHEDUALED;
-
-
-
+  $job[JOB_RESULT]//="";
 
   \@job;
+}
+
+method _schedual {
+  my $job=shift;
+  my $i=-1;
+  if($_schedualed->@* == 0) {
+    push @$_schedualed, $job;
+    $i=0;
+  }
+  else {
+      # Now insert using priority into immediate 
+      if(@$_schedualed){
+        $i=time_numeric_left($job, $_schedualed);
+        splice @$_schedualed, $i, 0, $job; 
+      }
+      else {
+        push @$_schedualed, $job;
+      }
+      #$job->[JOB_STATE]=JOB_STATE_SCHEDUALED;
+  }
+
+  if($i == @$_schedualed-1){
+    # added to the end, so recalculate timer
+    $self->_recalculate_timer;
+  }
+
 }
 
 # Set the 
@@ -373,28 +440,7 @@ method schedual_job {
   return $job->[JOB_ID] if $job->[JOB_DEPS]->@*;
 
 
-  my $i=-1;
-  if($_schedualed->@* == 0) {
-    push @$_schedualed, $job;
-    $i=0;
-  }
-  else {
-      # Now insert using priority into immediate 
-      if(@$_schedualed){
-        $i=time_numeric_left($job, $_schedualed);
-        splice @$_schedualed, $i, 0, $job; 
-      }
-      else {
-        push @$_schedualed, $job;
-      }
-      #$job->[JOB_STATE]=JOB_STATE_SCHEDUALED;
-  }
-
-  if($i == @$_schedualed-1){
-    # added to the end, so recalculate timer
-    $self->_recalculate_timer;
-  }
-
+  $self->_schedual($job);
 
   #Return the JOB ID
   $job->[JOB_ID];
@@ -402,10 +448,9 @@ method schedual_job {
 
 method cancel_job {
   my $id=shift;
-  my $job=delete $_jobs->{$id};
+  my $job=$_jobs->{$id};
 
   return undef unless defined $job;
-
 
   for($job->[JOB_STATE]){
     if($_ == JOB_STATE_SCHEDUALED){
@@ -435,13 +480,54 @@ method cancel_job {
       }
     }
     elsif($_ ==JOB_STATE_COMPLETE){
-      # DO nothing.. aleady removed from hash
+      #TODO: remove job after timer value
+      delete $_jobs->{$id};
     }
     elsif($_ == JOB_STATE_ACTIVE){
       #sub_process_cancel
+      my $p=$job->[JOB_PROCESS];
+      if(ref $p){
+        # A worker
+        $p->close;
+      }
+      else {
+        # Not a worker,
+        sub_process_cancel $p;
+      }
+      $job->[JOB_STATE]=JOB_STATE_FAILED;
+      #push @$_failed, $job;
     }
   }
 
+}
+
+
+# Remove the job and any informed jobs.
+# Only removes complete or failed jobs at the top level
+method remove_job {
+  my $id=shift;
+  my $job=$_jobs->{$id};
+  last unless defined $job;
+
+  # We only allow removal of 'ended' jobs at the top level
+  last unless $job->[JOB_STATE]==JOB_STATE_COMPLETE;
+  last unless $job->[JOB_STATE]==JOB_STATE_FAILED;
+
+  # All informed jobs are not in the scheduled list due to the complete/failed
+  # requirement
+  my @removed;
+  my @stack;
+  push @stack,$id;
+  while(@stack){
+    my $id=pop @stack;
+    push @removed, $id;
+    my $job=$_jobs->{$id};
+
+    $job=delete $_jobs->{$id};
+    push @stack, $job->[JOB_INFORM]->@*;
+  }
+
+  @removed;
 }
 
 
@@ -453,6 +539,7 @@ method status_job {
     return $job->[JOB_STATE];
   }
 }
+
 
 
 

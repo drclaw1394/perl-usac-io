@@ -19,9 +19,11 @@ use feature "try";
 no warnings "experimental";
 
 field $_rpc         :param = undef;
-field $_on_complete :param = undef;
-field $_work        :param = undef;
-field $_args        :param = undef;
+field $_on_complete :param = undef;   # Callback expecting a single argument as [$status, pid]; 
+field $_on_result   :param = undef;   # Callback for payload updates
+field $_on_status   :param = undef;   # Callback for status updates
+field $_work        :param = undef;   # Work to do (a sub ref or cmd string)
+field $_args        :param = undef;   # Args to pass to the sub ref
 field $_wid         :reader;          #The backend process id
 field $_io;
 field $_broker      :param = undef;
@@ -68,7 +70,7 @@ method _sub_process {
 
     DEBUG and asay  $STDERR, "++++++DOING CHILD SETUP for wid $_wid+++";
     $self->_child_setup;
-    $_work and &$_work;
+    $_work and $_work->($self);
   };
 
   DEBUG and asay $STDERR, "---Just before sub_process IO call";
@@ -371,11 +373,21 @@ method _parent_setup {
   #
   $r=[
     undef, "^worker/$_wid/status/(\\d+)\$", sub {
-  #$broker->listen(undef, ".*", sub {
-      # Trigger the reporting of worker status
-      #
-      #asay $STDERR, "STATUS FROM WORKER is: ".Dumper @_;
+      # Strip all but the payload
+      $_on_status and $_on_status->($_[0][1][0][2]);
 
+    }
+  ];
+
+  $_broker->listen(@$r);
+  push @$_register, $r;
+
+  # Now register for messages from worker
+  #
+  $r=[
+    undef, "^worker/$_wid/results/(\\d+)\$", sub {
+      # Strip all but the payload
+      $_on_result and $_on_result->($_[0][1][0][2]);
     }
   ];
 
@@ -393,6 +405,21 @@ method _parent_setup {
 }
 
 
-
+method report {
+    use feature 'state';
+    state $i=0;
+    return unless $_[0];
+    #DEBUG and asay $STDERR, "TIMER IN CHILD WORKER-----";
+    $_broker->broadcast(undef, "worker/$_wid/results/$i", $_[0]);
+    $i++;
+}
+method status {
+    use feature 'state';
+    state $i=0;
+    return unless $_[0];
+    #DEBUG and asay $STDERR, "TIMER IN CHILD WORKER-----";
+    $_broker->broadcast(undef, "worker/$_wid/status/$i", $_[0]);
+    $i++;
+}
 
 1;
