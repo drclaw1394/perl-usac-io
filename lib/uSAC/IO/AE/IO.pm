@@ -273,7 +273,13 @@ sub _post_loop {
 
 sub _post_fork {
 
+
   #print STDERR "POST FORK $$ ====\n";
+
+  if(%uSAC::REPL::){
+    uSAC::REPL::pause();
+  }
+
   cancel $tick_timer_raw;
   $tick_timer_raw=undef;
   $asap_timer=undef;
