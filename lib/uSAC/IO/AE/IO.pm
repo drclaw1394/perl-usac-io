@@ -276,9 +276,11 @@ sub _post_fork {
 
   #print STDERR "POST FORK $$ ====\n";
 
-  if(%uSAC::REPL::){
-    uSAC::REPL::pause();
-  }
+  ##########################
+  # if(%uSAC::REPL::){     #
+  #   uSAC::REPL::pause(); #
+  # }                      #
+  ##########################
 
   cancel $tick_timer_raw;
   $tick_timer_raw=undef;
@@ -299,11 +301,11 @@ sub _post_fork {
 
 sub _exception{
   my $e=shift;
-  uSAC::IO::asay($STDERR, "IN ASAP EXCEPTION HANDLER $e");
         use Error::Show;
         if($e=~/(\d+) RETURN/){
           ## NOTE SPECIAL EXCEPTION TO HANDLE CHILD FORK
           _post_fork();
+          uSAC::IO::asay($STDERR, "IN ASAP EXCEPTION HANDLER $e");
           uSAC::Main::_do_it();
         }
         else {
