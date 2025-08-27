@@ -20,7 +20,7 @@ WriteMakefile(
       "Error::Show"   =>0,
       "Data::Dump::Color"=>0,
       "Sub::Middler"  =>v0.4.0,
-      "Data::FastPack"=>v0.2.2,
+      "Data::FastPack"=>v0.3.0,
       "List::Insertion"=>v0.2.1,
 
     }, 
