@@ -20,7 +20,7 @@ uSAC::IO::getaddrinfo("google.com",80, {}, sub {
     #asay $STDERR, Dumper @_[0];
     uSAC::IO::getnameinfo($_[0]{addr}, NI_NUMERICHOST|NI_NUMERICSERV, sub {
         asay $STDERR, "GNI RETURN--------";
-        #asay $STDERR, Dumper @_;
+        asay $STDERR, Dumper @_;
         #timer 1,0, $do_it;
         asap $do_it;
       });
@@ -30,8 +30,8 @@ uSAC::IO::getaddrinfo("google.com",80, {}, sub {
   }
 );
 };
-#$do_it->();
-#$do_it->();
-#$do_it->();
+$do_it->();
+$do_it->();
+$do_it->();
 $do_it->();
 1;
