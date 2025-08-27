@@ -3,7 +3,7 @@ use uSAC::IO;
 
 use Sub::Middler;
 
-uSAC::IO::_backtick "ls -al", linker 
+uSAC::IO::backtick "ls -al", linker 
 #\sub { say $_[0]->@*}=>
   &uSAC::IO::_lines => 
   &uSAC::IO::_upper => 

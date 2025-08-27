@@ -299,7 +299,7 @@ sub _post_fork {
 
 sub _exception{
   my $e=shift;
-  #uSAC::IO::asay($STDERR, "IN ASAP EXCEPTION HANDLER $e");
+  uSAC::IO::asay($STDERR, "IN ASAP EXCEPTION HANDLER $e");
         use Error::Show;
         if($e=~/(\d+) RETURN/){
           ## NOTE SPECIAL EXCEPTION TO HANDLE CHILD FORK
