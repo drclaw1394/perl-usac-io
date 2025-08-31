@@ -67,7 +67,10 @@ sub start {
         asap sub {
           try{
             package main;
+            local $@;
             $res=eval "sub { $line }";
+            die $@ if $@;
+
             asay $STDOUT, dump $res->();
           }
           catch($e){
@@ -85,6 +88,10 @@ sub start {
     );
   };
   asap $repl;
+}
+
+sub stop {
+  $repl_worker->close;
 }
 
 1
