@@ -78,6 +78,7 @@ method _sub_process {
   $_wid=$_io->[3]; #NOte this is only in parent
   DEBUG and asay $STDERR, "____CALLING SUB_PROCESS IN WORKER .. new id $_wid";
   DEBUG and asay $STDERR, "======asdfasdfasdfasdfasdfasdf $_wid";
+  DEBUG and asay $STDERR, "======asdfasdfasdfasdfasdfasdf @$_io";
   if(@$_io){
     #Do parent stuff here
     $self->_parent_setup;
@@ -216,7 +217,7 @@ method _child_setup {
   #$_broker->listen(undef, "^worker/$_wid/rpc/(\\w+)/(\\d+)", sub {
   $_broker->listen(undef, "^worker/$_wid/rpc/(\\w+)", sub {
       # call a procedure
-      DEBUG and asay $STDERR, "child rpc called";
+      #DEBUG and asay $STDERR, "child rpc called";
       my $sender=shift $_[0]->@*;
       for my ($msg, $cap)($_[0][0]->@*){
         my $name= $cap->[0];
@@ -383,7 +384,7 @@ method _parent_setup {
   push @$_register, $r;
 
 
-  $_io->[2]->pipe_to($STDERR);
+  #$_io->[2]->pipe_to($STDERR);
 
 
   

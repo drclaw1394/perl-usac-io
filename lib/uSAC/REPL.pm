@@ -10,18 +10,25 @@ use Data::FastPack::Meta;
 my $repl_worker;
 sub start {
   return if $repl_worker;
+  $STDERR->write(["Starting REPL ".time."\n"], sub {});
+
   # Duplicate standard IO, BEFORE forking so we can interact directly with
   # terminal
+  #
+
   my $new_in=IO::FD::dup(0);
   my $new_out=IO::FD::dup(1);
   my $new_err=IO::FD::dup(2);
 
+  # Flush
+  $STDOUT->write([""], sub {});
+  $STDERR->write([""], sub {});
   #my $write=writer $new_err;
 
   # Create a worker, wthe work paramenter is the setup
   # The rpc object is adds the method
   #
-  my $repl_worker=uSAC::Worker->new(
+  $repl_worker=uSAC::Worker->new(
     work=>sub{
       package uSAC::REPL;
       require Term::ReadLine;
@@ -39,7 +46,7 @@ sub start {
         my $prompt=decode_meta_payload $_[0], 1;
         $prompt=$prompt->{prompt};
 
-        #uSAC::IO::asay $write, "CALLED readline with $prompt"; 
+        uSAC::IO::asay $STDERR, "CALLED readline with $prompt"; 
         my $line;
         if( defined ($line = $TERM->readline($prompt)) ) {
           $TERM->addhistory($line) if /\S/;
@@ -50,16 +57,18 @@ sub start {
     },
 
     on_complete=> sub{
+      asay $STDERR, "WORKER COMPLETE------------sdasdfasdf";
       $repl_worker=undef;
     }
   );
 
   my $prompt=encode_meta_payload({prompt=>"--->"},1);
-
   my $repl;
   $repl=sub {
+    asay $STDERR, "SUB REF TO START REPL";
     $repl_worker->rpc("readline", $prompt,
       sub {
+    asay $STDERR, "REPL callback";
         my $line=decode_meta_payload $_[0], 1;
         $line=$line->{line};
 
@@ -91,7 +100,9 @@ sub start {
 }
 
 sub stop {
+  asay $STDERR, "Stopping REPL";
   $repl_worker->close;
 }
 
-1
+1;
+

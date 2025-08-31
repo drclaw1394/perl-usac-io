@@ -4,7 +4,6 @@ use v5.36;
 use uSAC::REPL;
 
 signal "INT" , sub {
-  asay $STDERR, "Stopping REPL";
   uSAC::REPL::stop;
 };
 uSAC::REPL::start;

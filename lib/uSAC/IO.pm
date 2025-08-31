@@ -895,7 +895,7 @@ our %procs;
 # Creates pipes for communicating to child processes
 sub sub_process ($;$$$$){
   my ($cmd, $on_complete, $on_fork)=@_;
-  asay $STDERR, 'TOP OF sub_Pocess : '. $cmd;
+  #asay $STDERR, 'TOP OF sub_Pocess : '. $cmd;
 
   my @pipes;
   # Create pipes?
