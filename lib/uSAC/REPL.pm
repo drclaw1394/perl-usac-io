@@ -46,7 +46,7 @@ sub start {
         my $prompt=decode_meta_payload $_[0], 1;
         $prompt=$prompt->{prompt};
 
-        uSAC::IO::asay $STDERR, "CALLED readline with $prompt"; 
+        #uSAC::IO::asay $STDERR, "CALLED readline with $prompt"; 
         my $line;
         if( defined ($line = $TERM->readline($prompt)) ) {
           $TERM->addhistory($line) if /\S/;
@@ -65,10 +65,10 @@ sub start {
   my $prompt=encode_meta_payload({prompt=>"--->"},1);
   my $repl;
   $repl=sub {
-    asay $STDERR, "SUB REF TO START REPL";
+    #asay $STDERR, "SUB REF TO START REPL";
     $repl_worker->rpc("readline", $prompt,
       sub {
-    asay $STDERR, "REPL callback";
+        #asay $STDERR, "REPL callback";
         my $line=decode_meta_payload $_[0], 1;
         $line=$line->{line};
 
