@@ -5,7 +5,7 @@ use uSAC::IO;
 use uSAC::Log;
 use Log::OK;
 use Data::Dumper;
-use constant::more DEBUG=>1;
+use constant::more DEBUG=>0;
 use Object::Pad;
 
 use feature "try";
@@ -39,7 +39,7 @@ field $_queue;
 
 BUILD {
   #DEBUG and 
-  asay $STDERR , "--CALLING CREATE WORKER----";
+  #asay $STDERR , "--CALLING CREATE WORKER----";
   $_seq=0;
   $_call_count=0;
   $_active={};
@@ -172,7 +172,7 @@ method _clean_up {
 
 # Setup child bridge to parent
 method _child_setup {
-  asay $STDERR, "-- IN CHILD SETUP";
+  #asay $STDERR, "-- IN CHILD SETUP";
   # remove existing registrations
   $self->_clean_up;
   DEBUG and Log::OK::TRACE and log_trace "Configuring worker (rpc) interface in child"; 
@@ -224,8 +224,8 @@ method _child_setup {
         my $sub= $_rpc->{$name};
 
         my ($seq, $payload)=unpack "La*", $msg->[FP_MSG_PAYLOAD];
-        asay $STDERR, $seq;
-        asay $STDERR, $payload;
+        #asay $STDERR, $seq;
+        #asay $STDERR, $payload;
         if($sub){
           try {
             # Sequence is encoded as first 4 bytes
@@ -333,8 +333,7 @@ method _parent_setup {
   $r=[
     #undef, "^worker/$_wid/rpc-return/(\\w+)/(\\d+)\$", sub {
     undef, "^worker/$_wid/rpc-return/(\\w+)\$", sub {
-      #DEBUG and 
-      asay $STDERR, "$$ RPC RETURN in server----- ". Dumper @_;
+      #DEBUG and asay $STDERR, "$$ RPC RETURN in server----- ". Dumper @_;
       shift $_[0]->@*;
       for my ($msg, $cap)($_[0][0]->@*){
         my $name=$cap->[0];

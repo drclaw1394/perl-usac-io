@@ -54,6 +54,9 @@ method on_error {
 method on_eof {
 }
 
+method on_can_read {
+}
+
 method time {
 }
 

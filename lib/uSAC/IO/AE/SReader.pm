@@ -28,6 +28,7 @@ field $_clock :param = undef;
 field $_fh;
 field $_buffer;#	:mutator;
 field $_id;
+field $_on_can_read :param = undef;
 
 		
 
@@ -45,12 +46,26 @@ method start :override ($fh=undef) {
     $_buffer=[""];
 
     $_reader=undef;
-    $_reader=$self->_make_reader;
+    if($_on_can_read){
+      # only report the descripter is readable
+      $_reader=$self->_make_can_read;
+    }
+    else {
+
+      $_reader=$self->_make_reader;
+    }
     $_rw= AE::io $fh, 0, $_reader;
   }
   else{
     # Reuse existing reader
-    $_reader//=$self->_make_reader;
+    unless($_reader){
+      if($_on_can_read){
+        $_reader=$self->_make_can_read;
+      }
+      else{
+        $_reader=$self->_make_reader;
+      }
+    }
     $_rw= AE::io $self->fh, 0, $_reader;
   }
 
@@ -59,6 +74,18 @@ method start :override ($fh=undef) {
   $uSAC::IO::AE::IO::watchers{$_id}=$_rw;
 
 	$self;
+}
+
+method _make_can_read {
+    sub {
+      use feature "try";
+      try {
+        $_on_can_read and $_on_can_read->();
+      }
+      catch($e){
+        uSAC::IO::AE::IO::_exception($e);
+      }
+    }
 }
 
 method _make_reader  :override {
@@ -134,6 +161,10 @@ method on_error :lvalue :override{
 
 method on_eof :lvalue :override {
   $_on_eof;
+}
+
+method on_can_read :lvalue :override{
+  $_on_can_read;
 }
 
 method time :lvalue :override {

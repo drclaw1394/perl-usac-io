@@ -10,7 +10,7 @@ our $VERSION="v0.1.0";
 
 use Data::FastPack::Meta;
 use Data::Combination;
-use constant::more DEBUG=>1;
+use constant::more DEBUG=>0;
 
 #Datagram
 use constant::more qw<r_CIPO=0 w_CIPO r_COPI w_COPI r_CEPI w_CEPI>;
@@ -1260,7 +1260,8 @@ sub _make_pool {
 
         }
         $return_out=encode_meta_payload {host=>$host, port=>$port}, 1;
-      }
+      },
+
     };
     $uSAC::Main::POOL=uSAC::Pool->new(rpc=>$rpc);
   }

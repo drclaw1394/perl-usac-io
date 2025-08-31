@@ -1,59 +1,90 @@
 package uSAC::REPL;
 
-# read input and execute
-use feature ":all";
-use uSAC::IO;
-use Data::Dump::Color qw(dump);
+use feature "try";
 use Error::Show;
-no warnings "experimental";
+use uSAC::Worker;
+use IO::FD;
+use uSAC::IO;
+use Data::FastPack::Meta;
 
-my $reader;#= \$STDIN; #$uSAC::IO::STDIN; #uSAC::IO::reader fileno(STDIN); 
-my $line="";
-
+my $repl_worker;
 sub start {
-  return if $reader;
-  $reader= $STDIN; #$uSAC::IO::STDIN; #uSAC::IO::reader fileno(STDIN); 
+  return if $repl_worker;
+  # Duplicate standard IO, BEFORE forking so we can interact directly with
+  # terminal
+  my $new_in=IO::FD::dup(0);
+  my $new_out=IO::FD::dup(1);
+  my $new_err=IO::FD::dup(2);
 
-  $reader->on_read=sub {
-    #$reader->pause;
-    #$reader->on_read=undef;
-    # Consume input buffer
-    my $line=$_[0][0];
-    $_[0][0]="";
-    asap sub {
-      local $@="";
-      my $res;
-      {
-        #package main;
-        $res=eval "sub { $line }";
-      }
+  #my $write=writer $new_err;
 
-      if($@){
-        # handle syntax errors
-        asay $STDERR, "$$ ERROR in eval: $@";
-        asay $STDERR, Error::Show::context error=>$@, program=>$line;
-      }
-      else {
-        # Print results
-        asay $STDERR, dump $res->();
-      }
-      #$reader->start;
-    };
+  # Create a worker, wthe work paramenter is the setup
+  # The rpc object is adds the method
+  #
+  my $repl_worker=uSAC::Worker->new(
+    work=>sub{
+      package uSAC::REPL;
+      require Term::ReadLine;
+      open(our $stdin, "<&=$new_in") or die $!;
+      open(our $stdout, ">&=$new_out") or die $!;
 
+      # Create a term using our inputs and outputs
+      our $TERM = Term::ReadLine->new('uSAC REPL', $stdin, $stdout);
+    },
+
+    rpc=>{
+      readline=>sub {
+        package uSAC::REPL;
+
+        my $prompt=decode_meta_payload $_[0], 1;
+        $prompt=$prompt->{prompt};
+
+        #uSAC::IO::asay $write, "CALLED readline with $prompt"; 
+        my $line;
+        if( defined ($line = $TERM->readline($prompt)) ) {
+          $TERM->addhistory($line) if /\S/;
+        }
+
+        encode_meta_payload {line=>$line}, 1;
+      }
+    },
+
+    on_complete=> sub{
+      $repl_worker=undef;
+    }
+  );
+
+  my $prompt=encode_meta_payload({prompt=>"--->"},1);
+
+  my $repl;
+  $repl=sub {
+    $repl_worker->rpc("readline", $prompt,
+      sub {
+        my $line=decode_meta_payload $_[0], 1;
+        $line=$line->{line};
+
+        #asay $STDERR, $line;
+        asap sub {
+          try{
+            package main;
+            $res=eval "sub { $line }";
+            asay $STDOUT, dump $res->();
+          }
+          catch($e){
+            # handle syntax errors
+            asay $STDERR, "$$ ERROR in eval: $e";
+            asay $STDERR, Error::Show::context error=>$e, program=>$_line;
+          }
+          asap $repl;
+        }
+      },
+      sub {
+        asay $STDERR, "ERROR: $line";
+        asap $repl;
+      }
+    );
   };
-
-
-  #Start reader
-  $reader->start;
-
-  $started=1;
+  asap $repl;
 }
 
-sub pause{
-  return unless $reader;
-  $reader->pause;
-  $reader=undef;
-}
-
-1;
-
+1
