@@ -4,6 +4,8 @@ use feature "try";
 use Error::Show;
 use uSAC::Worker;
 use IO::FD;
+use Fcntl qw(F_GETFL F_SETFL O_NONBLOCK);
+
 use uSAC::IO;
 use Data::FastPack::Meta;
 
@@ -55,6 +57,9 @@ sub start {
   $repl_worker=uSAC::Worker->new(
     work=>sub{
       package uSAC::REPL;
+      #IO::FD::fcntl $new_in, F_SETFL, O_NONBLOCK;
+	IO::FD::fcntl $new_in, F_SETFL, 0;
+
       require Term::ReadLine;
       open(our $stdin, "<&=$new_in") or die $!;
       open(our $stdout, ">&=$new_out") or die $!;
@@ -71,13 +76,21 @@ sub start {
         my $prompt=decode_meta_payload $_[0], 1;
         $prompt=$prompt->{prompt};
 
+	my $return;
         #uSAC::IO::asay $STDERR, "CALLED readline with $prompt"; 
         my $line;
         if( defined ($line = $TERM->readline($prompt)) ) {
           $TERM->addhistory($line) if /\S/;
+	  #print $stdout "LINE from readline iis $line, with length ". length $line;
+	  #print $stdout "\n";
+          $return=encode_meta_payload {line=>$line}, 1;
         }
+	else {
+		#print $stdout "READLINE UNDEF\n";
+          $return=encode_meta_payload {line=>""}, 1;
+	}
 
-        encode_meta_payload {line=>$line}, 1;
+	$return;
       }
     },
 
