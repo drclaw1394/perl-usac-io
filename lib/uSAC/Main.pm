@@ -1,5 +1,18 @@
 # Wrapper around a main script to remove setup of event system code
 
+package LMain;
+# The LMain pacakge import the Log::ger log routnies. These are dynamicall
+# inserted by Log::ger so can not be accessed in the Log::ger package namesapce
+# This way the same log_* names can be used with minimal changes  and prevents
+# recursive calls
+#
+use Log::ger;
+use Log::ger::Output "Screen",use_color=>0;
+use Log::OK {
+  lvl=> "info",
+  opt=>"verbose"
+};
+
 package main;
 use uSAC::Util;
 use Time::HiRes qw<time>;
