@@ -256,6 +256,11 @@ method _make_reseter {
 
 }
 
+my $dummy=sub{};
+method flush :override {
+  $_writer->([""],$dummy);
+}
+
 ####################################
 # method _make_destroy {           #
 #         \my @queue=$self->queue; #

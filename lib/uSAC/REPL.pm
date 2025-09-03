@@ -8,17 +8,41 @@ use uSAC::IO;
 use Data::FastPack::Meta;
 
 my $repl_worker;
+my $repl;
+my $handler;
+
+my $perl_repl_handler=sub {
+          my $line=$_[0];
+          try{
+            package main;
+            local $@;
+            my $res=eval "sub { $line }";
+            die $@ if $@;
+
+            my @ret=$res->();
+
+            asay $STDOUT, dump @ret;
+          }
+          catch($e){
+            # handle syntax errors
+            asay $STDERR, "$$ ERROR in eval: $e";
+            asay $STDERR, Error::Show::context error=>$e, program=>$_line;
+          }
+          asap $repl;
+        };
+
 sub start {
   return if $repl_worker;
+  $handler=shift//$perl_repl_handler;
   $STDERR->write(["Starting REPL ".time."\n"], sub {});
 
   # Duplicate standard IO, BEFORE forking so we can interact directly with
   # terminal
   #
 
-  my $new_in=IO::FD::dup(0);
-  my $new_out=IO::FD::dup(1);
-  my $new_err=IO::FD::dup(2);
+  our $new_in=IO::FD::dup(0);
+  our $new_out=IO::FD::dup(1);
+  our $new_err=IO::FD::dup(2);
 
   # Flush
   $STDOUT->write([""], sub {});
@@ -40,7 +64,8 @@ sub start {
     },
 
     rpc=>{
-      readline=>sub {
+      readline=>
+      sub {
         package uSAC::REPL;
 
         my $prompt=decode_meta_payload $_[0], 1;
@@ -63,7 +88,6 @@ sub start {
   );
 
   my $prompt=encode_meta_payload({prompt=>"--->"},1);
-  my $repl;
   $repl=sub {
     #asay $STDERR, "SUB REF TO START REPL";
     $repl_worker->rpc("readline", $prompt,
@@ -72,23 +96,8 @@ sub start {
         my $line=decode_meta_payload $_[0], 1;
         $line=$line->{line};
 
-        #asay $STDERR, $line;
-        asap sub {
-          try{
-            package main;
-            local $@;
-            $res=eval "sub { $line }";
-            die $@ if $@;
-
-            asay $STDOUT, dump $res->();
-          }
-          catch($e){
-            # handle syntax errors
-            asay $STDERR, "$$ ERROR in eval: $e";
-            asay $STDERR, Error::Show::context error=>$e, program=>$_line;
-          }
-          asap $repl;
-        }
+        asap $handler, $line;
+        
       },
       sub {
         asay $STDERR, "ERROR: $line";
@@ -102,6 +111,9 @@ sub start {
 sub stop {
   asay $STDERR, "Stopping REPL";
   $repl_worker->close;
+  close $stdin;
+  close $stdout;
+  close $stderr;
 }
 
 1;

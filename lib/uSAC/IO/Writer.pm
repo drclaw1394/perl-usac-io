@@ -107,6 +107,9 @@ method queue {
 	\@_queue;
 }
 
+method flush {
+}
+
 method destroy {
   Log::OK::TRACE and log_trace "--------DESTROY  in Writer\n";
   #$_on_drain=undef;
