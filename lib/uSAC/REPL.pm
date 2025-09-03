@@ -56,9 +56,12 @@ sub start {
   #
   $repl_worker=uSAC::Worker->new(
     work=>sub{
+      use feature "bitwise";
       package uSAC::REPL;
-      #IO::FD::fcntl $new_in, F_SETFL, O_NONBLOCK;
-	IO::FD::fcntl $new_in, F_SETFL, 0;
+      my $flags=IO::FD::fcntl $new_in, F_GETFL, 0;
+      $flags &= ~O_NONBLOCK;
+      
+	    IO::FD::fcntl $new_in, F_SETFL, $flags;
 
       require Term::ReadLine;
       open(our $stdin, "<&=$new_in") or die $!;
@@ -96,6 +99,7 @@ sub start {
 
     on_complete=> sub{
       asay $STDERR, "WORKER COMPLETE------------sdasdfasdf";
+      $repl_worker=close;
       $repl_worker=undef;
     }
   );
@@ -103,6 +107,7 @@ sub start {
   my $prompt=encode_meta_payload({prompt=>"--->"},1);
   $repl=sub {
     #asay $STDERR, "SUB REF TO START REPL";
+    return unless $repl_worker;
     $repl_worker->rpc("readline", $prompt,
       sub {
         #asay $STDERR, "REPL callback";
@@ -123,10 +128,10 @@ sub start {
 
 sub stop {
   asay $STDERR, "Stopping REPL";
-  $repl_worker->close;
-  close $stdin;
-  close $stdout;
-  close $stderr;
+  $repl_worker->close if $repl_worker;
+  IO::FD::close $new_in;
+  IO::FD::close $new_out;
+  IO::FD::close $new_err;
 }
 
 1;
