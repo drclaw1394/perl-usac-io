@@ -980,7 +980,7 @@ sub sub_process ($;$$$$){
     # execution is stoped with a die call. This function never returns in the
     # client
     # 
-    asay $STDERR, "------CHILD COMMAND IS $cmd";
+    #asay $STDERR, "------CHILD COMMAND IS $cmd";
     if(defined $cmd and ! ref $cmd){
       exec $cmd or asay $STDERR, $! and exit;
       #TODO signal to parent the exec failed somehow??
@@ -1010,6 +1010,9 @@ sub sub_process_cancel($){
         else{
           DEBUG and asay $STDERR, "Sub process $pid already complete";
         }
+        $dc->{reader}->destroy;;
+        $dc->{error}->destroy;
+        $dc->{writer}->destroy;
 
         # close the fds!
         IO::FD::close $dc->{pipes}[w_CIPO];

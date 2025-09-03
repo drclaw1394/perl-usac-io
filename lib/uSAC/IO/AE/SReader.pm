@@ -146,6 +146,7 @@ method pause :override {
 method destroy :override {
   Log::OK::TRACE and log_trace "--------DESTROY  in AE::SReader\n";
   $self->SUPER::destroy();
+  delete $uSAC::IO::AE::IO::watchers{$_id};
   $_rw=undef;
   $_reader=undef;
 

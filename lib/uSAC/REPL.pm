@@ -98,11 +98,24 @@ sub start {
     },
 
     on_complete=> sub{
-      asay $STDERR, "WORKER COMPLETE------------sdasdfasdf";
+	    #asay $STDERR, "WORKER COMPLETE------------sdasdfasdf";
       $repl_worker=close;
       $repl_worker=undef;
     }
   );
+
+  #
+  #Stop the parent from having a watcher on the  input
+  #  $STDIN->pause;
+  #$STDOUT->pause;
+  #$STDERR->pause;
+
+  signal INT=>sub {
+	  #asay $STDERR, "REPL interrupt";
+	 	stop();
+	  $repl_worker->close;
+
+  };
 
   my $prompt=encode_meta_payload({prompt=>"--->"},1);
   $repl=sub {
@@ -127,7 +140,7 @@ sub start {
 }
 
 sub stop {
-  asay $STDERR, "Stopping REPL";
+  asay $STDERR, "---Stopping REPL---";
   $repl_worker->close if $repl_worker;
   IO::FD::close $new_in;
   IO::FD::close $new_out;
