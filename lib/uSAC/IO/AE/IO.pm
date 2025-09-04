@@ -145,6 +145,11 @@ sub child ($$){
   my $s;
   $watchers{$pid}=AE::child $pid, sub {
     delete $watchers{$_[0]};
+
+    # Actual error code in upper 8 bits of 16 bit return value
+    #
+    $_[1]=$_[1] >> 8;
+
     &$sub;
   }
 }

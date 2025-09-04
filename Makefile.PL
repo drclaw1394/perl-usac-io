@@ -22,6 +22,8 @@ WriteMakefile(
       "Sub::Middler"  =>v0.4.0,
       "Data::FastPack"=>v0.3.0,
       "List::Insertion"=>v0.2.1,
+      "Cpanel::JSON::XS"=>0,
+      "Data::MessagePack"=>0,
 
     }, 
 
