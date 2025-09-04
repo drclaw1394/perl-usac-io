@@ -159,7 +159,7 @@ BUILD {
     $_schedual_timer=undef;
     Log::OK::TRACE and log_trace "--timer sub top";
     # Take the first item from the schedualled list
-    my $job=pop @$_schedualed;
+    my $job=shift @$_schedualed;
     Log::OK::TRACE and log_trace " latest job is $job";
     if($job){
       
@@ -332,7 +332,7 @@ BUILD {
 method _recalculate_timer {
   Log::OK::TRACE and log_trace "Recalculating timer";
   # Recalcualte timer to trigger at the relative time to next job
-  my $next=$_schedualed->[-1];
+  my $next=$_schedualed->[0];
 
   Log::OK::TRACE and log_trace  "Next is $next"; 
   if($next){
@@ -392,8 +392,8 @@ method _schedual {
       #$job->[JOB_STATE]=JOB_STATE_SCHEDUALED;
   }
 
-  if($i == @$_schedualed-1){
-    # added to the end, so recalculate timer
+  if($i == 0){
+    # added to the start, so recalculate timer
     $self->_recalculate_timer;
   }
 
@@ -556,6 +556,14 @@ method pause {
   cancel_timer($_schedual_timer);
   $_run=0;
 }
+
+
+
+# Helper for reports
+
+
+
+
 
 1;
 

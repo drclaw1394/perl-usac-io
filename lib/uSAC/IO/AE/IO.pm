@@ -61,7 +61,6 @@ sub cancel ($){
 # Processing sub for asap code refs.
 
 my $asap_sub=sub {
-
   return unless @asap;
   # Call subs with supplied arguments.
   #
@@ -85,7 +84,7 @@ my $asap_sub=sub {
 
 # Schedule a code ref to execute asap on current event system.
 #
-sub asap (*@){
+sub asap ($;@){
     my ($c, @args)=@_;
     if($c){
       # only push if a sub is given. Otherwise we just use as a way to restart the asap timer
@@ -315,7 +314,16 @@ sub _exception{
         }
         else {
           # NORMAL Execiption handling
-          uSAC::IO::asay($STDERR, Error::Show::context $e);
+          #die $e;
+          use feature "isa";
+          if($e isa Exception::Class::Base){
+            my @frames=$e->trace->frames;
+            uSAC::IO::asay($STDERR, Error::Show::context error=>$e, frames=>\@frames);
+          }
+          else {
+            uSAC::IO::asay($STDERR, Error::Show::context $e);
+          }
+          #uSAC::IO::asay($STDERR, Error::Show::context undef);
         }
         return; 
 }

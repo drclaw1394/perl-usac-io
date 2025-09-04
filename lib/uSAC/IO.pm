@@ -71,7 +71,7 @@ our $Clock=time;
 
 # Must return 1
 # Takes a sub as first argument, remaining arguments are passed to sub
-sub asap(*@);   # Schedule sub as soon as async possible
+sub asap($;@);   # Schedule sub as soon as async possible
 
 # Must return an integer key for the timer.
 sub timer ($$$);  # Setup a timer
