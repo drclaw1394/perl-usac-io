@@ -79,28 +79,29 @@ use Error::Show;
 sub _setup_log {
   
   usac_listen(undef, "usac/log/fatal",   sub {
-      asay $STDERR, $$." ".$_[0][1][0][2];
+      asay $STDERR, "\033[1;31m$$ $_[0][1][0][2]\033[0m";
   },
   "exact"
 );
   usac_listen(undef, "usac/log/error",   sub {
-      asay $STDERR, $$." ".$_[0][1][0][2];
+      asay $STDERR, "\033[31m$$ $_[0][1][0][2]\033[0m";
   },
   "exact");
   usac_listen(undef, "usac/log/warn",   sub {
-      asay $STDERR, $$." ".$_[0][1][0][2];
+      asay $STDERR, "\033[33m$$ $_[0][1][0][2]\033[0m";
   },
   "exact");
   usac_listen(undef, "usac/log/info",   sub {
-      asay $STDERR, $$." ".$_[0][1][0][2];
+      asay $STDERR, "\033[32m$$ $_[0][1][0][2]\033[0m";
   },
   "exact");
   usac_listen(undef, "usac/log/debug",   sub {
-      asay $STDERR, $$." ".$_[0][1][0][2];
+      asay $STDERR, "\033[35m$$ $_[0][1][0][2]\033[0m";
   },
   "exact");
   usac_listen(undef, "usac/log/trace",   sub {
-      asay $STDERR, $$." ".$_[0][1][0][2];
+      #asay $STDERR, $$." ".$_[0][1][0][2];
+      asay $STDERR, "\033[36m$$ $_[0][1][0][2]\033[0m";
   },
   "exact");
 }

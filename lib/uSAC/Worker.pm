@@ -25,6 +25,7 @@ field $_on_status   :param = undef;   # Callback for status updates
 field $_work        :param = undef;   # Work to do (a sub ref or cmd string)
 field $_args        :param = undef;   # Args to pass to the sub ref
 field $_wid         :reader;          #The backend process id
+field $_name        :param = undef;   #Name of process
 field $_io;
 field $_broker      :param = undef;
 field $_bridge;
@@ -51,6 +52,7 @@ BUILD {
   $_rpc->{eval}=sub {
       eval shift;
   };
+  $_name//="uSAC::Worker";
 
   DEBUG and asay $STDERR, Dumper $_rpc;
   $self->_sub_process if defined $_work;
@@ -67,6 +69,7 @@ method _sub_process {
 
   my $__work=sub {
     $_wid=$$; # NOTE: needed for child to know its worker id
+    $0=$_name if $_name;
 
     DEBUG and asay  $STDERR, "++++++DOING CHILD SETUP for wid $_wid+++";
     $self->_child_setup;
