@@ -181,7 +181,7 @@ method _make_writer :override {
         # Existing entry has callback, so create a new entry
         push @$queue, [$_[0][0], 0, $cb];
       }
-      $_[0][0]=undef;
+      #$_[0][0]=undef;
       $cb=undef;
       $_recursion_counter=0;
       #Watcher or queue active to ensure its running.
@@ -203,7 +203,7 @@ method _make_writer :override {
       #DEBUG and Log::OK::TRACE and log_trace unpack "H*",$_[0][0] if $w<100;
       DEBUG and print STDERR "SWriter DID write all.. doing callback  length $w\n";
       #DEBUG and Log::OK::TRACE and log_trace "QUEUE length is: @queue";
-      $_[0][0]=undef;
+      #$_[0][0]=undef;
       $cb and &$cb;
       $cb=undef;
     }
@@ -232,7 +232,7 @@ method _make_writer :override {
       DEBUG and print STDERR "SWriter could not write all.. adding to queue\n";
       push @$queue,[$_[0][0], $w, $cb];
       $cb=undef;
-      $_[0][0]=undef;
+      #$_[0][0]=undef;
       $_ww = AE::io $_wfh, 1, $sub unless $_ww;
     }
     return ();
