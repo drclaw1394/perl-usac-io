@@ -166,7 +166,7 @@ sub _create_socket {
 # Also optionall can override the default on_spec callback stored (or not)
 # in the resulting spec
 #
-sub socket_stage($$){
+sub socket_stage($;$){
   my ($spec, $next)=@_;
   my @specs;
   if(!ref $spec){
@@ -1275,6 +1275,7 @@ sub _make_pool {
 
 sub getaddrinfo {
   my ($host, $port, $hints, $cb, $error)=@_;
+  print STDERR "-----called getaddrinfo\n";
   my $pool=_make_pool;
   #DEBUG and asay $STDERR, "===getaddinfo args ".Dumper $host,$port, $hints;
   my $h={

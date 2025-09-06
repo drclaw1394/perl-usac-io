@@ -31,6 +31,8 @@ my $a;
 my $hints;
 $hints={port=>$port, address=>$host, socktype=>SOCK_STREAM, protocol=>IPPROTO_TCP, flags=>0,
   data=>{
+    on_socket=>\&bind,
+
     on_error=>$err,
 
     on_bind=> sub {
@@ -66,7 +68,7 @@ $hints={port=>$port, address=>$host, socktype=>SOCK_STREAM, protocol=>IPPROTO_TC
 
 
 # Start off with the bind of the server
-uSAC::IO::socket_stage $hints, \&uSAC::IO::bind;
+uSAC::IO::socket_stage $hints;#, \&uSAC::IO::bind;
 
 
 # This sub is called when server socket is listening and accepting
@@ -74,6 +76,7 @@ uSAC::IO::socket_stage $hints, \&uSAC::IO::bind;
 sub do_connect {
   my (undef, $hints)=@_;
   asay $STDERR, "======$$ Made it to do_connect";
+  $STDERR->flush;
   uSAC::IO::socket_stage $hints, \&uSAC::IO::connect;
 
 }

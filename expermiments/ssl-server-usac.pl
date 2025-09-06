@@ -12,7 +12,7 @@ use uSAC::IO;
 
 my $trace=2;
 
-my ($port, $cert_pem, $key_pem)=@_;
+my ($port, $cert_pem, $key_pem)=@ARGV;
 
 $port//=8000;
 $cert_pem//="cert.pem";

@@ -9,7 +9,7 @@ use Net::SSLeay;
 
 my $trace=2;
 
-my ($port, $cert_pem, $key_pem)=@_;
+my ($port, $cert_pem, $key_pem)=@ARGV;
 
 $port//=8000;
 $cert_pem//="cert.pem";
@@ -26,8 +26,11 @@ Net::SSLeay::randomize();
 my $ctx = Net::SSLeay::CTX_new ();
 $ctx or die_now("CTX_new ($ctx): $!\n");
 Net::SSLeay::CTX_set_cipher_list($ctx,'ALL');
-Net::SSLeay::set_cert_and_key($ctx, $cert_pem, $key_pem) or die "key";
-
+say "Loading cert: $cert_pem, key: $key_pem";
+my $res=Net::SSLeay::set_cert_and_key($ctx, $cert_pem, $key_pem);
+say $!;
+$res=Net::SSLeay::get_error($ctx, $res);
+say $res;
 
 
 my %client_table;
