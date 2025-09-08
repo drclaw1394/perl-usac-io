@@ -38,6 +38,12 @@ $ctx or die_now("CTX_new ($ctx): $!\n");
 Net::SSLeay::CTX_set_cipher_list($ctx,'ALL');
 Net::SSLeay::set_cert_and_key($ctx, $cert_pem, $key_pem) or die "key";
 
+Net::SSLeay::CTX_set_tlsext_servername_callback($ctx, sub {
+    my $ssl = shift;
+    my $h = Net::SSLeay::get_servername($ssl);
+    asay $STDERR, "---SERVER NAME INDICATED is $h"
+    #Net::SSLeay::set_SSL_CTX($ssl, $hostnames{$h}->{ctx}) if exists $hostnames{$h};
+} );
 
 
 

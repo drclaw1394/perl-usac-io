@@ -120,11 +120,12 @@ method remove_rpc {
 
 # The c
 method close {
-  #asay $STDERR, "---CLOSING POOL----";
+  asay $STDERR, "---CLOSING POOL----";
   for(@$_workers){
       $_->close;
   }
   @$_workers=();
+  @$_available=();
 }
 
 

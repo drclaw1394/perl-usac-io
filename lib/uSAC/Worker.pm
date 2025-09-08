@@ -34,6 +34,7 @@ field $_active;
 field $_register;
 
 field $_call_max   :param = 5000;     # Max calls of a single process. a new process is created after this count
+field $_shrink      :param = undef;
 field $_call_count;
 
 field $_queue;
@@ -43,6 +44,7 @@ BUILD {
   #asay $STDERR , "--CALLING CREATE WORKER----";
   $_seq=0;
   $_call_count=0;
+  $_shrink//=1;
   $_active={};
   $_register=[];
   $_broker//=$uSAC::Main::Default_Broker;
@@ -147,7 +149,7 @@ method do_rpc {
 
 
 method close {
-  #asay $STDERR, "---CLOSING WORKER---";
+  asay $STDERR, "---CLOSING WORKER---";
   return unless $_wid;
   $_bridge->close;
 
@@ -349,6 +351,11 @@ method _parent_setup {
         #$_broker->broadcast(undef,"worker/$_wid/rpc/$name/$i", undef);
         if($_call_count >= $_call_max){
           DEBUG and asay $STDERR, "=======MAX CALL COUNT REACHED";
+          $self->_clean_up;
+          $self->close;
+        }
+        elsif(@$_queue == 0 and $_shrink){
+          DEBUG and asay $STDERR, "============Closing worker as queue is empty";
           $self->_clean_up;
           $self->close;
         }

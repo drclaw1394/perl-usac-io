@@ -55,6 +55,7 @@ sub start {
   # The rpc object is adds the method
   #
   $repl_worker=uSAC::Worker->new(
+    shrink=>0,
     work=>sub{
       use feature "bitwise";
       package uSAC::REPL;
