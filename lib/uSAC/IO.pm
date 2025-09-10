@@ -171,7 +171,7 @@ sub socket_stage($;$){
   my @specs;
   if(!ref $spec){
     # Assume string which needs parsing
-    push @specs, parse_passive_spec $spec;
+    push @specs, Socket::More::parse_passive_spec($spec);
   }
   elsif(ref($spec) eq "ARRAY") {
       # array of hash specs
@@ -341,7 +341,7 @@ sub connect ($$){
 	}
 	elsif($fam==AF_UNIX){
     DEBUG and asay $STDERR, "===connect AF UNIX";
-		$addr=pack_sockaddr_un $host;
+		$addr=Socket::More::pack_sockaddr_un($host);
 	  connect_addr($socket, $addr, $on_connect, $on_error);
 	}
 	else {
@@ -637,8 +637,8 @@ sub _prep_spec{
       if($fam == AF_UNIX){
         # Assume no lookup is needed for this
         my $suffix=$_->{socktype}==SOCK_STREAM?"_S":"_D";
-				$clone->{addr}=pack_sockaddr_un $_->{path}.$suffix;
-				my $path=unpack_sockaddr_un($clone->{addr});			
+				$clone->{addr}=Socket::More::pack_sockaddr_un($_->{path}.$suffix);
+				my $path=Socket::More::unpack_sockaddr_un($clone->{addr});			
 				$clone->{address}=$path;
 				$clone->{path}=$path;
 				$clone->{interface}=$interface->{name};
@@ -669,7 +669,7 @@ sub _prep_spec{
           my(undef, $ip, $scope, $flow_info)=unpack_sockaddr_in6($interface->{addr});
           Socket::More::Lookup::getnameinfo($interface->{addr}, my $host="", my $port="", NI_NUMERICHOST|NI_NUMERICSERV);
           $clone->{address}=$host;
-          $clone->{addr}=pack_sockaddr_in6($_->{port},$ip, $scope, $flow_info);
+          $clone->{addr}=Socket::More::pack_sockaddr_in6($_->{port},$ip, $scope, $flow_info);
           if($enable_group){
             require Socket::More::IPRanges;
             $clone->{group}=Socket::More::IPRanges::ipv6_group($clone->{address});
