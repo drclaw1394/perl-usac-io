@@ -19,6 +19,7 @@ use Time::HiRes qw<time>;
 use uSAC::IO;
 use Data::Dump::Color qw(dump);
 use Math::Trig;
+use Sub::Middler;
 
 
 package uSAC::Main;

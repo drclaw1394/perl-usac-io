@@ -1,6 +1,7 @@
 package uSAC::Worker;
 use Data::FastPack;
-use uSAC::FastPack::Broker;
+#use uSAC::FastPack::Broker;
+use uSAC::FastPack::Broker::Bridge::Streaming;
 use uSAC::IO;
 use uSAC::Log;
 use Log::OK;
@@ -186,7 +187,7 @@ method _child_setup {
   #
 
   $STDIN->pause;
-  $_bridge=uSAC::FastPack::Broker::Bridge->new(broker=>$_broker, reader=>$STDIN, writer=>$STDOUT, rfd=>0,  wfd=>1);
+  $_bridge=uSAC::FastPack::Broker::Bridge::Streaming->new(broker=>$_broker, reader=>$STDIN, writer=>$STDOUT, rfd=>0,  wfd=>1);
   $_broker->add_bridge($_bridge);
   $_broker->listen($_bridge->source_id,"^worker/$_wid/", $_bridge->forward_message_sub);
   #$_broker->listen(undef ,"^worker/$_wid/", $_bridge->forward_message_sub);
@@ -288,7 +289,7 @@ method _child_setup {
 # Setup parent bridge to child
 method _parent_setup {
   DEBUG and asay $STDERR, "PARENT SETUP "."@$_io";
-  $_bridge=uSAC::FastPack::Broker::Bridge->new(broker=>$_broker, reader=>$_io->[1], writer=>$_io->[0], rfd=>$_io->[1]->fh,  wfd=>$_io->[0]->fh);
+  $_bridge=uSAC::FastPack::Broker::Bridge::Streaming->new(broker=>$_broker, reader=>$_io->[1], writer=>$_io->[0], rfd=>$_io->[1]->fh,  wfd=>$_io->[0]->fh);
 
   my $forward_sub=$_bridge->forward_message_sub;
   $_broker->add_bridge($_bridge);
