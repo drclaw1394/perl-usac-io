@@ -18,7 +18,8 @@ my $perl_repl_handler=sub {
           try{
             package main;
             local $@;
-            my $res=eval "sub { $line }";
+            my $res=Error::Show::streval "sub { $line }";
+            #my $res=eval "sub { $line }";
             die $@ if $@;
 
             my @ret=$res->();
@@ -28,7 +29,7 @@ my $perl_repl_handler=sub {
           catch($e){
             # handle syntax errors
             asay $STDERR, "$$ ERROR in eval: $e";
-            asay $STDERR, Error::Show::context error=>$e, program=>$_line;
+            asay $STDERR, Error::Show::context $e;
           }
           asap $repl;
         };
@@ -57,6 +58,9 @@ sub start {
   $repl_worker=uSAC::Worker->new(
     shrink=>0,
     work=>sub{
+
+      # Need to make stdin blocking again for readline to work .. on linux anyway
+      #
       use feature "bitwise";
       package uSAC::REPL;
       my $flags=IO::FD::fcntl $new_in, F_GETFL, 0;
@@ -80,13 +84,13 @@ sub start {
         my $prompt=decode_meta_payload $_[0], 1;
         $prompt=$prompt->{prompt};
 
-	my $return;
+	      my $return;
         #uSAC::IO::asay $STDERR, "CALLED readline with $prompt"; 
         my $line;
         if( defined ($line = $TERM->readline($prompt)) ) {
           $TERM->addhistory($line) if /\S/;
-	  #print $stdout "LINE from readline iis $line, with length ". length $line;
-	  #print $stdout "\n";
+	        #print $stdout "LINE from readline iis $line, with length ". length $line;
+	        #print $stdout "\n";
           $return=encode_meta_payload {line=>$line}, 1;
         }
 	else {
@@ -114,7 +118,7 @@ sub start {
   signal INT=>sub {
 	  #asay $STDERR, "REPL interrupt";
 	 	stop();
-	  $repl_worker->close;
+    #$repl_worker->close;
 
   };
 

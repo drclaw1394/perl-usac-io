@@ -150,7 +150,7 @@ method do_rpc {
 
 
 method close {
-  asay $STDERR, "---CLOSING WORKER---";
+  #asay $STDERR, "---CLOSING WORKER---";
   return unless $_wid;
   $_bridge->close;
 
@@ -208,7 +208,7 @@ method _child_setup {
         my $sub=eval $payload;
         if($@){
           # Error.   
-          my $error=Error::Show::context error=>$@;
+          my $error=Error::Show::context $@;
           $_broker->broadcast(undef,"worker/$_wid/rpa-error/$name", pack "La*", $seq, $error);
         }
         else {
@@ -245,7 +245,7 @@ method _child_setup {
             $_broker->broadcast(undef, "worker/$_wid/rpc-return/$name", pack "La*", $seq, $res);
           }
           catch($e){
-            my $error=Error::Show::context error=>$e;
+            my $error=Error::Show::context $e;
             #$_broker->broadcast(undef,"worker/$_wid/rpc-error/$name/$seq", $error);
             asay $STDERR, "$$ RPC ERROR in child----- ". $e;
             $_broker->broadcast(undef,"worker/$_wid/rpc-error/$name", pack "La*", $seq, $error);

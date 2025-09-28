@@ -318,7 +318,7 @@ sub connect ($$){
 			$port,
       $hints,
       sub {
-        #DEBUG and asay $STDERR, "$$ LOOKUP callback ". Dumper  @_; 
+        DEBUG and asay $STDERR, "$$ LOOKUP callback ". Dumper (@_); 
         my @addresses=@_;
 
         unless(@addresses){
@@ -327,7 +327,7 @@ sub connect ($$){
         }
 
         $addr=$addresses[0]{addr};
-        #DEBUG and asay $STDERR, "$$ socket: $socket, addr ". Dumper $addr; 
+        DEBUG and asay $STDERR, "$$ socket: $socket, addr ". Dumper($addr); 
 	      connect_addr($socket, $addr, $on_connect, $on_error);
         DEBUG and asay $STDERR, time;
       },
@@ -1228,14 +1228,14 @@ sub _make_pool {
       },
       getaddrinfo=>sub {
 
-        #DEBUG and asay $STDERR, "$$ CALLED GETADDRINFO with @_". Dumper @_; 
+        DEBUG and asay $STDERR, "$$ CALLED GETADDRINFO with @_". Dumper (@_); 
         my $input=decode_meta_payload $_[0], 1;
-        #DEBUG and asay $STDERR, "$$ DECODED ". Dumper $input;
+        DEBUG and asay $STDERR, "$$ DECODED ". Dumper($input);
 
         my $return_out="";
         my @results;
 
-        #asay $STDERR, "$$ before getaddrinfo call";
+        asay $STDERR, "$$ before getaddrinfo call";
         my $rc;
         #use feature "try";
         #try {
@@ -1248,7 +1248,7 @@ sub _make_pool {
         unless (defined $rc){
 
         }
-        #DEBUG and asay $STDERR, "$$ Results ". Dumper \@results;
+        DEBUG and asay $STDERR, "$$ Results ". Dumper (\@results);
         $return_out=encode_meta_payload \@results, 1;
       },
 

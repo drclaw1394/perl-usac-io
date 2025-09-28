@@ -259,7 +259,7 @@ sub _main {
             if($res == undef and $@){
               # Compile error
               #print STDERR "COMPILE ERROR: $@";
-              asay $STDERR, Error::Show::context error=>$@;
+              asay $STDERR, Error::Show::context $@;
               exit;
             }
 
@@ -283,7 +283,6 @@ sub _main {
                 die $@;
                 # Compile error
                 #asay $STDERR, "RRERROR: $@";
-                #asay $STDERR, Error::Show::context error=>$@;
                 #exit;
               }
               elsif(!defined $res and $!){

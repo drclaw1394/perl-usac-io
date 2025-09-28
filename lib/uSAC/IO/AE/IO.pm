@@ -8,7 +8,7 @@ no warnings "experimental";
 
 #use Socket ":all";
 #use Socket::More;
-use Errno qw(EAGAIN EINTR EINPROGRESS);
+use Errno qw(EAGAIN EINTR EINPROGRESS EISCONN );
 #use parent "uSAC::IO";
 
 use AnyEvent;
@@ -36,6 +36,16 @@ sub _shutdown_loop {
 }
 
 sub _exit {
+  # Exit is called after raw timer, when no more watchers.  However if called
+  # manually we need to force cleanup so orphaned processare are not left
+  # 
+  # direct call
+  for(keys %watchers){
+    cancel($watchers{$_});
+  }
+  for(keys %uSAC::IO::procs){
+    uSAC::IO::sub_process_cancel($_);
+  }
   $uSAC::Main::exit_code=shift//0;
   $uSAC::Main::POOL->close if $uSAC::Main::POOL;
 
@@ -53,7 +63,6 @@ sub cancel ($){
   my $w=delete $watchers{$_[0]};
   $_[0]=undef; 
   #use Error::Show;
-  #uSAC::IO::asay Error::Show::context undef;
 }
 
 
@@ -173,10 +182,16 @@ sub connect_addr {
   #$id++;
   my $s;
   my $id=\$s;
-	my $res=IO::FD::connect IO::FD::DWIM::fileno($socket), $addr;
+  my $retry=0;
+	my $res;
+    $res=IO::FD::connect IO::FD::DWIM::fileno($socket), $addr;
+    $retry++;
+
   unless($res){
     #EAGAIN for pipes
-    if($! == EAGAIN or $! == EINPROGRESS){
+    #EINTR ... docs say to retry? but that doesn't work... 
+    # Here we wait until socket writable
+    if($! == EAGAIN or $! == EINPROGRESS or $! == EINTR){
       my $cw;$cw=AE::io $socket, 1, sub {
               #Need to check if the socket has
               my $sockaddr=IO::FD::getpeername $socket;
@@ -195,12 +210,15 @@ sub connect_addr {
     }
     else {
       # Syncrhonous fail. reshedual
+      uSAC::IO::asay $STDERR, "Synchronouse error at connect: $!";
       $on_error and asap $on_error, $socket, "$!";
     }
     return;
   }
-  # Syncrhonous connect. reshedual
-  asap $on_connect, $socket, $addr if $on_connect;
+  else {
+    # Syncrhonous connect. reshedual
+    asap $on_connect, $socket, $addr if $on_connect;
+  }
 
 	$id;
 }
@@ -314,16 +332,7 @@ sub _exception{
         }
         else {
           # NORMAL Execiption handling
-          #die $e;
-          use feature "isa";
-          if($e isa Exception::Class::Base){
-            my @frames=$e->trace->frames;
-            uSAC::IO::asay($STDERR, Error::Show::context error=>$e, frames=>\@frames);
-          }
-          else {
-            uSAC::IO::asay($STDERR, Error::Show::context $e);
-          }
-          #uSAC::IO::asay($STDERR, Error::Show::context undef);
+          uSAC::IO::asay($STDERR, Error::Show::context $e);
         }
         return; 
 }

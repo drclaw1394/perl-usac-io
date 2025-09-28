@@ -258,7 +258,7 @@ method _make_reseter {
 
 my $dummy=sub{};
 method flush :override {
-  $_writer->([""],$dummy);
+  $_writer->([""],$_[0]//$dummy);
 }
 
 ####################################
