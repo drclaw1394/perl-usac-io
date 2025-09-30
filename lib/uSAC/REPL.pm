@@ -9,6 +9,19 @@ use Fcntl qw(F_GETFL F_SETFL O_NONBLOCK);
 use uSAC::IO;
 use Data::FastPack::Meta;
 
+# Add additional packages to main
+package main;
+use List::Util qw(
+reduce any all none notall first reductions
+max maxstr min minstr product sum sum0
+pairs unpairs pairkeys pairvalues pairfirst pairgrep pairmap
+shuffle uniq uniqint uniqnum uniqstr head tail zip mesh
+);
+
+use DateTime;
+use Math::Complex;
+
+package uSAC::REPL;
 my $repl_worker;
 my $repl;
 my $handler;
@@ -18,13 +31,11 @@ my $perl_repl_handler=sub {
           try{
             package main;
             local $@;
-            my $res=Error::Show::streval "sub { $line }";
-            #my $res=eval "sub { $line }";
+            my $res=Error::Show::streval "sub { no strict \"subs\"; no strict \"vars\"; $line }";
             die $@ if $@;
-
             my @ret=$res->();
 
-            asay $STDOUT, dump @ret;
+            asay $STDOUT, @ret;
           }
           catch($e){
             # handle syntax errors
@@ -74,6 +85,9 @@ sub start {
 
       # Create a term using our inputs and outputs
       our $TERM = Term::ReadLine->new('uSAC REPL', $stdin, $stdout);
+
+
+
     },
 
     rpc=>{
