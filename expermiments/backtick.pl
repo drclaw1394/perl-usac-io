@@ -4,7 +4,6 @@ use uSAC::IO;
 use Sub::Middler;
 
 uSAC::IO::backtick "ls -al", linker 
-#\sub { say $_[0]->@*}=>
   &uSAC::IO::_lines => 
   &uSAC::IO::_upper => 
   &uSAC::IO::_grep(qr/GITHUB/) => 

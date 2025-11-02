@@ -1061,7 +1061,17 @@ sub _map :prototype($){
 sub _grep :prototype($){
   my $filter=$_[0];
   sub {
-    my ($next, $index, @options)=@_;
+    my ($next)=@_;
+    sub {
+      @{$_[0]}= grep $_=~ $filter, @{$_[0]};
+      &$next;
+    }
+  }
+}
+sub _filter :prototype($){
+  my $filter=$_[0];
+  sub {
+    my ($next)=@_;
     sub {
       @{$_[0]}= grep $_=~ $filter, @{$_[0]};
       &$next;

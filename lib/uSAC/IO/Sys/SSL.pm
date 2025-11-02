@@ -19,8 +19,10 @@ use Net::SSLeay;
 use constant::more {
   STATE_NEW=>0,
   STATE_ACCEPT=>1,
-  STATE_IO=>2,
-  STATE_IDLE=>3
+  STATE_SNI=>2,
+  STATE_APLN=>3,
+  STATE_IO=>4,
+  STATE_IDLE=>5
 };
 
 use constant::more {
@@ -47,8 +49,18 @@ use constant::more {
 
 
 sub make_sysread_syswrite {
-  my $ssl=shift;            #The ssl object which does socket io
-  my $listen_mode=shift;    #Client or server
+  my ($ctx,$rfd, $wfd, $listen_mode)=@_;
+  
+  #my $ssl=shift;            #The ssl object which does socket io
+  my $ssl = Net::SSLeay::new($ctx);
+  Net::SSLeay::set_rfd($ssl, $rfd);
+  Net::SSLeay::set_wfd($ssl, $wfd);
+
+
+  #my $listen_mode=shift;    #Client or server
+
+  # TODO: add callbacks here for SNI and APLN?
+
   my $state=STATE_NEW;      #Start state
 
     #Arguments to sub are same as sysread:
@@ -103,7 +115,10 @@ sub make_sysread_syswrite {
           elsif($res==1){
             #successfuly accept
             print "sslecho: Cipher `" . Net::SSLeay::get_cipher($ssl) . "'\n" if $trace;
-            $state=STATE_IO;
+
+            # Do the SNI and APLN here before 
+
+            $state=STATE_SNI;
             redo;
           }
           else {
@@ -118,6 +133,19 @@ sub make_sysread_syswrite {
             $!=0;
             last;
           }
+        }
+        elsif($state == STATE_SNI){
+
+            # DO THE CALL BACK HERE
+            $state=STATE_APLN;
+            redo;
+        }
+        elsif($state == STATE_APLN){
+
+            # DO THE CALLBACKS HERE
+            asay $STDERR, "-- APLN indicated is ", Net::SSLeay::P_alpn_selected($ssl);
+            $state=STATE_IO;
+            redo;
         }
         elsif($state==STATE_IO){
           my $buf;
@@ -283,6 +311,6 @@ sub make_sysread_syswrite {
       $res;
   };
 
-  ($sysread,$syswrite)
+  ($sysread,$syswrite,$ssl)
 }
 1;

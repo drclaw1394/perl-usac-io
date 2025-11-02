@@ -38,12 +38,17 @@ $ctx or die_now("CTX_new ($ctx): $!\n");
 Net::SSLeay::CTX_set_cipher_list($ctx,'ALL');
 Net::SSLeay::set_cert_and_key($ctx, $cert_pem, $key_pem) or die "key";
 
+
 Net::SSLeay::CTX_set_tlsext_servername_callback($ctx, sub {
     my $ssl = shift;
     my $h = Net::SSLeay::get_servername($ssl);
-    asay $STDERR, "---SERVER NAME INDICATED is $h"
+    asay $STDERR, "---SERVER NAME INDICATED is $h";
+    #my $rv=Net::SSLeay::P_alpn_selected($ssl);
     #Net::SSLeay::set_SSL_CTX($ssl, $hostnames{$h}->{ctx}) if exists $hostnames{$h};
 } );
+
+
+Net::SSLeay::CTX_set_alpn_select_cb($ctx, ['http/1.1']);
 
 
 
@@ -57,8 +62,11 @@ my @writers;
 my $hints={
   socktype=>SOCK_STREAM,
   address=>"0.0.0.0",
-  port=>9091,
+  port=>$port,
   data=>{
+    on_server_name=> sub {
+
+    },
     on_bind=>sub {
       asay $STDERR, "ON BIND";
       my $fh=$_[0];
@@ -75,33 +83,21 @@ my $hints={
       &accept;
     },
     on_accept=>sub {
-      asay $STDERR, "ACCEPTED CONNECTION, ". Dumper @_;
+      asay $STDERR, "ACCEPTED CONNECTION, ". Dumper $_[1];
       for ($_[0]->@*){
-        my $ssl;
-        #print "sslecho: Creating SSL session (cxt=`$ctx')...\n";
-        $ssl = Net::SSLeay::new($ctx);
-
-        $ssl or die_now("ssl new ($ssl): $!");
-        
-        Net::SSLeay::set_rfd($ssl, $_);
-        Net::SSLeay::set_wfd($ssl, $_);
-
-        my ($sysread, $syswrite)=uSAC::IO::Sys::SSL::make_sysread_syswrite $ssl, 1;
-        #my $syswrite=uSAC::IO::Sys::SSL::make_syswrite $ssl, 1;
+        my ($sysread, $syswrite, $ssl)=uSAC::IO::Sys::SSL::make_sysread_syswrite $ctx,$_, $_, 1;
 
         asay $STDERR, "sysread $sysread";
         asay $STDERR, "syswrite $syswrite";
         
         my $r=uSAC::IO::SReader::create(fh=>$_, sysread=>$sysread);
-        asay $STDERR, "$r";
-        #
-        #my $r=sreader fh=>$_;
         $r->pipe_to($STDOUT);
         my $w=uSAC::IO::SWriter::create(fh=>$_, syswrite=>$syswrite);
-        #my $w= swriter fh=>$_;
-        asay $STDERR, "$w";
+
         push @readers, $r;
         push @writers, $w;
+
+        asay $STDERR, "---ABOUT TO START READER--";
         $r->start;
       }
 
@@ -128,9 +124,6 @@ my $hints={
       IO::FD::setsockopt $fh, SOL_SOCKET, SO_REUSEPORT, pack "i", 1 or die $!;
       &bind;
     }
-
-
-
   }
 };
 
