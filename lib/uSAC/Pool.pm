@@ -6,7 +6,6 @@ use Data::FastPack;
 use Object::Pad;
 use Time::HiRes qw<time>;
 use uSAC::Worker;
-use Data::Dumper;
 
 
 class uSAC::Pool;

@@ -24,26 +24,20 @@ use constant::more  IPV4_ANY=>"0.0.0.0",
 
 
                     #use Socket::More::Resolver {}, undef;
-use IO::FD::DWIM ();
+                    #use IO::FD::DWIM ();
 use Fcntl qw(F_GETFL F_SETFL O_NONBLOCK :mode);
 
 use Data::Cmp qw<cmp_data>;
 
 
 
-BEGIN {
-  if(DEBUG){
-    require Data::Dumper;
-    Data::Dumper->import;
-  }
-}
-
 our $STDIN;
 our $STDOUT;
 our $STDERR;
 
 use Export::These qw{accept asap timer delay interval timer_cancel sub_process sub_process_cancel backtick getaddrinfo getnameinfo connect connect_cancel connect_addr bind pipe pair listen 
-dreader dwriter reader writer sreader swriter signal socket_stage asay aprint adump $STDOUT $STDIN $STDERR};
+dreader dwriter reader writer sreader swriter signal socket_stage asay aprint adump $STDOUT $STDIN $STDERR
+io_lines io_accumulate io_grep io_filter io_upper io_lower};
 
 #use Export::These '$STDOUT','$STDIN', '$STDERR';
 
@@ -318,7 +312,7 @@ sub connect ($$){
 			$port,
       $hints,
       sub {
-        DEBUG and asay $STDERR, "$$ LOOKUP callback ". Dumper (@_); 
+        #DEBUG and asay $STDERR, "$$ LOOKUP callback ". Dumper (@_); 
         my @addresses=@_;
 
         unless(@addresses){
@@ -327,7 +321,7 @@ sub connect ($$){
         }
 
         $addr=$addresses[0]{addr};
-        DEBUG and asay $STDERR, "$$ socket: $socket, addr ". Dumper($addr); 
+        #DEBUG and asay $STDERR, "$$ socket: $socket, addr ". Dumper($addr); 
 	      connect_addr($socket, $addr, $on_connect, $on_error);
         DEBUG and asay $STDERR, time;
       },
@@ -374,7 +368,7 @@ sub listen ($$){
 sub accept($$){
   my ($socket, $hints)=@_;
 
-  DEBUG and asay $STDERR, "Accept called";
+  #DEBUG and asay $STDERR, "Accept called";
   #DEBUG and asay $STDERR, Dumper $hints;
   _create_socket $socket, $hints, \&bind and return;
 
@@ -403,7 +397,7 @@ sub _prep_spec{
 	require Scalar::Util;
 	my ($spec, $on_spec)=@_;
 
-  DEBUG and asay $STDERR, "_prep_spec_call";
+  #DEBUG and asay $STDERR, "_prep_spec_call";
   #DEBUG and asay $STDERR, Dumper $spec;
 
   $on_spec//=$spec->{data}{on_spec};
@@ -557,12 +551,12 @@ sub _prep_spec{
   
 
   $r->{address}=$address;
-  DEBUG and asay $STDERR, "==== Structure used for combinations======";
+  #DEBUG and asay $STDERR, "==== Structure used for combinations======";
   #DEBUG and asay $STDERR, Dumper $r;
 	#Generate combinations
 	my $result=Data::Combination::combinations $r;
 	
-  DEBUG and asay $STDERR, "==== Results combinations======";
+  #DEBUG and asay $STDERR, "==== Results combinations======";
   #DEBUG and asay $STDERR, Dumper $result;
 
 	#Retrieve the interfaces from the os
@@ -1044,8 +1038,9 @@ sub schedual_job  {
   #
 }
 
+
 #synchronous
-sub _map :prototype($){
+sub io_map :prototype($){
   my $filter=shift;
   sub {
     my ($next, $index, @options)=@_;
@@ -1058,7 +1053,7 @@ sub _map :prototype($){
 }
 
 #synchronous
-sub _grep :prototype($){
+sub io_grep :prototype($){
   my $filter=$_[0];
   sub {
     my ($next)=@_;
@@ -1068,7 +1063,7 @@ sub _grep :prototype($){
     }
   }
 }
-sub _filter :prototype($){
+sub io_filter :prototype($){
   my $filter=$_[0];
   sub {
     my ($next)=@_;
@@ -1080,7 +1075,7 @@ sub _filter :prototype($){
 }
 
 #synchronous
-sub _upper :prototype(){
+sub io_upper :prototype(){
   sub {
     my ($next, $index, @options)=@_;
     sub {
@@ -1092,7 +1087,7 @@ sub _upper :prototype(){
   }
 }
 
-sub _lower :prototype(){
+sub io_lower :prototype(){
   sub {
     my ($next, $index, @options)=@_;
     sub {
@@ -1105,27 +1100,41 @@ sub _lower :prototype(){
 }
 
 #synchronous
-sub _lines {
-  my $sep=$/; # save input seperator
+sub io_lines {
+  my $sep=shift//$/; # save input seperator
+  my $slen=length $sep;
   my $buffer=""; # buffing
   sub {
     my ($next, $index, @options)=@_;
     sub {
+      my @lines;
 
       # expects last element as a callback, if  no callback is last data
-      my $cb=pop;
+      my $cb=$_[$#_];
 
       # Alias of in put means consumed in place 
       #
-      my @lines;
-      push @lines, split $sep, $_ for @{$_[0]};
-
-      #If the buffer does not end in a line
-      # and we have callback, we expect more data
-      if($cb and $_[0]!~/$sep$/){
-        # Set buffer to partial line
-        $_[0]=pop @lines;
+      my $idx;
+      for(@{$_[0]}){
+        while(($idx=index $_, $sep)>=0){
+          # found sep
+          if($buffer){
+            push @lines, $buffer.substr $_, 0, $idx, ""; #extract line
+            $buffer="";
+          }
+          else {
+            push @lines, substr $_, 0, $idx, ""; #extract line
+          }
+          substr $_, 0, $slen,""; #//Strip sep
+        }
+        # accumulate remainder to buffer
+        $buffer.=$_;
       }
+
+
+
+      # Add the remainder if last call
+      push @lines, $buffer unless $cb;
       $next->(\@lines, $cb);
     }
   }
@@ -1134,7 +1143,7 @@ sub _lines {
 
 # return accumulated results from stdout
 #
-sub _accumulate {
+sub io_accumulate {
   my $buffer=[""];
   sub {
     my ($next, $index, @options)=@_;
@@ -1238,9 +1247,9 @@ sub _make_pool {
       },
       getaddrinfo=>sub {
 
-        DEBUG and asay $STDERR, "$$ CALLED GETADDRINFO with @_". Dumper (@_); 
+        #DEBUG and asay $STDERR, "$$ CALLED GETADDRINFO with @_". Dumper (@_); 
         my $input=decode_meta_payload $_[0], 1;
-        DEBUG and asay $STDERR, "$$ DECODED ". Dumper($input);
+        #DEBUG and asay $STDERR, "$$ DECODED ". Dumper($input);
 
         my $return_out="";
         my @results;
@@ -1258,7 +1267,7 @@ sub _make_pool {
         unless (defined $rc){
 
         }
-        DEBUG and asay $STDERR, "$$ Results ". Dumper (\@results);
+        #DEBUG and asay $STDERR, "$$ Results ". Dumper (\@results);
         $return_out=encode_meta_payload \@results, 1;
       },
 

@@ -21,9 +21,11 @@ field $_on_eof;
 field $_on_error;
 field $_time;
 field $_clock;
+field $_buf;
 
 BUILD {
   #$_rfh_ref=\$self->fh;
+  $_buf=[""];
 }
 
 #destroy io watcher, 
@@ -55,13 +57,13 @@ method _make_reader :override {
 
   my $_cb=sub {}; # Dummy for now
 
+  #my $buf=[""];
 	$_rw=undef;
 	sub {
 		#$self->[time_]=$Time;	#Update the last access time
 		$$_time=$$_clock;
-		my $buf=[""];
-		my $addr =IO::FD::recv($_fh, $buf->[0], $max_read_size, $flags);
-		defined($addr) and return($_on_read and $_on_read->($buf, $addr, $_cb));
+		my $addr =IO::FD::recv($_fh, $_buf->[0]//="", $max_read_size, $flags);
+		defined($addr) and return($_on_read and $_on_read->($_buf, $addr, $_cb));
 		($! == EAGAIN or $! == EINTR) and return;
 
     #warn "ERROR IN READER" if DEBUG;

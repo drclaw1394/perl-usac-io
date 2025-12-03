@@ -107,7 +107,7 @@ method _make_reader  :override {
     try {
     #$_on_eof//=$self->on_eof;
 		$$_time=$$_clock;
-		$len = $sysread->($_fh, $_buffer->[0], $max_read_size, length $_buffer->[0] );
+		$len = $sysread->($_fh, $_buffer->[0]//="", $max_read_size, length $_buffer->[0] );
 		$len>0 and return($_on_read and $_on_read->($_buffer,$_cb));
 		not defined($len) and ($! == EAGAIN or $! == EINTR) and return;
 

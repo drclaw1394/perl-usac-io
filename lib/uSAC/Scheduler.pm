@@ -270,8 +270,7 @@ BUILD {
               Log::OK::TRACE and log_trace "------INFORMING  key $_";
               my $j=$_jobs->{$_};
 
-              use Data::Dumper;
-              Log::OK::TRACE and log_trace "------job is ".Dumper $j;
+              #Log::OK::TRACE and log_trace "------job is ".Dumper $j;
               if($j->[JOB_STATE]==JOB_STATE_SCHEDUALED){
                 my $ready=1;
 

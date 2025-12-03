@@ -8,8 +8,8 @@ use uSAC::IO::Common;
 
 my $backend=uSAC::IO::Common::detect_backend;
 
-my $sb=($backend."::SWriter");
-eval "require $sb";
+#my $sb=($backend."::SWriter");
+#eval "require $sb";
 
 my $wb=($backend."::SWriter");
 eval "require $wb";

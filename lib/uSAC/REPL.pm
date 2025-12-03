@@ -11,15 +11,17 @@ use Data::FastPack::Meta;
 
 # Add additional packages to main
 package main;
-use List::Util qw(
-reduce any all none notall first reductions
-max maxstr min minstr product sum sum0
-pairs unpairs pairkeys pairvalues pairfirst pairgrep pairmap
-shuffle uniq uniqint uniqnum uniqstr head tail zip mesh
-);
+################################################################
+# use List::Util qw(                                           #
+# reduce any all none notall first reductions                  #
+# max maxstr min minstr product sum sum0                       #
+# pairs unpairs pairkeys pairvalues pairfirst pairgrep pairmap #
+# shuffle uniq uniqint uniqnum uniqstr head tail zip mesh      #
+# );                                                           #
+################################################################
 
-use DateTime;
-use Math::Complex;
+#use Time::Piece;
+#use Math::Complex;
 
 package uSAC::REPL;
 my $repl_worker;

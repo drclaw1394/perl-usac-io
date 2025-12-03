@@ -5,7 +5,6 @@ use uSAC::FastPack::Broker::Bridge::Streaming;
 use uSAC::IO;
 use uSAC::Log;
 use Log::OK;
-use Data::Dumper;
 use constant::more DEBUG=>0;
 use Object::Pad;
 
@@ -57,7 +56,7 @@ BUILD {
   };
   $_name//="uSAC::Worker";
 
-  DEBUG and asay $STDERR, Dumper $_rpc;
+  #DEBUG and asay $STDERR, Dumper $_rpc;
   $self->_sub_process if defined $_work;
 
 }
@@ -165,10 +164,10 @@ method _clean_up {
   DEBUG and asay $STDERR, "---- CLEAN UP WORKER----";
   #my $forward_sub=$_bridge->forward_message_sub;
 
-  DEBUG and asay $STDERR, Dumper $_register;
+  #DEBUG and asay $STDERR, Dumper $_register;
   #$_broker->ignore($_bridge->source_id, "^worker/$_wid/", $forward_sub);
   for(@$_register){
-    DEBUG and asay $STDERR, " to ignore in cleanup ".Dumper $_;
+    #DEBUG and asay $STDERR, " to ignore in cleanup ".Dumper $_;
     $_broker->ignore(@$_);
   }
   $_register=[];
@@ -214,7 +213,7 @@ method _child_setup {
         else {
           $_rpc->{$name}=$sub;
           $_broker->broadcast(undef,"worker/$_wid/rpa-return/$name", pack "La*", $seq, 1);
-          DEBUG and asay $STDERR, "INSTALLED REMOTE PROCEEDURES for name $name seq $seq: ".Dumper $_rpc;
+          #DEBUG and asay $STDERR, "INSTALLED REMOTE PROCEEDURES for name $name seq $seq: ".Dumper $_rpc;
         }
       }
 
@@ -238,7 +237,7 @@ method _child_setup {
             # Sequence is encoded as first 4 bytes
             #my $res=$sub->($msg->[FP_MSG_PAYLOAD]);
             my $res=$sub->($payload);
-            DEBUG and asay $STDERR, "child rpc result ". Dumper $res;
+            #DEBUG and asay $STDERR, "child rpc result ". Dumper $res;
             #$_broker->broadcast(undef, "worker/$_wid/rpc-return/$name/$seq", $res);
             #$_broker->broadcast(undef, "worker/$_wid/rpc-return/$name/$seq", undef);
 
@@ -377,7 +376,7 @@ method _parent_setup {
   $r=[
     #undef, "^worker/$_wid/rpc-error/(\\w+)/(\\d+)\$", sub {
     undef, "^worker/$_wid/rpc-error/(\\w+)\$", sub {
-      asay $STDERR, "$$ RPC ERROR in server----- ". Dumper @_;
+      #asay $STDERR, "$$ RPC ERROR in server----- ". Dumper @_;
       shift $_[0]->@*;
       for my ($msg, $cap)($_[0][0]->@*){
         my $name=$cap->[0];
