@@ -37,7 +37,8 @@ our $STDERR;
 
 use Export::These qw{accept asap timer delay interval timer_cancel sub_process sub_process_cancel backtick getaddrinfo getnameinfo connect connect_cancel connect_addr bind pipe pair listen 
 dreader dwriter reader writer sreader swriter signal socket_stage asay aprint adump $STDOUT $STDIN $STDERR
-io_lines io_accumulate io_grep io_filter io_upper io_lower};
+io_lines io_accumulate io_grep io_filter io_upper io_lower
+create_socket};
 
 #use Export::These '$STDOUT','$STDIN', '$STDERR';
 
@@ -120,12 +121,12 @@ use strict "refs";
 
 # Create a socket from hints and call the indicated callback ( or override when done)
 # 
-sub _create_socket {
+sub create_socket{
   # Hints are in first argument
   my ($socket, $hints, $override)=@_;
   return undef if defined $socket;
 
-  DEBUG and asay $STDERR, "_create_socket called";
+  DEBUG and asay $STDERR, "create_socket called";
   for($hints){
     my $on_error=$_->{data}{on_error};
     my $on_socket=$override//$_->{data}{on_socket};
@@ -188,7 +189,7 @@ sub socket_stage($;$){
   
   # Override an undefined on_spec function to create a socket
   my $on_spec=$specs[0]{data}{on_spec}//sub { 
-    _create_socket undef, $_[1], $next if $_[1];
+    create_socket undef, $_[1], $next if $_[1];
   };
 
   DEBUG and asay $STDERR, "about to prepare specs";
@@ -229,7 +230,7 @@ sub bind ($$) {
   DEBUG and asay $STDERR, "$$ BIND CALLED";
   #DEBUG and asay $STDERR, "$$ ". Dumper $socket, $hints;
 
-  _create_socket $socket, $hints, __SUB__  and return;
+  create_socket $socket, $hints, __SUB__  and return;
 
   my $fam;
   my $type;
@@ -296,7 +297,7 @@ sub connect ($$){
 	my $addr;
 
   DEBUG and asay $STDERR, "CONNECT before";
-  _create_socket $socket, $hints, __SUB__ and return;
+  create_socket $socket, $hints, __SUB__ and return;
   DEBUG and asay $STDERR, "CONNECT after";
 
   # If the type and  family hasn't been specified with hints, extract from socket info
@@ -348,7 +349,7 @@ sub listen ($$){
   #DEBUG and asay $STDERR, "Listen called with ". Dumper @_;
   my ($socket, $hints)=@_;
 
-  _create_socket $socket, $hints, \&bind and return;
+  create_socket $socket, $hints, \&bind and return;
 
   DEBUG and asay $STDERR, $socket;
   DEBUG and asay $STDERR, "IS ref? ", ref $hints;
@@ -370,7 +371,7 @@ sub accept($$){
 
   #DEBUG and asay $STDERR, "Accept called";
   #DEBUG and asay $STDERR, Dumper $hints;
-  _create_socket $socket, $hints, \&bind and return;
+  create_socket $socket, $hints, \&bind and return;
 
   use uSAC::IO::Acceptor;
   my $a;
@@ -537,7 +538,7 @@ sub _prep_spec{
 	if(@new_address){
 		@$address=@new_address;
 		@interfaces=@new_interfaces;
-		$r->{interface}=[".*"];
+		$r->{interface}//=[".*"];
 	}
 
 	#$r->{family}=[@new_fam];
@@ -545,7 +546,7 @@ sub _prep_spec{
 	#Handle localhost
 	if(grep /localhost/, @$address){
 		@$address=('127.0.0.1');#,'::1');
-		$r->{interface}=[".*"];
+		$r->{interface}//=[".*"];
 	}
 
   
