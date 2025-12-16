@@ -64,7 +64,7 @@ sub start {
   $STDOUT->write([""], sub {});
   $STDERR->write([""], sub {});
   #my $write=writer $new_err;
-
+		
   # Create a worker, wthe work paramenter is the setup
   # The rpc object is adds the method
   #
@@ -125,6 +125,7 @@ sub start {
     }
   );
 
+  say STDERR " -----before sigal setup";
   #
   #Stop the parent from having a watcher on the  input
   #  $STDIN->pause;
@@ -138,9 +139,12 @@ sub start {
 
   };
 
+  say STDERR " -----before prompt";
   my $prompt=encode_meta_payload({prompt=>"--->"},1);
+  say STDERR " -----after prompt";
   $repl=sub {
     #asay $STDERR, "SUB REF TO START REPL";
+  say STDERR " -----in repl asap sub";
     return unless $repl_worker;
     $repl_worker->rpc("readline", $prompt,
       sub {

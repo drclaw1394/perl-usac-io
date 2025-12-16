@@ -276,7 +276,9 @@ sub _main {
 
               {
                 package main;
+		say STDERR "BEFORE DO SCRIPT $script";
                 $res=do $script;
+		say STDERR "AFTER DO SCRIPT";
               }
 
               if(!defined $res and $@){
@@ -303,6 +305,7 @@ sub _main {
     _do_it();
 }
   sub _do_it {
+	  say STDERR "IN _DO_IT";
     $uSAC::Main::POOL->close if $uSAC::Main::POOL;
     $Default_Broker->_post_fork;
     $Default_Broker->broadcast(undef,"post-fork", 1);
@@ -312,9 +315,13 @@ sub _main {
     # NOTE: THis while loop is important. no really any easy way to recall the run loop, without it
     # Run loop is recalled on fork ( so for parent and child)
     while($USAC_RUN){
+    	say STDERR "IN RUN LOOP";
       uSAC::IO::_pre_loop;          # Setup up event loop ie create cv or do nothing
+    	say STDERR "after pre LOOP";
       uSAC::IO::_post_loop;     # run event loop ie wait for cv or call  run
+    	say STDERR "after post LOOP";
     }
+    say STDERR "ABOUT TO EXIT";
     CORE::exit($exit_code);  # Exit perl with code
   }
 

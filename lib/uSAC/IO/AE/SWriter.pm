@@ -11,7 +11,7 @@ use IO::FD;
 
 use Errno qw(EAGAIN EINTR);
 #use parent "uSAC::IO::Writer";
-use uSAC::IO::Writer qw<:fields>;
+#use uSAC::IO::Writer qw<:fields>;
 
 use constant::more RECUSITION_LIMIT=>10;
 use constant::more DEBUG=>0;

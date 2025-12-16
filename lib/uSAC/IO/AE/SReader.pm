@@ -1,6 +1,7 @@
 
 use Object::Pad;
 package uSAC::IO::AE::SReader;
+use v5.36;
 class uSAC::IO::AE::SReader :isa(uSAC::IO::SReader);
 use feature qw<refaliasing current_sub>;
 no warnings qw<experimental uninitialized>;
@@ -38,6 +39,7 @@ BUILD {
 }
 
 method start :override ($fh=undef) {
+	say STDERR "START OF AE SREADER";
   if($fh){
     #my $res= IO::FD::fcntl $fh, F_SETFL, O_NONBLOCK;
     $self->fh=$fh;
@@ -66,13 +68,17 @@ method start :override ($fh=undef) {
         $_reader=$self->_make_reader;
       }
     }
+	say STDERR "about to make read watcher existing ", $self->fh;
     $_rw= AE::io $self->fh, 0, $_reader;
+	say STDERR "after read watcher existing $_rw";
   }
 
   # Refresh the local copy of on read
   #$uSAC::IO::AE::IO::watchers{$self}=$_rw;
+  say STDERR "before saving watcher";
   $uSAC::IO::AE::IO::watchers{$_id}=$_rw;
 
+	say STDERR "END OF AE SREADER";
 	$self;
 }
 

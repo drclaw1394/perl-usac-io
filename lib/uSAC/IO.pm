@@ -10,7 +10,7 @@ our $VERSION="v0.1.0";
 
 use Data::FastPack::Meta;
 use Data::Combination;
-use constant::more DEBUG=>0;
+use constant::more DEBUG=>1;
 
 #Datagram
 use constant::more qw<r_CIPO=0 w_CIPO r_COPI w_COPI r_CEPI w_CEPI>;
@@ -28,7 +28,7 @@ use constant::more  IPV4_ANY=>"0.0.0.0",
 use Fcntl qw(F_GETFL F_SETFL O_NONBLOCK :mode);
 
 use Data::Cmp qw<cmp_data>;
-
+use Data::Dumper;
 
 
 our $STDIN;
@@ -943,6 +943,7 @@ sub sub_process ($;$$$$){
     return ($writer, $reader, $error, $pid);
   }
   else {
+    print STDERR "------CHILD COMMAND IS $cmd\n";
     # child
     my $cpid=$$;
     IO::FD::close $pipes[w_CIPO];
@@ -976,13 +977,15 @@ sub sub_process ($;$$$$){
     # execution is stoped with a die call. This function never returns in the
     # client
     # 
-    #asay $STDERR, "------CHILD COMMAND IS $cmd";
     if(defined $cmd and ! ref $cmd){
+    	print STDERR "------CHILD COMMAND CMD \n";
       exec $cmd or asay $STDERR, $! and exit;
+    	print STDERR "------CHILD should not get here\n";
       #TODO signal to parent the exec failed somehow??
       
     }
     elsif(defined $cmd) {
+    	print STDERR "------CHILD COMMAND WORKER CODE\n";
       $uSAC::Main::worker_sub =$cmd; #, $pid; #Shedual
       DEBUG and asay $STDERR, "$cpid CMD IS A CODE REF======= $cmd";
       # Stop all watchers, and stop the event loop
@@ -1169,11 +1172,14 @@ sub backtick {
   my $buffer="";
   my $status;
   my $pid;
-  my @io;
 
-  (@io, $pid)= sub_process $cmd, sub {
-      my $a=shift;
-      ($status, $pid,undef)=$a->@*;
+  my @io;
+  my $join=0;
+
+  my $do_result=sub {
+	  $join++;
+	  return if $join < 2;
+	  # Close the io
       if(ref($on_result) eq "ARRAY"){
         my $m=linker $on_result;
 
@@ -1183,12 +1189,36 @@ sub backtick {
         $on_result->([$status, $pid, $buffer], undef);
         
       }
+      
+      	IO::FD::close($io[0]->fh);
+	$io[0]->destroy();
+	IO::FD::close($io[1]->fh);
+	$io[1]->destroy();
+	IO::FD::close($io[2]->fh);
+	$io[2]->destroy();
+  };
+
+  (@io, $pid)= sub_process $cmd, sub {
+	  print STDERR "-=-=-=-=-=- ON COMPLETE SUB PROCESS ". Dumper @_;
+      my $a=shift;
+
+      # Save the status and pid of the process. We might have a reading to do however
+      ($status, $pid, undef)=$a->@*;
+      $do_result->();
+
   };
 
   # Back tick handles stadard out only
   $io[1]->on_read=sub {
+	  print STDERR "-=-=-=-=-==- on read ". Dumper @_ ;
     $buffer.=$_[0][0]; $_[0][0]="";
   };
+
+  $io[1]->on_eof=sub {
+	print STDERR "-=-=-=-= ON STDOUT EOF\n";
+	$do_result->();
+  };
+
 
   # Consume the error stream
   $io[2]->on_read=sub {

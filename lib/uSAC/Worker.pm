@@ -1,12 +1,14 @@
 package uSAC::Worker;
+use v5.36;
 use Data::FastPack;
 #use uSAC::FastPack::Broker;
 use uSAC::FastPack::Broker::Bridge::Streaming;
 use uSAC::IO;
 use uSAC::Log;
 use Log::OK;
-use constant::more DEBUG=>0;
+use constant::more DEBUG=>1;
 use Object::Pad;
+use Data::Dumper;
 
 use feature "try";
 no warnings "experimental";
@@ -40,6 +42,7 @@ field $_call_count;
 field $_queue;
 
 BUILD {
+	say STDERR " IN  WORKER BUILD";
   #DEBUG and 
   #asay $STDERR , "--CALLING CREATE WORKER----";
   $_seq=0;
@@ -63,7 +66,7 @@ BUILD {
 
 # Create the actual process
 method _sub_process {
-  DEBUG and asay $STDERR, "---CALLED _subprocess in worker";
+  DEBUG and say STDERR "---CALLED _subprocess in worker";
   my $__on_complete=sub {
     # unregister worker?
     $_on_complete and &$_on_complete
@@ -73,17 +76,17 @@ method _sub_process {
     $_wid=$$; # NOTE: needed for child to know its worker id
     $0=$_name if $_name;
 
-    DEBUG and asay  $STDERR, "++++++DOING CHILD SETUP for wid $_wid+++";
+    DEBUG and say  STDERR "++++++DOING CHILD SETUP for wid $_wid+++";
     $self->_child_setup;
     $_work and $_work->($self);
   };
 
-  DEBUG and asay $STDERR, "---Just before sub_process IO call";
+  DEBUG and say STDERR "---Just before sub_process IO call";
   @$_io=sub_process $__work, $__on_complete;
   $_wid=$_io->[3]; #NOte this is only in parent
-  DEBUG and asay $STDERR, "____CALLING SUB_PROCESS IN WORKER .. new id $_wid";
-  DEBUG and asay $STDERR, "======asdfasdfasdfasdfasdfasdf $_wid";
-  DEBUG and asay $STDERR, "======asdfasdfasdfasdfasdfasdf @$_io";
+  DEBUG and say STDERR "____CALLING SUB_PROCESS IN WORKER .. new id $_wid";
+  DEBUG and say STDERR "======asdfasdfasdfasdfasdfasdf $_wid";
+  DEBUG and say STDERR "======asdfasdfasdfasdfasdfasdf @$_io";
   if(@$_io){
     #Do parent stuff here
     $self->_parent_setup;
@@ -112,6 +115,7 @@ method rpa {
 }
 
 method rpc {
+	say STDERR " RPC in worker pm";
   my $name=shift; # Name could be code ref
   my $string=shift;
   my $cb=shift;
@@ -126,14 +130,14 @@ method rpc {
 method do_rpc {
   return unless @$_queue;
   my $e=shift @$_queue;
-  DEBUG and asay $STDERR, "---WORKER RPC CALLED";
+  DEBUG and say STDERR "---WORKER RPC CALLED";
   my $name=shift @$e; # Name could be code ref
   my $string=shift @$e;
   my $cb=shift @$e;
   my $error=shift @$e;
 
   if($_rpc->{$name}){
-    DEBUG and asay $STDERR, "WORKER id before  sub process $_wid";
+    DEBUG and say STDERR "WORKER id before  sub process $_wid";
     $self->_sub_process unless $_wid;
     $_call_count++;
     $_active->{++$_seq}=[$cb, $error];
@@ -287,9 +291,10 @@ method _child_setup {
 
 # Setup parent bridge to child
 method _parent_setup {
-  DEBUG and asay $STDERR, "PARENT SETUP "."@$_io";
+  DEBUG and say STDERR "PARENT SETUP "."@$_io";
   $_bridge=uSAC::FastPack::Broker::Bridge::Streaming->new(broker=>$_broker, reader=>$_io->[1], writer=>$_io->[0], rfd=>$_io->[1]->fh,  wfd=>$_io->[0]->fh);
 
+  DEBUG and say STDERR "PARENT SETUP after bridge";
   my $forward_sub=$_bridge->forward_message_sub;
   $_broker->add_bridge($_bridge);
 
@@ -297,6 +302,8 @@ method _parent_setup {
   # Listen for any local messages and forward to other end of bridge
   #
   $r=[$_bridge->source_id, "^worker/$_wid/", $forward_sub];
+
+  DEBUG and say STDERR " ABOUT TO REGISTER LISTENERS forwarder";
   $_broker->listen(@$r);
   push @$_register, $r;
   #$_broker->listen(undef, "^worker/$_wid/", $forward_sub);
@@ -315,6 +322,7 @@ method _parent_setup {
       }
     }];
   # Add RPA support
+  DEBUG and say STDERR " ABOUT TO REGISTER LISTENERS rpa";
   $_broker->listen(@$r);
   push @$_register, $r;
 
@@ -334,6 +342,7 @@ method _parent_setup {
 
     }
   ];
+  DEBUG and say STDERR " ABOUT TO REGISTER LISTENERS rpa-error";
   $_broker->listen(@$r);
   push @$_register, $r;
   $r=[
@@ -370,6 +379,7 @@ method _parent_setup {
   ];
 
   # Add RPC support
+  DEBUG and say STDERR " ABOUT TO REGISTER LISTENERS rpc-return";
   $_broker->listen(@$r);
   push @$_register,$r;
 
@@ -389,7 +399,7 @@ method _parent_setup {
       }
     }
   ];
-
+  DEBUG and say STDERR " ABOUT TO REGISTER LISTENERS rpc-error";
   $_broker->listen(@$r);
   push @$_register, $r;
 
@@ -425,7 +435,7 @@ method _parent_setup {
   push @$_register, $r;
   
 
-  #asay $STDERR, "END OF PARENT SETUP: ".Dumper $_register;
+  say STDERR  "END OF PARENT SETUP: ".Dumper $_register;
   ################################################
   # asay $STDERR, "--SETUP UP PARENT TIMER=---"; #
   # my $t = timer 0, 1, sub {                    #

@@ -1,16 +1,18 @@
 use v5.36;
 use uSAC::IO;
 
+use Data::Dumper;
 use Sub::Middler;
 
 uSAC::IO::backtick "ls -al", linker 
-  &uSAC::IO::_lines => 
-  &uSAC::IO::_upper => 
-  &uSAC::IO::_grep(qr/GITHUB/) => 
-  &uSAC::IO::_map( sub {lc $_}) => 
+  &uSAC::IO::io_lines => 
+  &uSAC::IO::io_upper => 
+  #&uSAC::IO::io_grep(qr/GITHUB/) => 
+  &uSAC::IO::io_map( sub {lc $_}) => 
   sub { my $next=$_[0];  sub {
-      say STDERR " GOT IT",
-      say STDERR $_[0][0];
+		  #say STDERR " GOT IT";
+      #say STDERR Dumper @_;
+      #_[0][0];
       &$next;
     }} => 
   sub {say join "|\n", @{$_[0]}};
