@@ -10,7 +10,7 @@ our $VERSION="v0.1.0";
 
 use Data::FastPack::Meta;
 use Data::Combination;
-use constant::more DEBUG=>1;
+use constant::more DEBUG=>0;
 
 #Datagram
 use constant::more qw<r_CIPO=0 w_CIPO r_COPI w_COPI r_CEPI w_CEPI>;
@@ -36,7 +36,7 @@ our $STDOUT;
 our $STDERR;
 
 use Export::These qw{accept asap timer delay interval timer_cancel sub_process sub_process_cancel backtick getaddrinfo getnameinfo connect connect_cancel connect_addr bind pipe pair listen 
-dreader dwriter reader writer sreader swriter signal socket_stage asay aprint adump $STDOUT $STDIN $STDERR
+dreader dwriter reader writer sreader swriter signal socket_stage asay asay_now aprint aprint_now adump adump_now $STDOUT $STDIN $STDERR
 io_lines io_accumulate io_grep io_filter io_upper io_lower
 create_socket};
 
@@ -943,7 +943,6 @@ sub sub_process ($;$$$$){
     return ($writer, $reader, $error, $pid);
   }
   else {
-    print STDERR "------CHILD COMMAND IS $cmd\n";
     # child
     my $cpid=$$;
     IO::FD::close $pipes[w_CIPO];
@@ -978,14 +977,11 @@ sub sub_process ($;$$$$){
     # client
     # 
     if(defined $cmd and ! ref $cmd){
-    	print STDERR "------CHILD COMMAND CMD \n";
       exec $cmd or asay $STDERR, $! and exit;
-    	print STDERR "------CHILD should not get here\n";
       #TODO signal to parent the exec failed somehow??
       
     }
     elsif(defined $cmd) {
-    	print STDERR "------CHILD COMMAND WORKER CODE\n";
       $uSAC::Main::worker_sub =$cmd; #, $pid; #Shedual
       DEBUG and asay $STDERR, "$cpid CMD IS A CODE REF======= $cmd";
       # Stop all watchers, and stop the event loop
@@ -1199,7 +1195,6 @@ sub backtick {
   };
 
   (@io, $pid)= sub_process $cmd, sub {
-	  print STDERR "-=-=-=-=-=- ON COMPLETE SUB PROCESS ". Dumper @_;
       my $a=shift;
 
       # Save the status and pid of the process. We might have a reading to do however
@@ -1210,12 +1205,10 @@ sub backtick {
 
   # Back tick handles stadard out only
   $io[1]->on_read=sub {
-	  print STDERR "-=-=-=-=-==- on read ". Dumper @_ ;
     $buffer.=$_[0][0]; $_[0][0]="";
   };
 
   $io[1]->on_eof=sub {
-	print STDERR "-=-=-=-= ON STDOUT EOF\n";
 	$do_result->();
   };
 
@@ -1252,21 +1245,34 @@ sub asay ($;@){
   my $w=shift;
 
   $w->write([join("", @_, "\n")], undef);
-  ();
+  $w;
+}
+
+sub asay_now ($;@){
+	&asay->flush();
 }
 
 sub aprint ($;@){
   my $w=shift;
   $w->write([join("", @_, "")], undef);
-  ();
+  $w;
 }
+
+sub aprint_now ($;@){
+	&aprint->flush();
+}
+
+
 
 sub adump ($;@){
   my $w=shift;
   require Data::Dumper;
   $w->write([Data::Dumper::Dumper(@_)], undef);
-  ();
+  $w;
 
+}
+sub adump_now($;@){
+    &adump->flush();
 }
 
 sub _make_pool {
@@ -1278,7 +1284,7 @@ sub _make_pool {
       },
       getaddrinfo=>sub {
 
-        #DEBUG and asay $STDERR, "$$ CALLED GETADDRINFO with @_". Dumper (@_); 
+        DEBUG and asay $STDERR, "$$ CALLED GETADDRINFO with @_". Dumper (@_); 
         my $input=decode_meta_payload $_[0], 1;
         #DEBUG and asay $STDERR, "$$ DECODED ". Dumper($input);
 
@@ -1325,7 +1331,6 @@ sub _make_pool {
 
 sub getaddrinfo {
   my ($host, $port, $hints, $cb, $error)=@_;
-  print STDERR "-----called getaddrinfo\n";
   my $pool=_make_pool;
   #DEBUG and asay $STDERR, "===getaddinfo args ".Dumper $host,$port, $hints;
   my $h={

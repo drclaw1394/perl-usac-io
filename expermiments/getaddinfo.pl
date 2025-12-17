@@ -19,8 +19,8 @@ $do_it=sub {
     asay $STDERR , "$$ ---DO NEXT--- $count";
     uSAC::IO::getaddrinfo("dgrt.com.au",80, {}, sub {
         asay $STDERR,$count;
-        asay $STDERR, "GAI RETURN--------";
-        #asay $STDERR, Dumper @_[0];
+        asay_now $STDERR, "GAI RETURN--------";
+        asay $STDERR, Dumper @_[0];
         uSAC::IO::getnameinfo($_[0]{addr}, NI_NUMERICHOST|NI_NUMERICSERV, sub {
             asay $STDERR, "GNI RETURN--------";
             asay $STDERR, Dumper @_;

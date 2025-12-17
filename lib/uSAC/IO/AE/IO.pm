@@ -26,14 +26,16 @@ my $asap_timer;
 my $entry;
 
 
+use Data::Dumper;
 our $CV;
 my $will_exit;
 my $tick_timer_raw;
 
 
 sub _shutdown_loop {
-  #uSAC::IO::asay $STDERR, "SHUTDOWN LOOP CALLED";
-  $CV and $CV->send;
+  use v5.36;
+  $CV and ($CV isa AnyEvent::CondVar) and $CV->send;
+  #$CV=undef;
 }
 
 sub _exit {
@@ -47,6 +49,10 @@ sub _exit {
   for(keys %uSAC::IO::procs){
     uSAC::IO::sub_process_cancel($_);
   }
+  for(keys %uSAC::IO::sig_watchers){
+    uSAC::IO::signal_cancel($_);
+  }
+
   $uSAC::Main::exit_code=shift//0;
   $uSAC::Main::POOL->close if $uSAC::Main::POOL;
 
@@ -71,15 +77,12 @@ sub cancel ($){
 # Processing sub for asap code refs.
 
 my $asap_sub=sub {
-	say STDERR " IN ASAP sub";
   return unless @asap;
   # Call subs with supplied arguments.
   #
-	say STDERR " IN ASAP sub after cherck";
   my $entry=shift @asap;
   my $args=shift @asap_args;
   try{
-	  print STDERR $entry."\n";;
     $entry->(@$args);
   }
   catch($e){
@@ -88,7 +91,6 @@ my $asap_sub=sub {
 
   # Destroy the idle watcher/timer if nothing left to process!
   if(!@asap){
-	  print STDERR "NOTHING MORE IN ASAP.. kill the idler \n";
     $asap_timer=undef;
 
     delete $watchers{idle};
@@ -107,11 +109,9 @@ sub asap ($;@){
     }
     #uSAC::IO::asay $STDERR, "Restarting ASAP in $$ with ".@asap." args ";
 
-	say STDERR " IN ASAP api ", @asap;
 	$asap_timer//=AE::idle $asap_sub;
 	#$asap_timer//=AE::timer 0.0, 0.0001, $asap_sub;
     $watchers{idle}=$asap_timer;
-	say STDERR " IN ASAP api end";
     1;
 }
 
@@ -167,9 +167,7 @@ sub child ($$){
 	  #
 	  asap sub {
 		  use Data::Dumper;
-		  print STDERR "-=-=-=- AE child callback ". Dumper @_;
 		  my $w=delete $watchers{$_[0]};
-		  print STDERR "==WATCHER DELETED is ", Dumper $w;
 
 		  # Actual error code in upper 8 bits of 16 bit return value
 		  #
@@ -179,7 +177,6 @@ sub child ($$){
 	  },@_;
   };
   $watchers{$pid}=$temp;
-    print STDERR "==WATCHER CREATED is ", Dumper $temp;
     $temp;
 }
 
@@ -280,52 +277,40 @@ sub cancel_accept {
 
 # Code to setup event loop before it starts
 sub _pre_loop {
-  #uSAC::IO::asay $STDERR, "CALLING PRE LOOP $$\n";
   $will_exit=undef;
   # Create a cv; 
-  $CV=AE::cv;# unless $CV;
+  $CV=undef;
+  $CV=AE::cv;
+  # unless $CV;
   return;
 }
 
 sub _post_loop {
-  say STDERR "CALLING POST LOOP $$ .. raw timer? $tick_timer_raw\n";
   # Create a tick timer, which isn't part of the normal watcher list
   # When no watchers are present, 
   unless($tick_timer_raw){
     $tick_timer_raw=1; # Synchronous true until asap is called
-    uSAC::IO::asay $STDERR, "in tick timer check----";
+    #uSAC::IO::asay $STDERR, "in tick timer check----";
     asap sub {
-      uSAC::IO::asay $STDERR, "---DOING ASAP FOR TICK TIMER=======";
+	    #uSAC::IO::asay $STDERR, "---DOING ASAP FOR TICK TIMER=======";
       my $id=timer 0, 0.5, sub {
-        uSAC::IO::asay $STDERR, "--raw timer callback--";
+	      #uSAC::IO::asay $STDERR, "--raw timer callback--";
         $uSAC::IO::Clock=time;
-        uSAC::IO::asay $STDERR, "WATCHERS for $$ ARE ". join " ", %watchers;
-        uSAC::IO::asay $STDERR, "PROCs for $$ ARE ". join " ", %uSAC::IO::procs;
+	#uSAC::IO::asay $STDERR, "WATCHERS for $$ ARE ". join " ", %watchers;
+	#uSAC::IO::asay $STDERR, "PROCs for $$ ARE ". join " ", %uSAC::IO::procs;
         #print STDERR "\n";
-        _exit unless %watchers;
+        _exit unless keys %watchers;
       };
 
       $tick_timer_raw=delete $watchers{$id};
     };
   }
-  say STDERR time." oijasdofijasdofijasdf";
   # Only execute run loop if exit hasn't been called
   #print STDERR "Willl exit for $$ : $will_exit  CV $CV\n";
-  say STDERR time." CV for $$ is $CV\n";
   !$will_exit and $CV and $CV->recv;
-  say STDERR time." AFTER CV recv";
 }
 
 sub _post_fork {
-
-
-  #print STDERR "POST FORK $$ ====\n";
-
-  ##########################
-  # if(%uSAC::REPL::){     #
-  #   uSAC::REPL::pause(); #
-  # }                      #
-  ##########################
 
   cancel $tick_timer_raw;
   $tick_timer_raw=undef;

@@ -6,7 +6,7 @@ use uSAC::FastPack::Broker::Bridge::Streaming;
 use uSAC::IO;
 use uSAC::Log;
 use Log::OK;
-use constant::more DEBUG=>1;
+use constant::more DEBUG=>0;
 use Object::Pad;
 use Data::Dumper;
 
@@ -42,7 +42,6 @@ field $_call_count;
 field $_queue;
 
 BUILD {
-	say STDERR " IN  WORKER BUILD";
   #DEBUG and 
   #asay $STDERR , "--CALLING CREATE WORKER----";
   $_seq=0;
@@ -89,8 +88,10 @@ method _sub_process {
   DEBUG and say STDERR "======asdfasdfasdfasdfasdfasdf @$_io";
   if(@$_io){
     #Do parent stuff here
-    $self->_parent_setup;
-    $_io->[2]->pipe_to($STDERR);
+    asap sub {
+    	$self->_parent_setup;
+    	$_io->[2]->pipe_to($STDERR);
+    }
 
   }
   else {
@@ -115,7 +116,6 @@ method rpa {
 }
 
 method rpc {
-	say STDERR " RPC in worker pm";
   my $name=shift; # Name could be code ref
   my $string=shift;
   my $cb=shift;
@@ -141,7 +141,8 @@ method do_rpc {
     $self->_sub_process unless $_wid;
     $_call_count++;
     $_active->{++$_seq}=[$cb, $error];
-    $_broker->broadcast(undef,"worker/$_wid/rpc/$name", pack "La*" ,$_seq, $string);
+    asap sub {$_broker->broadcast(undef,"worker/$_wid/rpc/$name", pack "La*" ,$_seq, $string);
+    };
     return $_seq;
   }
   else {
@@ -226,7 +227,7 @@ method _child_setup {
   #$_broker->listen(undef, "^worker/$_wid/rpc/(\\w+)/(\\d+)", sub {
   $_broker->listen(undef, "^worker/$_wid/rpc/(\\w+)", sub {
       # call a procedure
-      #DEBUG and asay $STDERR, "child rpc called";
+      DEBUG and asay $STDERR, "child rpc called";
       my $sender=shift $_[0]->@*;
       for my ($msg, $cap)($_[0][0]->@*){
         my $name= $cap->[0];
@@ -435,7 +436,6 @@ method _parent_setup {
   push @$_register, $r;
   
 
-  say STDERR  "END OF PARENT SETUP: ".Dumper $_register;
   ################################################
   # asay $STDERR, "--SETUP UP PARENT TIMER=---"; #
   # my $t = timer 0, 1, sub {                    #

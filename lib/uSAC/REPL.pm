@@ -1,5 +1,6 @@
 package uSAC::REPL;
 
+use v5.36;
 use feature "try";
 use Error::Show;
 use uSAC::Worker;
@@ -24,11 +25,26 @@ package main;
 #use Math::Complex;
 
 package uSAC::REPL;
+use v5.36;
+use feature "try";
+
+
+our $TERM;
+our $stdout;
+our $stdin;
+our $stderr;
+
+our $new_in;
+our $new_out;
+our $new_err;
+
+
 my $repl_worker;
 my $repl;
 my $handler;
 
 my $perl_repl_handler=sub {
+	#say STDERR  "IN PERL REPL HANDLER ", @_;
           my $line=$_[0];
           try{
             package main;
@@ -37,12 +53,16 @@ my $perl_repl_handler=sub {
             die $@ if $@;
             my @ret=$res->();
 
-            asay $STDOUT, @ret;
+            asay_now $STDOUT, @ret;
+	    
+	    #say STDERR "----RETURN FOR EVAL @ret";
+	    #say STDERR "";
           }
           catch($e){
             # handle syntax errors
             asay $STDERR, "$$ ERROR in eval: $e";
-            asay $STDERR, Error::Show::context $e;
+            asay_now $STDERR, Error::Show::context $e;
+	    #say STDERR "----ERROR FOR EVAL";
           }
           asap $repl;
         };
@@ -56,9 +76,9 @@ sub start {
   # terminal
   #
 
-  our $new_in=IO::FD::dup(0);
-  our $new_out=IO::FD::dup(1);
-  our $new_err=IO::FD::dup(2);
+  $new_in=IO::FD::dup(0);
+  $new_out=IO::FD::dup(1);
+  $new_err=IO::FD::dup(2);
 
   # Flush
   $STDOUT->write([""], sub {});
@@ -82,11 +102,11 @@ sub start {
 	    IO::FD::fcntl $new_in, F_SETFL, $flags;
 
       require Term::ReadLine;
-      open(our $stdin, "<&=$new_in") or die $!;
-      open(our $stdout, ">&=$new_out") or die $!;
+      open($stdin, "<&=$new_in") or die $!;
+      open($stdout, ">&=$new_out") or die $!;
 
       # Create a term using our inputs and outputs
-      our $TERM = Term::ReadLine->new('uSAC REPL', $stdin, $stdout);
+      $TERM = Term::ReadLine->new('uSAC REPL', $stdin, $stdout);
 
 
 
@@ -97,6 +117,7 @@ sub start {
       sub {
         package uSAC::REPL;
 
+	
         my $prompt=decode_meta_payload $_[0], 1;
         $prompt=$prompt->{prompt};
 
@@ -125,7 +146,6 @@ sub start {
     }
   );
 
-  say STDERR " -----before sigal setup";
   #
   #Stop the parent from having a watcher on the  input
   #  $STDIN->pause;
@@ -139,27 +159,24 @@ sub start {
 
   };
 
-  say STDERR " -----before prompt";
   my $prompt=encode_meta_payload({prompt=>"--->"},1);
-  say STDERR " -----after prompt";
   $repl=sub {
-    #asay $STDERR, "SUB REF TO START REPL";
-  say STDERR " -----in repl asap sub";
-    return unless $repl_worker;
-    $repl_worker->rpc("readline", $prompt,
-      sub {
-        #asay $STDERR, "REPL callback";
-        my $line=decode_meta_payload $_[0], 1;
-        $line=$line->{line};
+	  #asay $STDERR, "SUB REF TO START REPL";
+	  return unless $repl_worker;
+	  $repl_worker->rpc("readline", $prompt,
+		  sub {
+			  #asay $STDERR, "REPL callback";
+			  my $line=decode_meta_payload $_[0], 1;
+			  $line=$line->{line};
 
-        asap $handler, $line;
-        
-      },
-      sub {
-        asay $STDERR, "ERROR: $line";
-        asap $repl;
-      }
-    );
+			  asap $handler, $line;
+
+		  },
+		  sub {
+			  asay $STDERR, "ERROR: @_";
+			  asap $repl;
+		  }
+	  );
   };
   asap $repl;
 }

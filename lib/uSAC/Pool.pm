@@ -87,7 +87,7 @@ method rpc {
   }
 
   $w->rpc($name, $string, sub {
-      #asay $STDERR, "RPC callback in pool";
+		  #asay $STDERR, "RPC callback in pool";
       #asay $STDERR, Dumper @_;
       # REmove from the in_use
       delete $_in_use->{$w};
@@ -119,7 +119,7 @@ method remove_rpc {
 
 # The c
 method close {
-  asay $STDERR, "---CLOSING POOL----";
+	#asay $STDERR, "---CLOSING POOL----";
   for(@$_workers){
       $_->close;
   }
