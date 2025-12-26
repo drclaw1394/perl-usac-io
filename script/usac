@@ -30,8 +30,11 @@ $i=0;
 $found=undef;
 my $e="-e";
 
+my @include;
+my @pre;
+
 while($i<@ARGV){
-  if($ARGV[$i] =~/-{1,2}(e|E)/){
+  if($ARGV[$i] =~/-{1,1}(e|E$)/){
     # This overrides the environment setting
     $e="-E" if $1 eq "E";
     my $prog;
@@ -42,12 +45,67 @@ while($i<@ARGV){
 
     push @cli, $prog;
   }
+  elsif($ARGV[$i] =~/-{1,1}(I)/){
+    #Include
+    if(length $ARGV[$i] >2 ){
+      push @include, splice @ARGV, $i, 1;
+    }
+    else{
+      push @include, splice @ARGV, $i, 2;
+    }
+  }
+  elsif($ARGV[$i] =~/-{1,1}(D$)/){
+    # Debugging
+    if($ARGV[$i+1]=~/-/){
+      # No optional arg
+      push @pre, splice @ARGV, $i, 1;
+    }
+    else {
+      # optional provided
+      push @pre, splice @ARGV, $i, 2;
+    }
+  }
+  elsif($ARGV[$i] =~/-{1,1}(d$)/){
+    # Devel
+    if($ARGV[$i+1]=~/-/){
+      # No optional arg
+      push @pre, splice @ARGV, $i, 1;
+    }
+    else {
+      # optional provided
+      push @pre, splice @ARGV, $i, 2;
+    }
+  }
+  elsif($ARGV[$i] =~/-{1,1}(M)/){
+      #Modules
+      if(length $ARGV[$i] >2){
+        push @pre, splice @ARGV, $i, 1;
+      }
+      else {
+        #TODO
+        # This is only in later perl
+        push @pre, splice @ARGV, $i, 2;
+      }
+  }
+  elsif($ARGV[$i] =~/-{1,1}(V$)/){
+    # perl variables
+      # No optional arg
+      push @pre, splice @ARGV, $i, 1;
+  }
+  elsif($ARGV[$i] =~/-{1,1}(v$)/){
+      # Perl version
+      # No optional arg
+      push @pre, splice @ARGV, $i, 1;
+  }
   else {
     $i++;
   }
 }
 
-
+#use feature "say";
+#say "include @include";
+#say "PRE @pre";
+#say "ARGV @ARGV";
 
 die "No backend specified. Use environment or --backend" unless $backend;
 
@@ -67,8 +125,9 @@ my $code=unpack "H*", join ";", @cli;
 $code="qq{$code}";
 
 #print "FLAG IS $e";
-my @list=($^X,"-M$backend", "-MuSAC::Main", "-MuSAC::IO", $e, "uSAC::Main::_main($code)", @ARGV);
+my @list=($^X, @include, "-M$backend", @pre, "-MuSAC::Main", "-MuSAC::IO", $e, "uSAC::Main::_main($code)", @ARGV);
 #my @list=($^X,"-M$backend", "-MuSAC::Main", "-MuSAC::IO", "-e", "uSAC::Main::_main", @ARGV);
+#say "@list";
 exec @list;
 =pod
 

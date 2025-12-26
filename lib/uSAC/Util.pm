@@ -181,13 +181,20 @@ sub path {
 *usac_path=\&path;
 
 # Modified version of perl 'do'. Allow using caller relative paths
+# Executes in callers namespace
 #
 sub dost(*) {
+  my @c=caller;
+  local $@;
+  eval "
+  package $c[0];
   do &path;
+  ";
 }
 
 my %needed;
 # Modified version of perl 'require'. Returns the last value in the module on repeated calls
+# Executes the scripts in the callers package
 #
 sub need (*) {
   my $input=shift;
@@ -220,12 +227,25 @@ sub need (*) {
   }
   else{
     if($bare){
+      my @c=caller;
       local $@;
-      $res=eval "require $input;";
+      $res=eval "
+        package $c[0];
+        require $input;
+        ";
       die $@ if $@;
     }
     else {
-      $res=require ($key);
+      # Set package to caller
+      my @c=caller;
+      local $@;
+      $res=eval "package $c[0];
+      require (\"$key\");
+      ";
+      die "$!" if $@;
+      
+      local $@;
+      #$res=require ($key);
       die "Could not require non bare word need" unless $res;
     }
     $needed{$key}=$res;

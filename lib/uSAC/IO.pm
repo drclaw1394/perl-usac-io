@@ -1053,6 +1053,8 @@ sub io_map :prototype($){
 }
 
 #synchronous
+
+#Inplace
 sub io_grep :prototype($){
   my $filter=$_[0];
   sub {
@@ -1063,6 +1065,8 @@ sub io_grep :prototype($){
     }
   }
 }
+
+# Inplace
 sub io_filter :prototype($){
   my $filter=$_[0];
   sub {
@@ -1075,6 +1079,7 @@ sub io_filter :prototype($){
 }
 
 #synchronous
+#Modify inputs
 sub io_upper :prototype(){
   sub {
     my ($next, $index, @options)=@_;
@@ -1100,6 +1105,7 @@ sub io_lower :prototype(){
 }
 
 #synchronous
+#consumes input
 sub io_lines {
   my $sep=shift//$/; # save input seperator
   my $slen=length $sep;
@@ -1142,7 +1148,7 @@ sub io_lines {
 
 
 # return accumulated results from stdout
-#
+# consumes input
 sub io_accumulate {
   my $buffer=[""];
   sub {
@@ -1156,6 +1162,53 @@ sub io_accumulate {
     }
   }
 }
+
+# Copy the input argument. Prevents future operations form modifiing input data
+# INPUTS are left unchanged
+sub io_copy {
+  my @buffer;
+  sub {
+    my ($next, $index, @options)=@_;
+    sub {
+      my $cb=pop;
+      @buffer= $_[0]->@*;
+
+      # Call next with no callback provided. Marks end or data
+      $next->(\@buffer, $cb) unless $cb;
+    }
+  }
+}
+
+# The inputs are consumbed by any middleware next in the normal chain
+# The iputs are copied for each of the tees.
+# Tees are run asynchrounously
+#
+sub io_tee {
+  my @tees=@_;
+  my @buffers;
+
+  for(@tees){
+    push @buffers, [];
+  }
+
+  sub {
+    my ($next, $index, @options)=@_;
+    sub {
+      my $cb=$_[1];
+      # tees are schedualed
+      for(0..@tees-1){
+        # Copy inputs to each of the buffers
+        push $buffers[$_]->@*, $_[0]->@*;
+        asap($tees[$_], $buffers[$_], $cb);
+      }
+
+      # Call next syncrhonously
+      &$next;
+    }
+  }
+
+}
+
 
 
 use Sub::Middler;

@@ -9,7 +9,6 @@ WriteMakefile(
     ],
     PREREQ_PM         => {
       AnyEvent        =>0,
-      "uSAC::Log"     =>  0,
       "IO::FD"        =>"v0.3.7",
       "Log::ger"      =>0,
       "Log::ger::Output::Screen"=>0,
