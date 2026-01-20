@@ -1,5 +1,6 @@
 #!/usr/bin/env perl
  
+
 my $backend=$ENV{uSAC_IO_Backend};
 
 # Fallback to AnyEvent
@@ -19,6 +20,8 @@ for(@ARGV){
   $i++;
 }
 
+my $do_help;
+my $do_version;
 
 if(defined $found){
   # This overrides the environment setting
@@ -95,6 +98,18 @@ while($i<@ARGV){
   elsif($ARGV[$i] =~/-{1,1}(v$)/){
       # Perl version
       # No optional arg
+      $do_version=1;
+      push @pre, splice @ARGV, $i, 1;
+  }
+  elsif($ARGV[$i] =~/-{1,1}(h$)/){
+      # Perl help
+      # No optional arg
+      $do_help=1;
+      push @pre, splice @ARGV, $i, 1;
+  }
+  elsif($ARGV[$i] =~/-{1,1}(X$)/){
+      # Perl help
+      # No optional arg
       push @pre, splice @ARGV, $i, 1;
   }
   else {
@@ -102,14 +117,34 @@ while($i<@ARGV){
   }
 }
 
-#use feature "say";
-#say "include @include";
-#say "PRE @pre";
-#say "ARGV @ARGV";
 
-die "No backend specified. Use environment or --backend" unless $backend;
+die "USAC: No backend specified. Use environment or --backend" unless $backend;
 
+if($do_version){
+  print "
+  usac (uSAC - Micro Swiss Arry Chainsaw)
+  Copyright 2025 Ruben Westerberg
 
+  Event system wrapper around perl
+  ---------------------------------
+
+  ";
+}
+
+if($do_help){
+  print "
+usac [options] program.pl
+
+Perl options that make sense are supported and passed directly to perl (ie -I -M)
+
+--backend
+  The event loop to use in the back end. Default is AnyEvent (with EV)
+
+----------------------------------------------------------------------
+
+";
+
+}
 
 # NOTE: perl will consume any arguments BEFORE the argument we use for the do
 # script (in _main) It will also not run when an unsupported switch is
@@ -125,7 +160,7 @@ my $code=unpack "H*", join ";", @cli;
 $code="qq{$code}";
 
 #print "FLAG IS $e";
-my @list=($^X, @include, "-M$backend", @pre, "-MuSAC::Main", "-MuSAC::IO", $e, "uSAC::Main::_main($code)", @ARGV);
+my @list=($^X, @include, "-M$backend", "-MuSAC::Loaded", @pre, "-MuSAC::Main", "-MuSAC::IO", $e, "uSAC::Main::_main($code)", @ARGV);
 #my @list=($^X,"-M$backend", "-MuSAC::Main", "-MuSAC::IO", "-e", "uSAC::Main::_main", @ARGV);
 #say "@list";
 exec @list;
@@ -152,7 +187,7 @@ Essentially it hides away and abstract the loop setup and tear down from the
 main program. For example instead of:
 
     #!/usr/bin/env perl
-    #
+    
     use AnyEvent;
 
     my $cv=AE::cv;
@@ -171,8 +206,6 @@ main program. For example instead of:
 You do this:
 
   #!/usr/bin/env usac --backend AnyEvent
-  #
-  use uSAC::IO;
 
   timer 1, 0, sub {
     asay "Hello"

@@ -21,12 +21,12 @@ our %sig_watchers;
 
 # Postpone a subroutine call
 my @asap;
+my @asap_e;
 my @asap_args;
 my $asap_timer;
 my $entry;
 
 
-use Data::Dumper;
 our $CV;
 my $will_exit;
 my $tick_timer_raw;
@@ -74,19 +74,20 @@ sub cancel ($){
 
 
 
-# Processing sub for asap code refs.
+# Processing sub for asap /atry code refs.
 
 my $asap_sub=sub {
   return unless @asap;
   # Call subs with supplied arguments.
   #
   my $entry=shift @asap;
+  my $error=shift @asap_e;
   my $args=shift @asap_args;
   try{
     $entry->(@$args);
   }
   catch($e){
-    _exception($e);
+    _exception($e, $error);
   }
 
   # Destroy the idle watcher/timer if nothing left to process!
@@ -98,13 +99,15 @@ my $asap_sub=sub {
 
 };
 
-# Schedule a code ref to execute asap on current event system.
+# Schedule a code ref to execute asap on current event system If it fails
+# within the current call tree from event hanler, then error sub is called
 #
-sub asap ($;@){
-    my ($c, @args)=@_;
+sub atry ($$;@){
+    my ($c, $e, @args)=@_;
     if($c){
       # only push if a sub is given. Otherwise we just use as a way to restart the asap timer
       push @asap, $c;
+      push @asap_e, $e;
       push @asap_args, \@args;
     }
     #uSAC::IO::asay $STDERR, "Restarting ASAP in $$ with ".@asap." args ";
@@ -114,6 +117,7 @@ sub asap ($;@){
     $watchers{idle}=$asap_timer;
     1;
 }
+
 
 sub timer ($$$){
     my ($offset, $repeat, $sub, $no_save)=@_;
@@ -165,8 +169,7 @@ sub child ($$){
 	  #callback can be executed synchronoulsy for a short process. The
 	  #result is the watcher is removed before its added. ASAP fixes this
 	  #
-	  asap sub {
-		  use Data::Dumper;
+	  atry sub {
 		  my $w=delete $watchers{$_[0]};
 
 		  # Actual error code in upper 8 bits of 16 bit return value
@@ -174,7 +177,7 @@ sub child ($$){
 		  $_[1]=$_[1] >> 8;
 
 		  &$sub;
-	  },@_;
+	  },undef, @_;
   };
   $watchers{$pid}=$temp;
     $temp;
@@ -229,13 +232,13 @@ sub connect_addr {
     else {
       # Syncrhonous fail. reshedual
       uSAC::IO::asay $STDERR, "Synchronouse error at connect: $!";
-      $on_error and asap $on_error, $socket, "$!";
+      $on_error and atry $on_error, undef, $socket, "$!";
     }
     return;
   }
   else {
     # Syncrhonous connect. reshedual
-    asap $on_connect, $socket, $addr if $on_connect;
+    atry $on_connect, undef, $socket, $addr if $on_connect;
   }
 
 	$id;
@@ -291,7 +294,7 @@ sub _post_loop {
   unless($tick_timer_raw){
     $tick_timer_raw=1; # Synchronous true until asap is called
     #uSAC::IO::asay $STDERR, "in tick timer check----";
-    asap sub {
+    atry sub {
 	    #uSAC::IO::asay $STDERR, "---DOING ASAP FOR TICK TIMER=======";
       my $id=timer 0, 0.5, sub {
 	      #uSAC::IO::asay $STDERR, "--raw timer callback--";
@@ -303,7 +306,7 @@ sub _post_loop {
       };
 
       $tick_timer_raw=delete $watchers{$id};
-    };
+    }, undef;
   }
   # Only execute run loop if exit hasn't been called
   #print STDERR "Willl exit for $$ : $will_exit  CV $CV\n";
@@ -331,6 +334,7 @@ sub _post_fork {
 
 sub _exception{
   my $e=shift;
+  my $cb=shift;
         use Error::Show;
         if($e=~/(\d+) RETURN/){
           ## NOTE SPECIAL EXCEPTION TO HANDLE CHILD FORK
@@ -340,7 +344,12 @@ sub _exception{
         }
         else {
           # NORMAL Execiption handling
-          uSAC::IO::asay($STDERR, Error::Show::context $e);
+          if($cb){
+            $cb->($e);
+          }
+          else {
+            uSAC::IO::asay($STDERR, Error::Show::context $e);
+          }
         }
         return; 
 }

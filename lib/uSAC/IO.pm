@@ -8,6 +8,17 @@ use feature "current_sub";
 
 our $VERSION="v0.1.0";
 
+
+# This is an explicit check to see if usac has been invoked
+#
+unless($uSAC::Loaded::Loaded){
+  print STDERR "Script must be loaded by usac ( not perl directly)" ;
+  exit;
+}
+
+# Test to see if actually loaded via usac
+
+
 use Data::FastPack::Meta;
 use Data::Combination;
 use constant::more DEBUG=>0;
@@ -66,7 +77,7 @@ our $Clock=time;
 
 # Must return 1
 # Takes a sub as first argument, remaining arguments are passed to sub
-sub asap($;@);   # Schedule sub as soon as async possible
+sub atry($$;@);   # Schedule sub as soon as async possible
 
 # Must return an integer key for the timer.
 sub timer ($$$);  # Setup a timer
@@ -86,8 +97,11 @@ sub _post_loop;
 sub _shutdown_loop;
 sub _post_fork;
 sub asay;
+sub asay_now;
+sub adump;
+sub adump_now;
 
-*asap=\&{$rb."::asap"};                         # Schedual code to run as soon as possible (next tick)
+*atry=\&{$rb."::atry"};                         # Schedual code to run as soon as possible (next tick)
 *signal=\&{$rb."::signal"};                         # Schedual code to run as soon as possible (next tick)
 *signal_cancel=\&{$rb."::signal_cancel"};                         # Schedual code to run as soon as possible (next tick)
 *child=\&{$rb."::child"};                         # Schedual code to run as soon as possible (next tick)
@@ -116,7 +130,12 @@ sub asay;
 
 use strict "refs";
 
-
+sub asap {
+  my $code=shift;
+  unshift @_, undef;
+  unshift @_, $code;
+  &atry;
+}
 
 
 # Create a socket from hints and call the indicated callback ( or override when done)
@@ -126,7 +145,7 @@ sub create_socket{
   my ($socket, $hints, $override)=@_;
   return undef if defined $socket;
 
-  DEBUG and asay $STDERR, "create_socket called";
+  DEBUG and adump $STDERR, "create_socket called", $hints;
   for($hints){
     my $on_error=$_->{data}{on_error};
     my $on_socket=$override//$_->{data}{on_socket};
@@ -189,6 +208,7 @@ sub socket_stage($;$){
   
   # Override an undefined on_spec function to create a socket
   my $on_spec=$specs[0]{data}{on_spec}//sub { 
+    DEBUG and asay $STDERR, "on spec called---";
     create_socket undef, $_[1], $next if $_[1];
   };
 
@@ -227,7 +247,7 @@ sub fd_2_fh {
 sub bind ($$) {
 
   my ($socket, $hints)=@_;
-  DEBUG and asay $STDERR, "$$ BIND CALLED";
+  DEBUG and adump $STDERR, "$$ BIND CALLED: ", $socket, $hints;
   #DEBUG and asay $STDERR, "$$ ". Dumper $socket, $hints;
 
   create_socket $socket, $hints, __SUB__  and return;
@@ -1319,8 +1339,8 @@ sub aprint_now ($;@){
 
 sub adump ($;@){
   my $w=shift;
-  require Data::Dumper;
-  $w->write([Data::Dumper::Dumper(@_)], undef);
+  require Data::Dump::Color;
+  $w->write([Data::Dump::Color::dump(@_)."\n"], undef);
   $w;
 
 }

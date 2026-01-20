@@ -207,7 +207,6 @@ BUILD {
       my $cb=sub {
 
         my $details=shift;
-        #use Data::Dumper;
         #Log::OK::TRACE and log_trace "---RETURN DETAILS: ".Dumper $details;
         $_current_concurrency--;
 

@@ -66,7 +66,6 @@ $hints={port=>$port, address=>$host, socktype=>SOCK_STREAM, protocol=>IPPROTO_TC
 };
 
 
-
 # Start off with the bind of the server
 uSAC::IO::socket_stage $hints;#, \&uSAC::IO::bind;
 
@@ -75,7 +74,7 @@ uSAC::IO::socket_stage $hints;#, \&uSAC::IO::bind;
 #
 sub do_connect {
   my (undef, $hints)=@_;
-  asay $STDERR, "======$$ Made it to do_connect";
+  asay_now $STDERR, "======$$ Made it to do_connect";
   $STDERR->flush;
   uSAC::IO::socket_stage $hints, \&uSAC::IO::connect;
 
