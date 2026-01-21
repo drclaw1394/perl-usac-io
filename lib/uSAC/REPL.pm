@@ -104,12 +104,61 @@ sub start {
       require Term::ReadLine;
       open($stdin, "<&=$new_in") or die $!;
       open($stdout, ">&=$new_out") or die $!;
+      open($stderr, ">&=$new_err") or die $!;
 
       # Create a term using our inputs and outputs
       $TERM = Term::ReadLine->new('uSAC REPL', $stdin, $stdout);
+      
+      use Data::Dumper;
+      sub my_gen {
+        my ($text, $state)=@_;
+        use feature "state";
+        state @list;
+        unless($state){
+          @list=grep !/^_\</, keys %::; # remove the file names
+
+          @list=grep /^$text/, @list;   # Prematch with the text
+        }
+          
+        $list[$state];
 
 
+      }
 
+      sub attempted_completion_function{
+        my ($text, $line, $start, $end) = @_;
+        #print $stdout Dumper $text, $line, $start, $end;
+        #my @options = qw(option1 option2 option3 obese);
+        #        return grep { /^\Q$text/ } @options;
+        my @options=$TERM->completion_matches($text, \&my_gen);
+
+
+        # Find the longest prefix
+        my $shortest=$options[0];
+        my $prefix=$text;
+        my $index=length $text;
+        for my $item(@options){
+          my $count=grep {my $pos=index $_, $prefix, 0; $pos==0} @options;
+          last if $count <=1;
+          $index++;
+          $prefix=substr $shortest, 0 , $index;
+        }
+
+        # If there isn  and eact match, return prefix first
+        my @can=grep { /$prefix/ } @options;
+        unshift @can, $prefix unless grep /^$prefix$/, @can;
+
+        @can;
+      }
+      
+      sub completion_function{
+         my ($text, $line, $start) = @_;
+        qw< a list of stuff>;
+      }
+
+      $TERM->Attribs->{attempted_completion_function} = \&attempted_completion_function
+
+      #$TERM->Attribs->{completion_function} = \&completion_function;
     },
 
     rpc=>{
