@@ -1,9 +1,8 @@
 package uSAC::IO;
-use strict;
-use warnings;
+use v5.36;
 
+no feature "signatures";
 no warnings "experimental";
-
 use feature "current_sub";
 
 our $VERSION="v0.1.0";
@@ -18,6 +17,8 @@ unless($uSAC::Loaded::Loaded){
 
 # Test to see if actually loaded via usac
 
+use IO::FD;
+use IO::FD::DWIM;
 
 use Data::FastPack::Meta;
 use Data::Combination;
@@ -25,9 +26,10 @@ use constant::more DEBUG=>0;
 
 #Datagram
 use constant::more qw<r_CIPO=0 w_CIPO r_COPI w_COPI r_CEPI w_CEPI>;
-use Import::These qw<uSAC::IO:: DReader DWriter SWriter SReader>;
+#use Import::These qw<uSAC::IO:: DReader DWriter SWriter SReader>;
 
-require Socket::More;# qw<sockaddr_passive sockaddr_family>;
+require Socket::More;
+require Socket::More::Lookup;
 
 use Import::These qw<Socket::More:: Constants Interface>;
 use constant::more  IPV4_ANY=>"0.0.0.0",
@@ -37,7 +39,6 @@ use constant::more  IPV4_ANY=>"0.0.0.0",
 use Fcntl qw(F_GETFL F_SETFL O_NONBLOCK :mode);
 
 use Data::Cmp qw<cmp_data>;
-#use Data::Dumper;
 
 
 our $STDIN;
@@ -69,26 +70,27 @@ my $rb=($backend."::IO");
 die "Could not require $rb" unless(eval "require $rb");
 
 no strict "refs";
+no warnings "redefine";
 
 our $Clock=time;
 
 
 # Must return 1
 # Takes a sub as first argument, remaining arguments are passed to sub
-sub atry($$;@);   # Schedule sub as soon as async possible
+sub atry :prototype($$;@);   # Schedule sub as soon as async possible
 
 # Must return an integer key for the timer.
-sub timer ($$$);  # Setup a timer
+sub timer  :prototype($$$);  # Setup a timer
 
-sub signal ($$);  #Assign a signal handler to a signal
+sub signal  :prototype($$);  #Assign a signal handler to a signal
 
-sub child ($$);
-sub cancel ($);
+sub child  :prototype($$);
+sub cancel  :prototype($);
 
 # Must delete the timer from store
 # Must use alias of argument to make undef
-sub timer_cancel ($);
-sub connect_cancel ($);
+sub timer_cancel  :prototype($);
+sub connect_cancel  :prototype($);
 sub connect_addr;
 sub _pre_loop;
 sub _post_loop;
@@ -178,7 +180,7 @@ sub create_socket{
 # Also optionall can override the default on_spec callback stored (or not)
 # in the resulting spec
 #
-sub socket_stage($;$){
+sub socket_stage :prototype($;$){
   my ($spec, $next)=@_;
   my @specs;
   if(!ref $spec){
@@ -242,7 +244,7 @@ sub fd_2_fh {
 # Take a socket and the hints associated with it, binds to info from hints
 # If socket doesn't exitst, one is created and this function recalled
 # The socket and hints are passed to the callback on_bind
-sub bind ($$) {
+sub bind  :prototype($$) {
 
   my ($socket, $hints)=@_;
   DEBUG and adump $STDERR, "$$ BIND CALLED: ", $socket, $hints;
@@ -298,7 +300,7 @@ sub bind ($$) {
 
 # TODO: allow a string as a spec to be used instead of hints? Only valid when host is undef.
 # TODO: allow host and port (addr and po ) in spec when host and port are undef for spec processing
-sub connect ($$){
+sub connect  :prototype($$){
   DEBUG and asay $STDERR, "Connect called";
 	my ($socket, $hints)=@_;
   my $fam;
@@ -348,7 +350,7 @@ sub connect ($$){
       sub{
         DEBUG and asay $STDERR, "$$ LOOKUP ERROR"; 
         #DEBUG and asay $STDERR, Dumper $hints;
-        $on_error and $on_error->($socket, gai_strerror $!);
+        $on_error and $on_error->($socket, Socket::More::Lookup::gai_strerror($!));
       }
 		);
 	}
@@ -363,8 +365,7 @@ sub connect ($$){
 	}
 }
 
-sub listen ($$){
-  #DEBUG and asay $STDERR, "Listen called with ". Dumper @_;
+sub listen ($$) {
   my ($socket, $hints)=@_;
 
   create_socket $socket, $hints, \&bind and return;
@@ -384,7 +385,7 @@ sub listen ($$){
 
 }
 
-sub accept($$){
+sub accept :prototype($$) {
   my ($socket, $hints)=@_;
 
   #DEBUG and asay $STDERR, "Accept called";
@@ -456,13 +457,13 @@ sub _prep_spec{
 
   for($r->{socktype}->@*){
     unless(Scalar::Util::looks_like_number $_){
-      ($_)=Socket::More::string_to_socktype $_;
+      ($_)=Socket::More::string_to_socktype($_);
     }
   }
 
   for($r->{family}->@*){
     unless(Scalar::Util::looks_like_number $_){
-      ($_)=Socket::More::string_to_family $_;
+      ($_)=Socket::More::string_to_family($_);
     }
   }
   # End
@@ -756,7 +757,7 @@ sub _prep_spec{
             },
 
             sub {
-             DEBUG and asay $STDERR, "getaddrinfo error", "@_";#, gai_strerror($_[0]);
+             DEBUG and asay $STDERR, "getaddrinfo error", "@_";
             $on_error->()    # Use on error
           }
           );
@@ -777,16 +778,20 @@ sub _prep_spec{
 
 
 sub dreader {
+  require uSAC::IO::DReader;
 	&uSAC::IO::DReader::create;
 }
 sub sreader {
+  require uSAC::IO::SReader;
 	&uSAC::IO::SReader::create;
 }
 
 sub dwriter {
+  require uSAC::IO::DWriter;
 	&uSAC::IO::DWriter::create;
 }
 sub swriter {
+  require uSAC::IO::SWriter;
 	&uSAC::IO::SWriter::create;
 }
 
@@ -870,7 +875,7 @@ sub pair {
 
 sub pipe {
 	my ($rfh,$wfh)=@_;
-	my ($r,$w)=(reader($rfh), writer($wfh));
+	my ($r, $w)=(reader($rfh), writer($wfh));
 	if($r and $w){
 		$r->pipe_to($w);
 		return ($r,$w);	
