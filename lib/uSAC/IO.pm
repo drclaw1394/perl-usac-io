@@ -39,7 +39,7 @@ use constant::more  IPV4_ANY=>"0.0.0.0",
 use Fcntl qw(F_GETFL F_SETFL O_NONBLOCK :mode);
 
 use Data::Cmp qw<cmp_data>;
-use Data::Dumper;
+#use Data::Dumper;
 
 
 our $STDIN;
@@ -1357,7 +1357,7 @@ sub _make_pool {
       },
       getaddrinfo=>sub {
 
-        DEBUG and asay $STDERR, "$$ CALLED GETADDRINFO with @_". Dumper (@_); 
+        #DEBUG and asay $STDERR, "$$ CALLED GETADDRINFO with @_". Dumper (@_); 
         my $input=decode_meta_payload $_[0], 1;
         #DEBUG and asay $STDERR, "$$ DECODED ". Dumper($input);
 

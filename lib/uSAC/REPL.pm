@@ -109,7 +109,7 @@ sub start {
       # Create a term using our inputs and outputs
       $TERM = Term::ReadLine->new('uSAC REPL', $stdin, $stdout);
       
-      use Data::Dumper;
+      #use Data::Dumper;
       sub my_gen {
         my ($text, $state)=@_;
         use feature "state";
