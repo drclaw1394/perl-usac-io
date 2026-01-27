@@ -6,8 +6,6 @@ use warnings;
 use feature qw<try current_sub isa>;
 no warnings "experimental";
 
-#use Socket ":all";
-#use Socket::More;
 use Errno qw(EAGAIN EINTR EINPROGRESS EISCONN );
 #use parent "uSAC::IO";
 

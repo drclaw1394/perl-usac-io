@@ -34,8 +34,6 @@ use constant::more  IPV4_ANY=>"0.0.0.0",
                     IPV6_ANY=>"::";
 
 
-                    #use Socket::More::Resolver {}, undef;
-                    #use IO::FD::DWIM ();
 use Fcntl qw(F_GETFL F_SETFL O_NONBLOCK :mode);
 
 use Data::Cmp qw<cmp_data>;
