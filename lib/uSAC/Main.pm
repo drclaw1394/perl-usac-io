@@ -36,6 +36,9 @@ use uSAC::Pool;
 
 our $POOL;
 our $USAC_RUN=1;
+
+our $IN_PROGRESS_SYNC=1;
+
 our $WORKER;
 
 
@@ -277,19 +280,24 @@ sub _main {
               {
                 package main;
                 $res=do $script;
+                $IN_PROGRESS_SYNC=undef;
               }
 
               if(!defined $res and $@){
+                print STDERR "RRERROR: $@\n";
+                $IN_PROGRESS_SYNC=undef;
                 die $@;
                 # Compile error
-                #asay $STDERR, "RRERROR: $@";
                 #exit;
               }
-              elsif(!defined $res and $!){
-                # Access error
-                asay $STDERR, "error $script: $!\n"; 
-                exit;  # This stops the loop
-              }
+              #########################################
+              # elsif(!defined $res and $!){          #
+              #   # Access error                      #
+              #   print STDERR "error $script: $!\n"; #
+              #   $IN_PROGRESS_SYNC=undef;            #
+              #   exit;  # This stops the loop        #
+              # }                                     #
+              #########################################
               else {
                 #print  STDERR "No script file. Entering REPL\n";
               }

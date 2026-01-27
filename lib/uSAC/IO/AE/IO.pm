@@ -3,7 +3,7 @@ package uSAC::IO::AE::IO;
 use strict;
 use warnings;
 #use v5.36;
-use feature qw<try current_sub>;
+use feature qw<try current_sub isa>;
 no warnings "experimental";
 
 #use Socket ":all";
@@ -33,7 +33,20 @@ my $tick_timer_raw;
 
 
 sub _shutdown_loop {
-  use v5.36;
+  ################################################
+  # use Error::Show;                             #
+  # try {                                        #
+  #   Error::Show::throw "asdfasdf";             #
+  #                                              #
+  # }                                            #
+  # catch($e){                                   #
+  #   #print STDERR Error::Show::context $e;     #
+  # }                                            #
+  #                                              #
+  # print STDERR "---WHO CALLED SHUTDOWNLOOP\n"; #
+  #                                              #
+  ################################################
+
   $CV and ($CV isa AnyEvent::CondVar) and $CV->send;
   #$CV=undef;
 }
@@ -291,19 +304,27 @@ sub _pre_loop {
 sub _post_loop {
   # Create a tick timer, which isn't part of the normal watcher list
   # When no watchers are present, 
+  #print STDERR "--POST LOOP CALLED\n";
   unless($tick_timer_raw){
+    #print STDERR "--POST LOOP CALLED, not tick timer\n";
     $tick_timer_raw=1; # Synchronous true until asap is called
     #uSAC::IO::asay $STDERR, "in tick timer check----";
     atry sub {
 	    #uSAC::IO::asay $STDERR, "---DOING ASAP FOR TICK TIMER=======";
-      my $id=timer 0, 0.5, sub {
+      my $id=uSAC::IO::timer(0.5, 0.5, sub {
 	      #uSAC::IO::asay $STDERR, "--raw timer callback--";
+        #print STDERR "-- RAW TIMER CALLBACK-- \n";
         $uSAC::IO::Clock=time;
 	#uSAC::IO::asay $STDERR, "WATCHERS for $$ ARE ". join " ", %watchers;
 	#uSAC::IO::asay $STDERR, "PROCs for $$ ARE ". join " ", %uSAC::IO::procs;
         #print STDERR "\n";
-        _exit unless keys %watchers;
-      };
+
+        # ONly exit if nothing to do. Check the watchers, the asap timer and
+        # the synchrouns execution flag
+        #
+        _exit unless keys %watchers or $asap_timer or $uSAC::Main::IN_PROGRESS_SYNC;
+      });
+
 
       $tick_timer_raw=delete $watchers{$id};
     }, undef;
@@ -311,7 +332,9 @@ sub _post_loop {
   # Only execute run loop if exit hasn't been called
   #print STDERR "Willl exit for $$ : $will_exit  CV $CV\n";
   !$will_exit and $CV and $CV->recv;
+  #print STDERR "--AFTER CB recv--  sync in progres: $uSAC::Main::IN_PROGRESS_SYNC \n";
 }
+
 
 sub _post_fork {
 
