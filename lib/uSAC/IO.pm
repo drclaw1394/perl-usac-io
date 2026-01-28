@@ -910,8 +910,15 @@ sub interval {
 our %procs;
 # Internal for and of fork/exec
 # Creates pipes for communicating to child processes
-sub sub_process ($;$$$$){
-  my ($cmd, $on_complete, $on_fork)=@_;
+# First argument is command or code to run
+# Second is on_complete
+# Thirt is optional on_read handler for stdout
+# Forth is optional on_read handerl for stderr
+#
+# Returns array of (writer, reader, reader, pid)
+#
+sub sub_process ($;$$$){
+  my ($cmd, $on_complete, $on_stdout, $on_stderr)=@_;
   #asay $STDERR, 'TOP OF sub_Pocess : '. $cmd;
 
   my @pipes;
@@ -954,14 +961,17 @@ sub sub_process ($;$$$$){
     _shutdown_loop;
     uSAC::IO::child $pid, sub {
       my ($ppid, $status)=@_;
-
         if($procs{$ppid}){
           $procs{$ppid}{pid}=0; # Mark as done
         }
 
+        local $?=$status;
         $on_complete and  $on_complete->([$status, $ppid]); #Status first to match perl system command
         #asay $STDERR, "AFTER WHILE $ppid";
     };
+
+      $reader->on_read=$on_stdout if $on_stdout;
+      $error->on_read=$on_stderr if $on_stderr;
 
     return ($writer, $reader, $error, $pid);
   }
@@ -1000,7 +1010,8 @@ sub sub_process ($;$$$$){
     # client
     # 
     if(defined $cmd and ! ref $cmd){
-      exec $cmd or asay $STDERR, $! and exit;
+      exec $cmd or asay $STDERR, $! and exit -1; # TODO... how to fix this... 
+
       #TODO signal to parent the exec failed somehow??
       
     }
@@ -1236,6 +1247,9 @@ sub io_tee {
 
 use Sub::Middler;
 
+# Backtick is like the system qx or `` operators in vanilla perl.
+# Here the on_result callback is called with the accumualted output from the command
+# The $? varible is set before executing the callback to check for success
 sub backtick {
   my $cmd=shift;
   my $on_result=shift;
@@ -1255,10 +1269,12 @@ sub backtick {
       if(ref($on_result) eq "ARRAY"){
         my $m=linker $on_result;
 
-        $m->([$buffer, $status, $pid],undef);
+        local $?=$status;
+        $m->([$buffer],undef);
       }
       elsif(ref($on_result) eq "CODE"){
-        $on_result->([$status, $pid, $buffer], undef);
+        local $?=$status;
+        $on_result->([$buffer], undef);
         
       }
       
@@ -1270,14 +1286,16 @@ sub backtick {
 	$io[2]->destroy();
   };
 
-  (@io, $pid)= sub_process $cmd, sub {
+  (@io)= sub_process $cmd, sub {
       my $a=shift;
 
       # Save the status and pid of the process. We might have a reading to do however
-      ($status, $pid, undef)=$a->@*;
+      ($status, $pid)=$a->@*;
       $do_result->();
 
   };
+
+  $pid=$io[3];
 
   # Back tick handles stadard out only
   $io[1]->on_read=sub {
@@ -1299,13 +1317,16 @@ sub backtick {
   $io[2]->start;
 
   # return the pid of th child process
-  $io[3];
+  #$io[3];
+  $pid;
 }
 
 
-# Run another command, linking stdio
+# Run A command
+# executes the on_result callback with the status code of the child process. No IO capturing is done
+# The status is locally set to the $? variable before calling
 #
-sub system ($;$$$$){
+sub system ($;$){
 
 }
 
