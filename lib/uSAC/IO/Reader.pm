@@ -31,7 +31,7 @@ BUILD{
 	$self->on_read=sub {$self->pause};
 	$self->on_error= $self->on_eof=sub{};
 
-	$_max_read_size//=4096*4;
+	$_max_read_size//=4096*16;
   $self->buffer=[IO::FD::SV($_max_read_size)];#"";
   $_sysread//=\&IO::FD::sysread;
 
