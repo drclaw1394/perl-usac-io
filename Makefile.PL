@@ -19,6 +19,8 @@ WriteMakefile(
       "Error::Show"   =>0,
       "Data::Dump::Color"=>0,
       "Sub::Middler"  =>v0.4.0,
+      'Hustle::Table' => v0.8.0,
+      'UUID'          => 0,
       "Data::FastPack"=>v0.3.0,
       "List::Insertion"=>v0.2.1,
       "Cpanel::JSON::XS"=>0,
