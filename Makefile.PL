@@ -8,6 +8,7 @@ WriteMakefile(
                           "script/usac-repl"
     ],
     PREREQ_PM         => {
+      EV              => "v4.37",
       AnyEvent        =>0,
       "IO::FD"        =>"v0.3.7",
       "Log::ger"      =>0,
