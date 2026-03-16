@@ -20,6 +20,7 @@ unless($uSAC::Loaded::Loaded){
 use IO::FD;
 use IO::FD::DWIM;
 
+use Data::Dumper;
 use Data::FastPack::Meta;
 use Data::Combination;
 use constant::more DEBUG=>0;
@@ -48,6 +49,9 @@ our $STDERR;
 use Export::These qw{accept asap timer delay interval timer_cancel sub_process sub_process_cancel backtick getaddrinfo getnameinfo connect connect_cancel connect_addr bind pipe pair listen 
 dreader dwriter reader writer sreader swriter signal socket_stage asay asay_now aprint aprint_now adump adump_now $STDOUT $STDIN $STDERR
 io_lines io_accumulate io_grep io_filter io_upper io_lower
+io_file_open
+io_file_slurp
+io_file_spurt
 create_socket};
 
 #use Export::These '$STDOUT','$STDIN', '$STDERR';
@@ -1171,11 +1175,14 @@ sub io_lines {
         $buffer.=$_;
       }
 
-
-
-      # Add the remainder if last call
-      push @lines, $buffer unless $cb;
-      $next->(\@lines, $cb);
+      if($cb){
+        $cb->();
+      }
+      else{
+        # Add the remainder if last call
+        push @lines, $buffer;
+        $next->(\@lines, $cb);
+      }
     }
   }
 }
@@ -1189,10 +1196,19 @@ sub io_accumulate {
     my ($next, $index, @options)=@_;
     sub {
       my $cb=pop;
-      $buffer->[0] .= $_ for @{$_[0]};
+      # Consume input, but leave array
+      $buffer->[0] .= pop $_[0]->@* for @{$_[0]};
 
+      
       # Call next with no callback provided. Marks end or data
-      $next->($buffer, $cb) unless $cb;
+      if($cb){
+        #Do callback to indicate data is consumed;
+        $cb->();
+      }
+      else {
+        # No more data (no cb) so finish it
+        $next->($buffer, $cb)
+      }
     }
   }
 }
@@ -1375,6 +1391,8 @@ sub adump_now($;@){
 sub _make_pool {
   # BOOTSTRAP THE POOL
   unless(defined $uSAC::Main::POOL){
+    
+    my %fds;
     my $rpc={
       eval=>sub {
         eval shift;
@@ -1420,6 +1438,118 @@ sub _make_pool {
         $return_out=encode_meta_payload {host=>$host, port=>$port}, 1;
       },
 
+      file_open => sub {
+        DEBUG and say STDERR "$$ CALLED FILE OPEN with", Dumper (@_);
+        my $input=decode_meta_payload $_[0], 1;
+
+        DEBUG and say STDERR "$$ DECODED ". Dumper($input);
+
+        my $return_out="";
+
+        #asay $STDERR, "$$ before file open call";
+        #
+        my $fd;
+        # Opend with cache ?
+
+
+        my $data="";
+        # Read from start if no file position given
+        # TODO: maybe always read a min block size...?  one less argument to pass
+        # then let the recieving process piece it together?
+        #my $rc=IO::FD::open($fd, $input->{mode}, $input->{path});
+        my $rc=open($fd, $input->[0]{mode}//"<",$input->[0]{path});
+
+        #say STDERR  "---CREATED FILE hNAlDE: ", $fd, "FOre worker ", $uSAC::Main::Worker;
+        my $fid=pack "LL", $$, time;
+        $fds{$fid}=$fd;
+
+        # Prevent worker from shrinking/ exiting as we need to rememeber state
+        unless (defined $rc){
+
+        }
+        $return_out=encode_meta_payload {fid=>$fid, rc=>$rc, error=>$rc? undef :$!}, 1;
+      
+      },
+
+      file_close => sub {
+        #DEBUG and asay $STDERR, "$$ CALLED GETADDRINFO with @_". Dumper (@_); 
+        my $input=decode_meta_payload $_[0], 1;
+        #DEBUG and asay $STDERR, "$$ DECODED ". Dumper($input);
+
+        my $return_out="";
+
+        #asay $STDERR, "$$ before file read call";
+        my $fd=delete $fds{$input->[0]{fid}};
+        # Opend with cache ?
+      
+        my $data="";
+        # Read from start if no file position given
+        # TODO: maybe always read a min block size...?  one less argument to pass
+        # then let the recieving process piece it together?
+        #
+        my $rc=close($fd);
+      
+
+        unless (defined $rc){
+
+        }
+        $return_out=encode_meta_payload {rc=>$rc, error=>$!}, 1;
+
+      },
+
+      file_read=>sub {
+
+        #D
+        #EBUG and asay $STDERR, "$$ CALLED GETADDRINFO with @_". Dumper (@_); 
+        my $input=decode_meta_payload $_[0], 1;
+        DEBUG and say STDERR "$$ DECODED for read ". Dumper($input);
+
+        my $return_out="";
+
+        #asay $STDERR, "$$ before file read call";
+        my $fd=$fds{$input->[0]{fid}};
+
+        #say STDERR  "---LOCATING FILE hNAlDE: ", $fd;
+        # Opend with cache ?
+      
+        my $data="";
+        # Read from start if no file position given
+        # TODO: maybe always read a min block size...?  one less argument to pass
+        # then let the recieving process piece it together?
+        #
+        my $rc=sysread($fd, $data, $input->[0]{length}//4096);
+      
+
+        unless (defined $rc){
+
+        }
+        $return_out=encode_meta_payload {data=>[$data], rc=>$rc, error=>$rc? undef: $!}, 1;
+      },
+
+      file_write=>sub {
+
+        #DEBUG and asay $STDERR, "$$ CALLED GETADDRINFO with @_". Dumper (@_); 
+        my $input=decode_meta_payload $_[0], 1;
+        #DEBUG and asay $STDERR, "$$ DECODED ". Dumper($input);
+
+        my $return_out="";
+        my @results;
+
+        asay $STDERR, "$$ before file write call";
+        my $fd=$fds{$input->{fid}};
+        # Opend with cache ?
+      
+        my $data="";
+        #TODO: if no position ... append
+        my $rc=IO::FD::pwrite($fd, $input->{data}, $input->{file_position});
+      
+        unless (defined $rc){
+
+        }
+        #DEBUG and asay $STDERR, "$$ Results ". Dumper (\@results);
+        $return_out=encode_meta_payload {rc=>$rc, error=>$!}, 1;
+      },
+
     };
     $uSAC::Main::POOL=uSAC::Pool->new(rpc=>$rpc);
   }
@@ -1457,6 +1587,153 @@ sub getnameinfo {
 
 
 
+# Open files
+sub io_file_open {
+  my ($fid, $error)=@_;
 
+  #adump $STDERR, "io_file_open_wrapper";
+
+  my $pool=_make_pool;
+  sub {
+    my ($next, $index, @options)=@_;
+    #adump $STDERR, "io_file_open_linker ", @_;
+    sub {
+      #adump $STDERR, "io_file_open";
+      my $cb=$_[$#_];
+      my $enc=encode_meta_payload $_[0], 1;
+      my $__cb=sub {
+        DEBUG and asay $STDERR, "$$ Callback in file_open", Dumper @_;;
+        #DEBUG and asay $STDERR, Dumper @_;
+        my $p=decode_meta_payload $_[0], 1;
+
+
+        # call next with generated fid
+        $$fid=$p->{fid};
+        DEBUG and asay $STDERR, "$$ Callback in file_open", Dumper $p;;
+        $next->([], $cb);
+      };
+
+      # Call sticky_rpc
+      $pool->sticky_rpc("file_open", $enc, $__cb, $error);
+    }
+  }
+}
+
+sub io_file_close {
+  my ($fid, $error)=@_;
+  my $pool=_make_pool; 
+  sub {
+    my ($next, $index, @options)=@_;
+    sub {
+      #adump $STDERR, "io_file_close";
+      # First argument is the fid, remainder is data
+      #close the file and call next, Only Close the file if NO CALLBACK is
+      &$next if $_[1];
+
+      my $cb=$_[$#_];
+
+      #specified
+      my $args=$_[0];
+        $_[0]=[];
+      my $enc=encode_meta_payload [{fid=>$$fid}], 1;
+      my $__cb=sub {
+
+        DEBUG and asay $STDERR, "$$ Callback in file_close";
+        #say STDERR "FILE CLOSE in $$ ". Dumper $args;
+        my $p=decode_meta_payload $_[0], 1;
+
+        $$fid=undef;
+        $next->($args, my $c=undef);
+      };
+      $pool->sticky_rpc("file_close", $enc, $__cb, $error);
+    }
+  }
+}
+
+#link  file_read, $accumulate $dispatch
+sub io_file_read {
+  my ($fid,  $error)=@_;
+  my $pool=_make_pool;
+  sub {
+    my ($next, $index, @options)=@_;
+      # Setup variables to allow callback to read more from file
+      my $__cb;
+      my $enc;
+      my $__wid;
+      my $internal_cb=sub {
+        $pool->sticky_rpc("file_read", $enc, $__cb, $error, $__wid);
+      };
+      $__cb=sub {
+        DEBUG and say STDERR "$$ Callback in file_read";
+        #DEBUG and asay $STDERR, Dumper @_;
+        my $p=decode_meta_payload $_[0], 1;
+        #DEBUG and asay $STDERR, Dumper $p;
+        #$cb->($p);
+        if($p->{rc}){
+          #say STDERR "RC non zero. call internal";
+          $next->($p->{data}, $internal_cb);
+        }
+        else {
+
+          #say STDERR "RC zero. call normal callback?";
+          $__wid=undef;
+          $next->($p->{data}, my $c=undef);
+        }
+      };
+
+    sub {
+      #say STDERR "io_file_read";
+      
+      unless($__wid){
+        # Decode sthe file id once
+        $__wid=unpack "L", $$fid;
+      #my $cb=$_[$#_];
+        $enc=encode_meta_payload [{fid=>$$fid}], 1;
+      }
+      #$internal_cb->();
+      $pool->sticky_rpc("file_read", $enc, $__cb, $error, $__wid);
+    }
+  }
+}
+
+sub io_file_write{
+  my ($fid, $error)=@_;
+  my $pool=_make_pool;
+  sub {
+    my ($next, $index, @options)=@_;
+    sub {
+      my $cb=$_[$#_];
+      my $enc=encode_meta_payload {fid=>$$fid, data=>$_[0]}, 1;
+      my $__cb=sub {
+        DEBUG and asay $STDERR, "$$ Callback in file_write";
+        #DEBUG and asay $STDERR, Dumper @_;
+        my $p=decode_meta_payload $_[0], 1;
+        #DEBUG and asay $STDERR, Dumper $p;
+        #$cb->($p)
+        $next->($p, $cb);
+      };
+      $pool->rpc("file_write", $enc, $__cb, $error);
+    } 
+  }
+}
+
+
+sub io_file_slurp {
+  my ($error)=@_;
+  my $fid="";
+  (
+    io_file_open (\$fid, $error),
+    io_file_read (\$fid, $error),   # uses the id from file open
+    #io_accumulate,   
+    io_file_close (\$fid, $error),
+  )
+}
+
+sub io_file_spurt {
+  my ($path, $cb, $error)=@_;
+  # open
+  # write by chunks
+  # execute callback
+}
 
 1;

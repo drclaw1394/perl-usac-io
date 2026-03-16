@@ -38,7 +38,7 @@ field $_register;
 field $_call_max   :param = 5000;     # Max calls of a single process. a new process is created after this count
 field $_shrink      :param = undef;
 field $_call_count;
-
+field $_shrink_mask :mutator;
 field $_queue;
 
 BUILD {
@@ -47,6 +47,7 @@ BUILD {
   $_seq=0;
   $_call_count=0;
   $_shrink//=1;
+  $_shrink_mask=1;
   $_active={};
   $_register=[];
   $_broker//=$uSAC::Main::Default_Broker;
@@ -146,7 +147,7 @@ method do_rpc {
     return $_seq;
   }
   else {
-    DEBUG and asay $STDERR, "--RPC name not it worker $name";
+    DEBUG and asay $STDERR, "--RPC name not in worker $name";
   }
   undef;
 }
@@ -189,7 +190,7 @@ method _child_setup {
   DEBUG and Log::OK::TRACE and log_trace "Configuring worker (rpc) interface in child"; 
   # TODO: remove all worker registrations in broker as we are not interested in  existing working registrations
   #
-
+  $uSAC::Main::Worker=$self;
   $STDIN->pause;
   $_bridge=uSAC::FastPack::Broker::Bridge::Streaming->new(broker=>$_broker, reader=>$STDIN, writer=>$STDOUT, rfd=>0,  wfd=>1);
   $_broker->add_bridge($_bridge);
@@ -359,12 +360,12 @@ method _parent_setup {
         my $e=delete $_active->{$i};
 
         #$_broker->broadcast(undef,"worker/$_wid/rpc/$name/$i", undef);
-        if($_call_count >= $_call_max){
+        if($_shrink_mask and $_call_count >= $_call_max){
           DEBUG and asay $STDERR, "=======MAX CALL COUNT REACHED";
           $self->_clean_up;
           $self->close;
         }
-        elsif(@$_queue == 0 and $_shrink){
+        elsif(@$_queue == 0 and $_shrink and $_shrink_mask){
           DEBUG and asay $STDERR, "============Closing worker as queue is empty";
           $self->_clean_up;
           $self->close;

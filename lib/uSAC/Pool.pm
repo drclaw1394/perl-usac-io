@@ -103,6 +103,44 @@ method rpc {
   );
 }
 
+# Call an rpc on the same worker, even if it will causes a block
+method sticky_rpc{
+  my ($name, $string, $cb, $error, $wid)=@_;
+  my $w;
+  unless($wid){
+    $w=$self->next_worker;
+    # Sticky workers need to be closed directly
+    $w->shrink_mask=0;
+  }
+  else{
+    ($w)=grep {$wid eq $_->wid} @$_workers;
+    #$w//=$_available->{$wid}||$_in_use->{$wid};
+
+    # Perhaps worker died
+    $w//=$self->next_worker;
+  }
+
+  $w->rpc($name, $string, sub {
+		  #asay $STDERR, "RPC callback in pool";
+      #asay $STDERR, Dumper @_;
+      # REmove from the in_use
+      delete $_in_use->{$w};
+      # Add back to the live pool unless it is an urgent (more than max)
+      push @$_available, $w;# if @$_available < $_max_size;
+
+      # Help with stickyness. last arg is the worker id
+      push @_, $wid;
+
+      # Execute client callback
+      &$cb;
+    },
+
+    $error
+  );
+
+  
+}
+
 # make a named sub. 
 method add_rpc {
   my $name=shift;
