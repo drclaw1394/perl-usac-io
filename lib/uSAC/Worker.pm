@@ -1,5 +1,6 @@
 package uSAC::Worker;
 use v5.36;
+use Data::Dumper;
 use Data::FastPack;
 #use uSAC::FastPack::Broker;
 use uSAC::FastPack::Broker::Bridge::Streaming;
@@ -30,10 +31,11 @@ field $_wid         :reader;          #The backend process id
 field $_name        :param = undef;   #Name of process
 field $_io;
 field $_broker      :param = undef;
-field $_bridge;
+field $_bridge	    :reader;		
 field $_seq;
 field $_active;
 field $_register;
+field $_parent_pid;
 
 field $_call_max   :param = 5000;     # Max calls of a single process. a new process is created after this count
 field $_shrink      :param = undef;
@@ -52,12 +54,38 @@ BUILD {
   $_register=[];
   $_broker//=$uSAC::Main::Default_Broker;
   $_queue=[];
+  $_parent_pid=$$;
   # install Eval rpc call
 
   $_rpc->{eval}=sub {
       eval shift;
   };
   $_name//="uSAC::Worker";
+
+  my $r;
+  $r=[
+	  undef,"post-fork", sub {
+		  return if $$ == $_parent_pid;
+
+		  #if($_parent_pid != $$){
+	  	say STDERR " =-=-=-POST FORK pid $$, parent PID $_parent_pid Worker id $_wid";
+		#}
+
+	  # Close all workers not in parent and that are not this process
+	  if($$ != $_wid){
+  		  push @$_register, $r;
+		  $r=undef;
+		  # NOTE asap call is important here
+		  asap sub {$self->close};
+		  #$self->close
+	  }
+	  else {
+		  say STDERR "-- KEEP WORKER pid $$ wid $_wid ";
+	  }
+  }];
+
+  $_broker->listen(@$r);
+  
 
   #DEBUG and asay $STDERR, Dumper $_rpc;
   $self->_sub_process if defined $_work;
@@ -76,7 +104,7 @@ method _sub_process {
     $_wid=$$; # NOTE: needed for child to know its worker id
     $0=$_name if $_name;
 
-    DEBUG and say  STDERR "++++++DOING CHILD SETUP for wid $_wid+++";
+    DEBUG and say  STDERR "++++++DOING CHILD SETUP for wid $_wid";
     $self->_child_setup;
     $_work and $_work->($self);
   };
@@ -85,19 +113,17 @@ method _sub_process {
   @$_io=sub_process $__work, $__on_complete;
   $_wid=$_io->[3]; #NOte this is only in parent
   DEBUG and say STDERR "____CALLING SUB_PROCESS IN WORKER .. new id $_wid";
-  DEBUG and say STDERR "======asdfasdfasdfasdfasdfasdf $_wid";
-  DEBUG and say STDERR "======asdfasdfasdfasdfasdfasdf @$_io";
   if(@$_io){
     #Do parent stuff here
-    asap sub {
+    #asap sub {
     	$self->_parent_setup;
     	$_io->[2]->pipe_to($STDERR);
-    }
+	#	}
 
   }
   else {
     # Error in parent
-    DEBUG and asay $STDERR, "---- ERROR IN PARENT";
+    DEBUG and say STDERR "---- ERROR IN PARENT";
   }
 }
 
@@ -131,7 +157,7 @@ method rpc {
 method do_rpc {
   return unless @$_queue;
   my $e=shift @$_queue;
-  DEBUG and say STDERR "---WORKER RPC CALLED";
+  DEBUG and say STDERR "---WORKER RPC CALLED wid $_wid";
   my $name=shift @$e; # Name could be code ref
   my $string=shift @$e;
   my $cb=shift @$e;
@@ -147,7 +173,7 @@ method do_rpc {
     return $_seq;
   }
   else {
-    DEBUG and asay $STDERR, "--RPC name not in worker $name";
+    DEBUG and say STDERR "--RPC name not in worker $name";
   }
   undef;
 }
@@ -157,7 +183,7 @@ method do_rpc {
 method close {
   #asay $STDERR, "---CLOSING WORKER---";
   return unless $_wid;
-  $_bridge->close;
+  $_bridge->close if $_bridge;
 
   sub_process_cancel $_wid;
   @$_io=();#undef;
@@ -167,7 +193,7 @@ method close {
 }
 
 method _clean_up {
-  DEBUG and asay $STDERR, "---- CLEAN UP WORKER----";
+  DEBUG and say STDERR "---- CLEAN UP WORKER----";
   #my $forward_sub=$_bridge->forward_message_sub;
 
   #DEBUG and asay $STDERR, Dumper $_register;
@@ -187,6 +213,7 @@ method _child_setup {
   #asay $STDERR, "-- IN CHILD SETUP";
   # remove existing registrations
   $self->_clean_up;
+  # If we are the result of a fork,  make sure
   DEBUG and Log::OK::TRACE and log_trace "Configuring worker (rpc) interface in child"; 
   # TODO: remove all worker registrations in broker as we are not interested in  existing working registrations
   #
@@ -228,16 +255,16 @@ method _child_setup {
   #$_broker->listen(undef, "^worker/$_wid/rpc/(\\w+)/(\\d+)", sub {
   $_broker->listen(undef, "^worker/$_wid/rpc/(\\w+)", sub {
       # call a procedure
-      DEBUG and asay $STDERR, "child rpc called";
       my $sender=shift $_[0]->@*;
       for my ($msg, $cap)($_[0][0]->@*){
         my $name= $cap->[0];
         #my $seq= $cap->[1];
+      	DEBUG and say STDERR "$$ child rpc called by name: $name";
         my $sub= $_rpc->{$name};
-
+	DEBUG and say STDERR "$$ child rpc sub found is $sub";
         my ($seq, $payload)=unpack "La*", $msg->[FP_MSG_PAYLOAD];
-        #asay $STDERR, $seq;
-        #asay $STDERR, $payload;
+	#say STDERR $seq;
+	#say STDERR $payload;
         if($sub){
           try {
             # Sequence is encoded as first 4 bytes
@@ -246,13 +273,14 @@ method _child_setup {
             #DEBUG and asay $STDERR, "child rpc result ". Dumper $res;
             #$_broker->broadcast(undef, "worker/$_wid/rpc-return/$name/$seq", $res);
             #$_broker->broadcast(undef, "worker/$_wid/rpc-return/$name/$seq", undef);
+	    DEBUG and say STDERR "$$ return sub results to worker/$_wid/rpc-return/$name";
 
             $_broker->broadcast(undef, "worker/$_wid/rpc-return/$name", pack "La*", $seq, $res);
           }
           catch($e){
             my $error=Error::Show::context $e;
             #$_broker->broadcast(undef,"worker/$_wid/rpc-error/$name/$seq", $error);
-            asay $STDERR, "$$ RPC ERROR in child----- ". $e;
+            say STDERR "$$ RPC ERROR in child----- ". $e;
             $_broker->broadcast(undef,"worker/$_wid/rpc-error/$name", pack "La*", $seq, $error);
           }
         }
@@ -270,8 +298,7 @@ method _child_setup {
     use feature 'state';
     state $i=0;
     #DEBUG and asay $STDERR, "TIMER IN CHILD WORKER-----";
-    #$_broker->broadcast(undef, "worker/$_wid/status/$i", "Hello from $_wid");
-    $_broker->broadcast(undef, "worker/$_wid/status", pack "La*", $i, "Hello from $_wid");
+    #$_broker->broadcast(undef, "worker/$_wid/status", pack "La*", $i, "Hello from $_wid");
     $i++;
     timer 1,0, $sub;
 
@@ -305,7 +332,7 @@ method _parent_setup {
   #
   $r=[$_bridge->source_id, "^worker/$_wid/", $forward_sub];
 
-  DEBUG and say STDERR " ABOUT TO REGISTER LISTENERS forwarder";
+  say STDERR " ABOUT TO REGISTER LISTENERS forwarder for wid $_wid, bridge id @{[$_bridge->source_id]}";
   $_broker->listen(@$r);
   push @$_register, $r;
   #$_broker->listen(undef, "^worker/$_wid/", $forward_sub);
@@ -317,7 +344,7 @@ method _parent_setup {
         my $name=$cap->[0];
         #my $i=$cap->[1];   
         my ($i,$payload)=unpack "La*", $msg->[FP_MSG_PAYLOAD];
-        DEBUG and asay $STDERR, "RPA RETURN----- $_wid  $name";
+        DEBUG and say STDERR "RPA RETURN----- $_wid  $name";
         my $e=delete $_active->{$i};
         #$e->[0] and $e->[0]->($msg->[FP_MSG_PAYLOAD]);
         $e->[0] and $e->[0]->($payload);
@@ -350,30 +377,30 @@ method _parent_setup {
   $r=[
     #undef, "^worker/$_wid/rpc-return/(\\w+)/(\\d+)\$", sub {
     undef, "^worker/$_wid/rpc-return/(\\w+)\$", sub {
-      #DEBUG and asay $STDERR, "$$ RPC RETURN in server----- ". Dumper @_;
+      DEBUG and say STDERR "$$ RPC RETURN in server for worker $self  $_wid ----- ". Dumper @_;
       shift $_[0]->@*;
       for my ($msg, $cap)($_[0][0]->@*){
         my $name=$cap->[0];
         #my $i=$cap->[1];   
         my ($i,$payload)=unpack "La*", $msg->[FP_MSG_PAYLOAD];
-        DEBUG and asay $STDERR, "RPC RETURN----- $_wid  $name";
+        DEBUG and say STDERR "RPC RETURN----- $_wid  $name";
         my $e=delete $_active->{$i};
 
         #$_broker->broadcast(undef,"worker/$_wid/rpc/$name/$i", undef);
         if($_shrink_mask and $_call_count >= $_call_max){
-          DEBUG and asay $STDERR, "=======MAX CALL COUNT REACHED";
+          DEBUG and say STDERR "=======MAX CALL COUNT REACHED";
           $self->_clean_up;
           $self->close;
         }
         elsif(@$_queue == 0 and $_shrink and $_shrink_mask){
-          DEBUG and asay $STDERR, "============Closing worker as queue is empty";
+          DEBUG and say STDERR "============Closing worker as queue is empty";
           $self->_clean_up;
           $self->close;
         }
 
-        DEBUG and asay $STDERR, "======= about to do callback";
-        #$e->[0] and $e->[0]->($msg->[FP_MSG_PAYLOAD]);
-        $e->[0] and $e->[0]->($payload);
+        DEBUG and say STDERR "======= about to do callback ", $e;
+	$e->[0] and $e->[0]->($payload);
+	#$e->[0] and asap $e->[0], $payload;
         $_broker->clear_cache;
         $self->do_rpc;
       }
@@ -394,7 +421,7 @@ method _parent_setup {
         my $name=$cap->[0];
         #my $i=$cap->[1];   
         my ($i,$payload)=unpack "La*", $msg->[FP_MSG_PAYLOAD];
-        DEBUG and asay $STDERR, "RPC ERROR----- $_wid  $name $payload";#$msg->[FP_MSG_PAYLOAD]";
+        DEBUG and say STDERR "RPC ERROR----- $_wid  $name $payload";#$msg->[FP_MSG_PAYLOAD]";
         my $e=delete $_active->{$i};
         #$e->[1] and $e->[1]->($msg->[FP_MSG_PAYLOAD]);
         $e->[1] and $e->[1]->($payload);
@@ -450,7 +477,7 @@ method report {
     use feature 'state';
     state $i=0;
     return unless $_[0];
-    $_broker->broadcast(undef, "worker/$_wid/results", pack "La*", $i, $_[0]);
+    #$_broker->broadcast(undef, "worker/$_wid/results", pack "La*", $i, $_[0]);
     $i++;
 }
 
@@ -458,7 +485,7 @@ method status {
     use feature 'state';
     state $i=0;
     return unless $_[0];
-    $_broker->broadcast(undef, "worker/$_wid/status", pack "La*", $i, $_[0]);
+    #$_broker->broadcast(undef, "worker/$_wid/status", pack "La*", $i, $_[0]);
     $i++;
 }
 

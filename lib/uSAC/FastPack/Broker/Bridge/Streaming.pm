@@ -4,7 +4,7 @@ use uSAC::IO;
 use Object::Pad;
 use uSAC::Log;
 use Log::OK;
-use constant::more DEBUG=>0;
+use constant::more DEBUG=>1;
 
 
 class uSAC::FastPack::Broker::Bridge::Streaming :isa(uSAC::FastPack::Broker::Bridge);

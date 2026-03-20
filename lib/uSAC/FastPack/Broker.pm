@@ -21,7 +21,8 @@ use uSAC::FastPack::Broker::Bridge;
 use Hustle::Table;
 use constant::more qw<READER=0 WRITER WRITER_SUB>;
 
-sub Dumper{};
+#sub Dumper{};
+use Data::Dumper;
 
 class uSAC::FastPack::Broker;
 
@@ -63,8 +64,8 @@ BUILD {
   $_default_source_id= uuid4;#rand 10000;
   
   $_dispatcher=sub {
-    DEBUG and Log::OK::TRACE and asay $STDERR, "$$ $_uuid : In dispatcher";
-    DEBUG and asay $STDERR, Dumper @_;
+    DEBUG and Log::OK::TRACE and say STDERR "$$ $_uuid : In dispatcher";
+    DEBUG and say STDERR Dumper @_;
     my $source=shift @{$_[0]}; # The object/id from where these messages 'originated' 
                       # Could be a sub, an number, uuid
                       #
@@ -75,21 +76,29 @@ BUILD {
     #
     #my @entries=$_ht_dispatcher->(map $_->[FP_MSG_ID], @{$_[0][0]});
     for my $msg (@{$_[0][0]}){  
-      DEBUG and Log::OK::TRACE and asay $STDERR, "$$ $_uuid : Searching table for $msg->[FP_MSG_ID]";
+      DEBUG and Log::OK::TRACE and say STDERR "$$ $_uuid : Searching table for $msg->[FP_MSG_ID]";
       my @entries=$_ht_dispatcher->($msg->[FP_MSG_ID]);#map $_->[FP_MSG_ID], @{$_[0]});
 
 
-      DEBUG and Log::OK::TRACE and asay $STDERR, "$$ $_uuid : Found ".@entries." items in table";
+      DEBUG and Log::OK::TRACE and say STDERR "$$ $_uuid : Found ".@{[@entries/2]}." items in table";
       for my ($e, $c)(@entries){
         # Call each of the subs on matching entry with this 
         # But only call if the source filter doesnt match
         # messages are not sent back to the source, 
         # psuedo grouping
-        DEBUG and Log::OK::TRACE and asay $STDERR, "$$ $_uuid : -- entry has ".($e->[Hustle::Table::value_]->@*)/2 ." callbacks";
+        DEBUG and Log::OK::TRACE and say STDERR "$$ $_uuid : -- entry has ".($e->[Hustle::Table::value_]->@*)/2 ." callbacks";
+	DEBUG and Log::OK::TRACE and say STDERR "$$ $_uuid : ht entry matcher is:" . $e->[Hustle::Table::matcher_];
+	DEBUG and Log::OK::TRACE and say STDERR "$$ $_uuid : ht entry type is:" . $e->[Hustle::Table::type_];
+	DEBUG and Log::OK::TRACE and say STDERR "$$ $_uuid : capture entry is:" . Dumper $c;
+
+	
+        for my ($sub, $source_id) ($e->[Hustle::Table::value_]->@*){
+		DEBUG and Log::OK::TRACE and say STDERR "$$ $_uuid : table entry: sub: $sub, source $source_id";
+	}
         for my ($sub, $source_id) ($e->[Hustle::Table::value_]->@*){
           no warnings "uninitialized";
           if(!defined($source_id) or $source ne $source_id){
-            DEBUG and Log::OK::TRACE and asay $STDERR, "$$ $_uuid : executing callback";
+            DEBUG and Log::OK::TRACE and say STDERR "$$ $_uuid : executing callback";
             $sub->([$source, [$msg, $c]]); # Dispatch messages to listener
             #uSAC::IO::asap $sub,[$source, [$msg]];
         
@@ -163,7 +172,7 @@ BUILD {
 
   $_meta_handler = sub {
 
-    DEBUG and Log::OK::TRACE and asay $STDERR, "$$ $_uuid: In meta handler";
+    DEBUG and Log::OK::TRACE and say STDERR "$$ $_uuid: In meta handler";
 
     #my ($source_id, $msgs)=@_;
     my $source_id= shift @{$_[0]};
@@ -179,7 +188,7 @@ BUILD {
             for my ($k, $v) ($msg->[FP_MSG_PAYLOAD]->%*){
               if($k eq "listen"){
 
-                DEBUG and Log::OK::TRACE and asay $STDERR, "$$ $_uuid: Listen message processing";
+                DEBUG and Log::OK::TRACE and say STDERR "$$ $_uuid: Listen message processing";
                 $name=$v->{matcher};
                 $sub=delete $v->{sub};
                 $type=$v->{type};
@@ -198,22 +207,22 @@ BUILD {
                     push $e->[Hustle::Table::value_]->@*, $sub, $source_id;
                     $found=1;
 
-                  DEBUG and Log::OK::TRACE and asay $STDERR, "$$ $_uuid: $name Found existing ht entry created";
+                  DEBUG and Log::OK::TRACE and say STDERR "$$ $_uuid: $name Found existing ht entry created";
                     last;
                   }
                 }
 
                 unless($found){
-                  DEBUG and Log::OK::TRACE and asay $STDERR, "$$ $_uuid: $name Could not find existing ht entry created a new one";
+                  DEBUG and Log::OK::TRACE and say STDERR "$$ $_uuid: $name Could not find existing ht entry created a new one";
                   # Register an new entry with a 
-                  DEBUG and asay $STDERR, "$$ ADDING name $name with type $type";
+                  DEBUG and say STDERR "$$ ADDING name $name with type $type";
                   $_ht->add([$name, [$sub, $source_id], $type]);
 
                   # rebuild the dispatcher
                   $_cache={}; 
                   $_ht_dispatcher=$_ht->prepare_dispatcher(cache=>$_cache);
                   unless($_ht_dispatcher){
-                    Log::OK::FATAL and  asay $STDERR, Error::Show::context $@;
+                    Log::OK::FATAL and  say STDERR Error::Show::context $@;
                     die "COULD NOT CREATE DISPACHER in ".__PACKAGE__;
                      
                   }
@@ -285,7 +294,7 @@ BUILD {
   # 
 
   $_ignorer_sub=sub {
-    DEBUG and asay $STDERR, "---broker ignore called"; 
+    DEBUG and say STDERR "---broker ignore called"; 
     if(@_==2){
       unshift @_, undef;
     }

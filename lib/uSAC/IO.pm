@@ -19,6 +19,7 @@ unless($uSAC::Loaded::Loaded){
 
 use IO::FD;
 use IO::FD::DWIM;
+use File::Path qw<make_path remove_tree>;
 
 use Data::Dumper;
 use Data::FastPack::Meta;
@@ -52,7 +53,10 @@ io_lines io_accumulate io_grep io_filter io_upper io_lower
 io_file_open
 io_file_slurp
 io_file_spurt
-create_socket};
+path_create
+path_remove
+create_socket
+};
 
 #use Export::These '$STDOUT','$STDIN', '$STDERR';
 
@@ -1389,9 +1393,12 @@ sub adump_now($;@){
 }
 
 sub _make_pool {
+	my $preallocate=shift;
+	#say STDERR "CALLED MAKE_POOL WITH $preallocate";
   # BOOTSTRAP THE POOL
   unless(defined $uSAC::Main::POOL){
     
+	say STDERR "No pool... create one";
     my %fds;
     my $rpc={
       eval=>sub {
@@ -1550,8 +1557,28 @@ sub _make_pool {
         $return_out=encode_meta_payload {rc=>$rc, error=>$!}, 1;
       },
 
+      path_create=>sub {
+        my $input=decode_meta_payload $_[0], 1;
+	my $options=pop @$input;
+	$options//={};
+	$options->{error}= \my $error;
+	my $return_out;
+	
+	#say STDERR " MAKEING PATH FOR ", Dumper $input, $options;
+	my @results = make_path (@$input, $options);
+	#say STDERR Dumper @results, $options;
+
+	#say STDERR " RESULTS IN WORKER ", @results;
+        $return_out=encode_meta_payload {results=>\@results, error=>$options->{error}->$*}, 1;
+      },
+
+      remove_tree=>{
+
+      }
+
+
     };
-    $uSAC::Main::POOL=uSAC::Pool->new(rpc=>$rpc);
+    $uSAC::Main::POOL=uSAC::Pool->new(rpc=>$rpc, preload=>$preallocate);
   }
   $uSAC::Main::POOL;
 }
@@ -1735,5 +1762,67 @@ sub io_file_spurt {
   # write by chunks
   # execute callback
 }
+
+# Create a path on the file system
+sub path_create {
+  my @options=@_;
+  my $error=pop @options;
+  my $cb=pop @options;
+
+  my $pool=_make_pool;
+  my $enc=encode_meta_payload \@options,1;
+  my $__cb=sub {
+    my $d=decode_meta_payload $_[0],1;
+
+    $cb->($d->{results}, $d->{error});
+  };
+  $pool->rpc("path_create", $enc, $__cb, $error);
+
+}
+
+# Remove a path from the file system
+sub path_remove {
+
+}
+
+sub file_open {
+  my ($mode, $path, $cb, $error)=@_;
+
+  #adump $STDERR, "io_file_open_wrapper";
+
+  my $pool=_make_pool;
+  my $enc=encode_meta_payload $_[0], 1;
+  my $__cb=sub {
+	  DEBUG and asay $STDERR, "$$ Callback in file_open", Dumper @_;;
+	  #DEBUG and asay $STDERR, Dumper @_;
+	  my $p=decode_meta_payload [$path], 1;
+
+
+	  # call next with generated fid
+	  my $fid=$p->{fid};
+	  DEBUG and asay $STDERR, "$$ Callback in file_open", Dumper $p;;
+	  $cb->($fid);
+  };
+
+  # Call sticky_rpc
+  $pool->sticky_rpc("file_open", $enc, $__cb, $error);
+}
+
+sub file_close {
+  my ($fid, $cb, $error)=@_;
+  my $pool=_make_pool; 
+      my $enc=encode_meta_payload [{fid=>$fid}], 1;
+      my $__cb=sub {
+        DEBUG and asay $STDERR, "$$ Callback in file_close";
+        #say STDERR "FILE CLOSE in $$ ". Dumper $args;
+        my $p=decode_meta_payload $_[0], 1;
+
+	$cb->();
+      };
+      $pool->sticky_rpc("file_close", $enc, $__cb, $error);
+}
+
+
+
 
 1;

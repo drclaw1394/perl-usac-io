@@ -313,9 +313,9 @@ sub _main {
   sub _do_it {
     $uSAC::Main::POOL->close if $uSAC::Main::POOL;
     $Default_Broker->_post_fork;
-    $Default_Broker->broadcast(undef,"post-fork", 1);
     $POOL=undef;
     uSAC::IO::asap($worker_sub?$worker_sub:$parent_sub, $$);  # Call user code in a schedualled fashion
+    uSAC::IO::asap(sub {$Default_Broker->broadcast(undef,"post-fork", 1)});
     $worker_sub=undef;
     # NOTE: THis while loop is important. no really any easy way to recall the run loop, without it
     # Run loop is recalled on fork ( so for parent and child)

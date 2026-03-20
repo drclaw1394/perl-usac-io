@@ -6,6 +6,7 @@ use Data::FastPack;
 use Object::Pad;
 use Time::HiRes qw<time>;
 use uSAC::Worker;
+use feature "say";
 
 
 class uSAC::Pool;
@@ -21,14 +22,14 @@ field $_rr_index;
 field $_queue;
 field $_current_ids;        # hash of ids active and which worker it was sent to
 
-field $_preload;            # Allocate and exece workers before jobs are availible
+field $_preload :param;            # Allocate and exece workers before jobs are availible
 field $_min_size;           # Minimum number of workers to keep alive
 field $_max_size;           # Max normal pool size
 
 field $_rpc     :param = {}; # Shared RPC, This is passed to all worker constructors
 
 BUILD {
-  $_max_size//=2;
+  $_max_size//=4;
   $_in_use={};
   $_available=[];
 
@@ -36,6 +37,18 @@ BUILD {
   $_seq=0;
   $_workers=[];
   
+  use feature ":all";
+  my @temp;
+  for(1..$_preload){
+	  my $w=$self->next_worker;
+	  $w->shrink_mask=0;
+	  say STDERR "preloaded worker is $w";
+	  push @temp, $w;
+	  delete $_in_use->{$w};
+  }
+  @$_available=@temp;
+  say STDERR @temp;
+
   
 }
 
@@ -49,7 +62,7 @@ method next_worker {
     
     if($urgent or (@$_workers < $_max_size)){
       # Make a new worker
-      $w=uSAC::Worker->new(rpc=>$_rpc, on_complete=>sub{
+      $w=uSAC::Worker->new(rpc=>$_rpc, work=>sub{}, on_complete=>sub{
           # Push back ti available
           #asay $STDERR, "-----WORKER PUSHED BACK----";
           #push @$_available, $w;
@@ -74,12 +87,14 @@ method next_worker {
   # Push the inuse 
   $_in_use->{$w}=1 if defined $w;
 
+  #say STDERR "Next worker is $w with wid @{[$w->wid]} and bridge @{[$w->bridge]}";
   $w;
 }
 
 # Call a named / stored routine
 method rpc {
   my ($name, $string, $cb, $error)=@_;
+  #say STDERR "$$ AVAIBLABLE WORKER POOL @$_available";
   my $w=$self->next_worker;
   unless(defined $w){
     $error and $error->("Could not get worker");

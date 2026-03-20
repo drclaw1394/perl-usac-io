@@ -1,7 +1,7 @@
 use uSAC::IO;
 
 use Data::Dumper;
-use Devel::Mat::Dumper;
+use Devel::MAT::Dumper;
 use feature ":all";
 
 sub error {
