@@ -21,8 +21,8 @@ use uSAC::FastPack::Broker::Bridge;
 use Hustle::Table;
 use constant::more qw<READER=0 WRITER WRITER_SUB>;
 
-#sub Dumper{};
-use Data::Dumper;
+sub Dumper{};
+#use Data::Dumper;
 
 class uSAC::FastPack::Broker;
 

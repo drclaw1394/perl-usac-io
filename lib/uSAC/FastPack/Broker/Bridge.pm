@@ -22,8 +22,8 @@ use Log::OK;
 use constant::more DEBUG=>0;
 
 no warnings "experimental";
-use Data::Dumper;
-#sub Dumper{};
+#use Data::Dumper;
+sub Dumper{};
 
 use Object::Pad;
 

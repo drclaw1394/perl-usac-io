@@ -1,6 +1,5 @@
 package uSAC::Worker;
 use v5.36;
-use Data::Dumper;
 use Data::FastPack;
 #use uSAC::FastPack::Broker;
 use uSAC::FastPack::Broker::Bridge::Streaming;
@@ -10,6 +9,7 @@ use Log::OK;
 use constant::more DEBUG=>0;
 use Object::Pad;
 #use Data::Dumper;
+use Data::Dumper;
 
 use feature "try";
 no warnings "experimental";
@@ -289,7 +289,7 @@ method _child_setup {
           $_broker->broadcast(undef,"worker/$_wid/rpc-error/$name", pack "La*", $seq,"RPC NOT FOUND");
         }
       }
-      $_broker->clear_cache;
+      #$_broker->clear_cache;
     });
 
 
@@ -401,7 +401,7 @@ method _parent_setup {
         DEBUG and say STDERR "======= about to do callback ", $e;
 	$e->[0] and $e->[0]->($payload);
 	#$e->[0] and asap $e->[0], $payload;
-        $_broker->clear_cache;
+	#$_broker->clear_cache;
         $self->do_rpc;
       }
     }

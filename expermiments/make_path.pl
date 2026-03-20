@@ -1,7 +1,8 @@
 use uSAC::IO;
 use feature ":all";
 
-uSAC::IO::_make_pool(4);
+uSAC::IO::_make_pool(10);
+my $counter=0;
 my $root=$ARGV[0]//"";
 asay $STDERR, "ROOT IS $root";
 #timer 0, 0.02, sub {asay $STDERR, time};
@@ -17,7 +18,7 @@ $s=sub {
 		$end=time;
 		adump $STDERR, "Results and error ", @_;
 		say STDERR "CREATE PATH TOOK @{[$end-$start]} seconds";
-		asap $s;
+		$s->();
 		#timer 0.1, 0, $s;
 	}, 
 	sub {};
