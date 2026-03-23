@@ -8,7 +8,7 @@ use UUID qw<uuid4>;
 use Data::FastPack;
 use Data::FastPack::Meta;
 
-use constant::more DEBUG=>1;
+use constant::more DEBUG=>0;
 
 class uSAC::FastPack::Channel;
 
