@@ -10,6 +10,8 @@ use Fcntl qw(F_GETFL F_SETFL O_NONBLOCK);
 use uSAC::IO;
 use Data::FastPack::Meta;
 use uSAC::FastPack::Channel;
+use Term::ReadKey;
+use Term::ReadLine;
 
 # Add additional packages to main
 package main;
@@ -82,6 +84,7 @@ sub start {
   # terminal
   #
 
+  Term::ReadKey::ReadMode('cbreak');
   $new_in=IO::FD::dup(0);
   $new_out=IO::FD::dup(1);
   $new_err=IO::FD::dup(2);
@@ -159,16 +162,28 @@ sub start {
 
       #     IO::FD::fcntl $new_in, F_SETFL, $flags;
 
-      require Term::ReadLine;
-      require Term::ReadKey;
+      #require Term::ReadLine;
+      #require Term::ReadKey;
       open($stdin, "<&=$new_in") or die $!;
       open($stdout, ">&=$new_out") or die $!;
       open($stderr, ">&=$new_err") or die $!;
 
-      Term::ReadKey::ReadMode('cbreak', $stdin);
+      #Term::ReadKey::ReadMode('cbreak', $stdin);
       # Create a term using our inputs and outputs
       $TERM = Term::ReadLine->new('uSAC REPL', $stdin, $stdout);
       
+  signal INT=>sub {
+	  say STDERR "REPL worker interrupt";
+	  #	Term::ReadKey::ReadMode('restore', $stdin);
+    #$repl_worker->close;
+
+  };
+  signal TERM=>sub {
+	  say STDERR "REPL worker interrupt";
+	  #		Term::ReadKey::ReadMode('restore', $stdin);
+    #$repl_worker->close;
+
+  };
       #use Data::Dumper;
       sub my_gen_master {
       
@@ -256,7 +271,7 @@ sub start {
         #say STDERR Dumper $TERM->Features();
         #say STDERR $TERM->ReadLine();
         #$TERM->set_timeout(0, 100000);
-        Term::ReadKey::ReadMode('restore', $stdin);
+        Term::ReadKey::ReadMode('normal', $stdin);
           $line = $TERM->readline();
           if( defined ($line)){
             $TERM->addhistory($line) if /\S/;
@@ -315,7 +330,9 @@ sub start {
     },
 
     on_complete=> sub{
-	    #asay $STDERR, "WORKER COMPLETE------------sdasdfasdf";
+      asay $STDERR, "WORKER COMPLETE------------sdasdfasdf";
+      require Term::ReadKey;
+      Term::ReadKey::ReadMode('restore');
       $repl_worker=close;
       $repl_worker=undef;
     }
@@ -328,6 +345,12 @@ sub start {
   #$STDERR->pause;
 
   signal INT=>sub {
+	  #asay $STDERR, "REPL interrupt";
+	 	stop();
+    #$repl_worker->close;
+
+  };
+  signal TERM=>sub {
 	  #asay $STDERR, "REPL interrupt";
 	 	stop();
     #$repl_worker->close;
