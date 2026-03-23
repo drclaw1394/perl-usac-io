@@ -94,43 +94,6 @@ sub start {
   $STDERR->write([""], sub {});
 
 
-  uSAC::FastPack::Channel->accept("repl_end_accept", $broker, sub {
-
-      say STDERR "---- GOT A NEW CHANNEL CONNECTION IN PARENT: @_";
-      my $master=$_[0];
-      $master->on_data=sub {
-        #asay_now $STDERR, "Data arriving at master @_";
-			  my $msg=decode_meta_payload $_[0], 1;
-        use Data::Dumper;
-        #asay_now $STDERR, Dumper $msg;
-        if($msg->{line}){
-          my $line=$msg->{line};
-          #asay_now $STDERR, "HAVE LINE: $line";
-          try{
-            package main;
-            local $@;
-            my $res=Error::Show::streval "sub { no strict \"subs\"; no strict \"vars\"; $line }";
-            #asay_now $STDERR, $res;
-            die $@ if $@;
-            my @ret=$res->();
-
-            asay_now $STDERR, @ret;
-
-            #say STDERR "----RETURN FOR EVAL @ret";
-            #say STDERR "";
-          }
-          catch($e){
-            # handle syntax errors
-            asay $STDERR, "$$ ERROR in eval: $e";
-            asay_now $STDERR, Error::Show::context $e;
-            #say STDERR "----ERROR FOR EVAL";
-          }
-        }
-
-
-      };
-
-  });
 
 
   #my $write=writer $new_err;
@@ -144,7 +107,7 @@ sub start {
       # Connect back to parent with a dedicated channel
       
       $ch_slave=uSAC::FastPack::Channel->new(broker=>$broker);
-      $ch_slave->connect("repl_end_accept", sub {
+      $ch_slave->connect("worker/$$/repl_end_accept", sub {
           say STDERR "----=-=-=-==-- GOT NEW CHANNEL CONNECTION: @_";
           my $slave=$_[0];
           $slave->on_data=sub {
@@ -337,6 +300,44 @@ sub start {
       $repl_worker=undef;
     }
   );
+
+  uSAC::FastPack::Channel->accept("worker/". $repl_worker->wid."/repl_end_accept", $broker, sub {
+
+      say STDERR "---- GOT A NEW CHANNEL CONNECTION IN PARENT: @_";
+      my $master=$_[0];
+      $master->on_data=sub {
+        asay_now $STDERR, " $$ Data arriving at master @_";
+			  my $msg=decode_meta_payload $_[0], 1;
+        use Data::Dumper;
+        #asay_now $STDERR, Dumper $msg;
+        if($msg->{line}){
+          my $line=$msg->{line};
+          #asay_now $STDERR, "HAVE LINE: $line";
+          try{
+            package main;
+            local $@;
+            my $res=Error::Show::streval "sub { no strict \"subs\"; no strict \"vars\"; $line }";
+            #asay_now $STDERR, $res;
+            die $@ if $@;
+            my @ret=$res->();
+
+            asay_now $STDERR, @ret;
+
+            #say STDERR "----RETURN FOR EVAL @ret";
+            #say STDERR "";
+          }
+          catch($e){
+            # handle syntax errors
+            asay $STDERR, "$$ ERROR in eval: $e";
+            asay_now $STDERR, Error::Show::context $e;
+            #say STDERR "----ERROR FOR EVAL";
+          }
+        }
+
+
+      };
+
+  });
 
   #
   #Stop the parent from having a watcher on the  input
