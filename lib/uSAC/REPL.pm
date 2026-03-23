@@ -10,7 +10,7 @@ use Fcntl qw(F_GETFL F_SETFL O_NONBLOCK);
 use uSAC::IO;
 use Data::FastPack::Meta;
 use uSAC::FastPack::Channel;
-use Term::ReadKey;
+#use Term::ReadKey;
 use Term::ReadLine;
 use B::Keywords ":all";
 
@@ -314,7 +314,7 @@ sub start {
 
     on_complete=> sub{
       asay $STDERR, "WORKER COMPLETE------------sdasdfasdf";
-      require Term::ReadKey;
+      #require Term::ReadKey;
       #Term::ReadKey::ReadMode('restore');
       $repl_worker=close;
       $repl_worker=undef;
