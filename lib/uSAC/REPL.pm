@@ -316,6 +316,16 @@ sub start {
           try{
             package main;
             local $@;
+
+	    # Redirect  the exit
+	    *CORE::GLOBAL::exit=
+	    sub{
+		    # say STDERR "GOT EXIT WRAPPER";
+
+      		    Term::ReadKey::ReadMode('restore');
+		    uSAC::IO::exit();
+	    };
+
             my $res=Error::Show::streval "sub { no strict \"subs\"; no strict \"vars\"; $line }";
             #asay_now $STDERR, $res;
             die $@ if $@;

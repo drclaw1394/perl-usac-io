@@ -54,6 +54,7 @@ sub _exit {
   # manually we need to force cleanup so orphaned processare are not left
   # 
   # direct call
+  #say STDERR "AE EXIT";
   for(keys %watchers){
     cancel($watchers{$_});
   }

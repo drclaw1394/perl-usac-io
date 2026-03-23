@@ -122,6 +122,7 @@ sub adump_now;
 *cancel=\&{$rb."::cancel"};
 
 *CORE::GLOBAL::exit=\&{$rb."::_exit"};          # Make global exit shutdown the loop 
+*exit=\&{$rb."::_exit"};          # Make global exit shutdown the loop 
 
 
 *_pre_loop=\&{$rb."::_pre_loop"};               # Internal
