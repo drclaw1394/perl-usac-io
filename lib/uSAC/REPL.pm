@@ -12,6 +12,7 @@ use Data::FastPack::Meta;
 use uSAC::FastPack::Channel;
 use Term::ReadKey;
 use Term::ReadLine;
+use B::Keywords ":all";
 
 # Add additional packages to main
 package main;
@@ -49,6 +50,23 @@ my $ch_slave;
 my $broker;
 
 my $prompt="___:";
+my $sym_names=[];
+
+sub my_gen_master {
+
+  my ($text, $state)=@_;
+  use feature "state";
+  state @list;
+  unless($state){
+    @list=grep !/^_\</, keys %::; # remove the file names
+
+    @list=grep /^$text/, @list;   # Prematch with the text
+  }
+
+  $list[$state];
+
+
+}
 
 my $perl_repl_handler=sub {
 	#say STDERR  "IN PERL REPL HANDLER ", @_;
@@ -84,7 +102,7 @@ sub start {
   # terminal
   #
 
-  Term::ReadKey::ReadMode('cbreak');
+  #Term::ReadKey::ReadMode('cbreak');
   $new_in=IO::FD::dup(0);
   $new_out=IO::FD::dup(1);
   $new_err=IO::FD::dup(2);
@@ -148,23 +166,7 @@ sub start {
 
   };
       #use Data::Dumper;
-      sub my_gen_master {
-      
-        my ($text, $state)=@_;
-        use feature "state";
-        state @list;
-        unless($state){
-          @list=grep !/^_\</, keys %::; # remove the file names
-
-          @list=grep /^$text/, @list;   # Prematch with the text
-        }
-          
-        $list[$state];
-
-
-      }
-
-      sub my_gen {
+      sub my_gen_org {
         # Use local cache of object, but send requests to master to update
         my ($text, $state)=@_;
         use feature "state";
@@ -177,6 +179,18 @@ sub start {
           
         $list[$state];
 
+      }
+
+      sub my_gen {
+        # Use local cache of object, but send requests to master to update
+        my ($text, $state)=@_;
+        state @list;
+        unless($state){
+
+          @list=grep /^$text/, @$sym_names;   # Prematch with the text
+        }
+          
+        $list[$state];
       }
 
       sub attempted_completion_function{
@@ -215,49 +229,51 @@ sub start {
       #$TERM->Attribs->{completion_function} = \&completion_function;
 
 
-      my $reader=sreader(fh=>$new_in);
-      $reader->on_can_read=
-      sub {
-        package uSAC::REPL;
-
-
-        #say STDERR "D======= DOING ON READ";
-	
-        #my $prompt="___:";#decode_meta_payload $_[0], 1;
-        #$prompt=$prompt->{prompt};
-
-	      my $return;
-        my $line;
-        #$TERM->ISSTATE();
-        #Term::ReadLine::Gnu::RL_STATE_TIMEOUT;
-        #use Data::Dumper;
-        #say STDERR Dumper $TERM->Features();
-        #say STDERR $TERM->ReadLine();
-        #$TERM->set_timeout(0, 100000);
-        Term::ReadKey::ReadMode('normal', $stdin);
-          $line = $TERM->readline();
-          if( defined ($line)){
-            $TERM->addhistory($line) if /\S/;
-            #print $stdout "LINE from readline iis $line, with length ". length $line;
-            #print $stdout "\n";
-            $return=encode_meta_payload {line=>$line}, 1;
-            $ch_slave->send_data($return);
-            # We processed a complete line... so reset trigger
-            Term::ReadKey::ReadMode('cbreak', $stdin);
-            #print $stdout $prompt;
-          }
-          else {
-            print $stdout "READLINE UNDEF\n";
-            #$return=encode_meta_payload {line=>""}, 1;
-            #$ch_slave->send_data($return);
-          }
-
-	$return;
-  };
-      $reader->start;
-      #timer 0,2, sub {
-        #say STDERR "NON BLOCKING TIMER";
-        #};
+  ########################################################################################
+  #     my $reader=sreader(fh=>$new_in);                                                 #
+  #     $reader->on_can_read=                                                            #
+  #     sub {                                                                            #
+  #       package uSAC::REPL;                                                            #
+  #                                                                                      #
+  #                                                                                      #
+  #       #say STDERR "D======= DOING ON READ";                                          #
+  #                                                                                      #
+  #       #my $prompt="___:";#decode_meta_payload $_[0], 1;                              #
+  #       #$prompt=$prompt->{prompt};                                                    #
+  #                                                                                      #
+  #             my $return;                                                              #
+  #       my $line;                                                                      #
+  #       #$TERM->ISSTATE();                                                             #
+  #       #Term::ReadLine::Gnu::RL_STATE_TIMEOUT;                                        #
+  #       #use Data::Dumper;                                                             #
+  #       #say STDERR Dumper $TERM->Features();                                          #
+  #       #say STDERR $TERM->ReadLine();                                                 #
+  #       #$TERM->set_timeout(0, 100000);                                                #
+  #       Term::ReadKey::ReadMode('normal', $stdin);                                     #
+  #         $line = $TERM->readline();                                                   #
+  #         if( defined ($line)){                                                        #
+  #           $TERM->addhistory($line) if /\S/;                                          #
+  #           #print $stdout "LINE from readline iis $line, with length ". length $line; #
+  #           #print $stdout "\n";                                                       #
+  #           $return=encode_meta_payload {line=>$line}, 1;                              #
+  #           $ch_slave->send_data($return);                                             #
+  #           # We processed a complete line... so reset trigger                         #
+  #           Term::ReadKey::ReadMode('cbreak', $stdin);                                 #
+  #           #print $stdout $prompt;                                                    #
+  #         }                                                                            #
+  #         else {                                                                       #
+  #           print $stdout "READLINE UNDEF\n";                                          #
+  #           #$return=encode_meta_payload {line=>""}, 1;                                #
+  #           #$ch_slave->send_data($return);                                            #
+  #         }                                                                            #
+  #                                                                                      #
+  #       $return;                                                                       #
+  # };                                                                                   #
+  #     $reader->start;                                                                  #
+  #     #timer 0,2, sub {                                                                #
+  #       #say STDERR "NON BLOCKING TIMER";                                              #
+  #       #};                                                                            #
+  ########################################################################################
 
 
 
@@ -271,8 +287,12 @@ sub start {
         package uSAC::REPL;
 
 	
-        my $prompt=decode_meta_payload $_[0], 1;
-        $prompt=$prompt->{prompt};
+        my $args=decode_meta_payload $_[0], 1;
+
+        $prompt=$args->{prompt};
+        $sym_names=$args->{sym_names};
+        
+
 
 	      my $return;
         #uSAC::IO::asay $STDERR, "CALLED readline with $prompt"; 
@@ -295,7 +315,7 @@ sub start {
     on_complete=> sub{
       asay $STDERR, "WORKER COMPLETE------------sdasdfasdf";
       require Term::ReadKey;
-      Term::ReadKey::ReadMode('restore');
+      #Term::ReadKey::ReadMode('restore');
       $repl_worker=close;
       $repl_worker=undef;
     }
@@ -317,14 +337,16 @@ sub start {
             package main;
             local $@;
 
-	    # Redirect  the exit
-	    *CORE::GLOBAL::exit=
-	    sub{
-		    # say STDERR "GOT EXIT WRAPPER";
-
-      		    Term::ReadKey::ReadMode('restore');
-		    uSAC::IO::exit();
-	    };
+        ################################################
+        #     # Redirect  the exit                     #
+        #     *CORE::GLOBAL::exit=                     #
+        #     sub{                                     #
+        #             # say STDERR "GOT EXIT WRAPPER"; #
+        #                                              #
+        # #Term::ReadKey::ReadMode('restore');         #
+        #             uSAC::IO::exit();                #
+        #     };                                       #
+        ################################################
 
             my $res=Error::Show::streval "sub { no strict \"subs\"; no strict \"vars\"; $line }";
             #asay_now $STDERR, $res;
@@ -347,6 +369,7 @@ sub start {
 
       };
 
+
   });
 
   #
@@ -368,8 +391,13 @@ sub start {
 
   };
 
-  my $prompt=encode_meta_payload({prompt=>"--->"},1);
   $repl=sub {
+    
+    # Rebuild the symbols here
+    my @list=grep !/^_\</, keys %::; # remove the file names
+    
+    push @list, @Barewords, @Functions;
+    my $prompt=encode_meta_payload({prompt=>"--->", sym_names=>\@list},1);
 	  #asay $STDERR, "SUB REF TO START REPL";
 	  return unless $repl_worker;
 	  $repl_worker->rpc("readline", $prompt,
@@ -387,7 +415,7 @@ sub start {
 		  }
 	  );
   };
-  #asap $repl;
+  asap $repl;
 }
 
 sub stop {
