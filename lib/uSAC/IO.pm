@@ -882,7 +882,7 @@ sub pair {
 	$r and $w ? ($r,$w):();
 }
 
-sub pipe {
+sub pipe ($$){
 	my ($rfh,$wfh)=@_;
 	my ($r, $w)=(reader($rfh), writer($wfh));
 	if($r and $w){
