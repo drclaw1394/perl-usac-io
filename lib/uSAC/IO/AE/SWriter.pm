@@ -10,7 +10,7 @@ use uSAC::Log;
 use Log::OK;
 use IO::FD;
 
-use Errno qw(EAGAIN EINTR);
+use Errno qw(EAGAIN EINTR EPIPE);
 #use parent "uSAC::IO::Writer";
 #use uSAC::IO::Writer qw<:fields>;
 
@@ -102,6 +102,7 @@ method _make_writer :override {
         try {
         unless($_wfh){
           #DEBUG and Log::OK::TRACE and say STDERR "SIO Writer: file handle undef, but write watcher still active";
+          #say STDERR "SIO Writer: file handle undef, but write watcher still active";
           return;
         }
         my $entry=$queue->[0];
@@ -109,6 +110,8 @@ method _make_writer :override {
         \my $offset=\$entry->[1];
         \my $cb=\$entry->[2];
 
+        say STDERR "fd $_wfh QUEUE Length before write ". @$queue;
+        say STDERR "fd $_wfh Buffer len is ".length($buf). "  offset $offset";
         $$time=$$clock;
         $offset+=$w = $syswrite->( $_wfh, $buf, length($buf)-$offset, $offset);
         if($offset==length $buf) {
@@ -119,7 +122,7 @@ method _make_writer :override {
             $_recursion_counter=0;
           }
           #$e->[2]($e->[3]) if $e->[2];
-          &{$e->[2]} if $e->[2];
+          $e->[2]->(1) if $e->[2];
           $e->[2]=undef if $e->[2];
           #DEBUG and print STDERR "SWRITE callback from quque\n";
           @$e=();
@@ -128,6 +131,7 @@ method _make_writer :override {
         elsif(!defined($w) and $! != EAGAIN and $! != EINTR){
           #this is actual error
           #DEBUG and Log::OK::TRACE and STDERR "SIO Writer: ERROR IN WRITE $!";
+          say STDERR "SIO Writer: ERROR IN WRITE $!";
           #actual error		
           $_ww=undef;
           #$_wfh=undef;
@@ -206,12 +210,13 @@ method _make_writer :override {
       #DEBUG and print STDERR "SWriter DID write all.. doing callback  length $w\n";
       #DEBUG and Log::OK::TRACE and log_trace "QUEUE length is: @queue";
       #$_[0][0]=undef;
-      $cb and &$cb;
+      $cb and $cb->(1);
       $cb=undef;
     }
     elsif(!defined($w) and $! != EAGAIN and $! != EINTR){
       #this is actual error
       #DEBUG and print STDERR "SIO Writer: ERROR IN WRITE NO APPEND $!\n";
+      say STDERR "SIO Writer: ERROR IN WRITE no append $!";
       #actual error		
       $_ww=undef;
       #$_wfh=undef;
