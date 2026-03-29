@@ -110,8 +110,8 @@ method _make_writer :override {
         \my $offset=\$entry->[1];
         \my $cb=\$entry->[2];
 
-        say STDERR "fd $_wfh QUEUE Length before write ". @$queue;
-        say STDERR "fd $_wfh Buffer len is ".length($buf). "  offset $offset";
+        #say STDERR "fd $_wfh QUEUE Length before write ". @$queue;
+        #say STDERR "fd $_wfh Buffer len is ".length($buf). "  offset $offset";
         $$time=$$clock;
         $offset+=$w = $syswrite->( $_wfh, $buf, length($buf)-$offset, $offset);
         if($offset==length $buf) {
@@ -122,7 +122,7 @@ method _make_writer :override {
             $_recursion_counter=0;
           }
           #$e->[2]($e->[3]) if $e->[2];
-          $e->[2]->(1) if $e->[2];
+          $e->[2]->() if $e->[2];
           $e->[2]=undef if $e->[2];
           #DEBUG and print STDERR "SWRITE callback from quque\n";
           @$e=();
@@ -131,7 +131,7 @@ method _make_writer :override {
         elsif(!defined($w) and $! != EAGAIN and $! != EINTR){
           #this is actual error
           #DEBUG and Log::OK::TRACE and STDERR "SIO Writer: ERROR IN WRITE $!";
-          say STDERR "SIO Writer: ERROR IN WRITE $!";
+          #say STDERR "SIO Writer: ERROR IN WRITE $!";
           #actual error		
           $_ww=undef;
           #$_wfh=undef;
@@ -142,7 +142,7 @@ method _make_writer :override {
           ##$on_error and $on_error->($!);
           #
 
-          $cb and $cb->();
+          $cb and $cb->(1);
           $cb=undef;
           $_on_error and  $_on_error->($!);
         }
@@ -210,20 +210,20 @@ method _make_writer :override {
       #DEBUG and print STDERR "SWriter DID write all.. doing callback  length $w\n";
       #DEBUG and Log::OK::TRACE and log_trace "QUEUE length is: @queue";
       #$_[0][0]=undef;
-      $cb and $cb->(1);
+      $cb and $cb->();
       $cb=undef;
     }
     elsif(!defined($w) and $! != EAGAIN and $! != EINTR){
       #this is actual error
       #DEBUG and print STDERR "SIO Writer: ERROR IN WRITE NO APPEND $!\n";
-      say STDERR "SIO Writer: ERROR IN WRITE no append $!";
+      # say STDERR "SIO Writer: ERROR IN WRITE no append fd $_wfh $!";
       #actual error		
       $_ww=undef;
       #$_wfh=undef;
       @$queue=();	#reset queue for session reuse
 
       #$_[0][0]=undef;
-      $cb and $cb->();
+      $cb and $cb->(1);
       $cb=undef;
 
       #

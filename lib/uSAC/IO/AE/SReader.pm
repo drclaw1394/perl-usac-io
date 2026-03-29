@@ -112,20 +112,31 @@ method _make_reader  :override {
 		$len>0 and return($_on_read and $_on_read->($_buffer,$_cb));
 		not defined($len) and ($! == EAGAIN or $! == EINTR) and return;
 
-    # End of file
-    if($len==0){
-      #delete $uSAC::IO::AE::IO::watchers{$self};
-      delete $uSAC::IO::AE::IO::watchers{$_id};
-      undef $_rw;
-      $_on_eof and $_on_eof->($_buffer);
-    }
+    #################################################
+    # # End of file                                 #
+    # if($len==0){                                  #
+    #   #delete $uSAC::IO::AE::IO::watchers{$self}; #
+    #   delete $uSAC::IO::AE::IO::watchers{$_id};   #
+    #                                               #
+    #   undef $_rw;                                 #
+    #   say STDERR "Reader CALL EOF";               #
+    #   $_on_eof and $_on_eof->($_buffer);          #
+    # }                                             #
+    #################################################
     # Error
     #Log::OK::ERROR and log_error "ERROR IN READER: $!";
 		$_rw=undef;
     #delete $uSAC::IO::AE::IO::watchers{$self};
     delete $uSAC::IO::AE::IO::watchers{$_id};
     #my $_on_error=$self->on_error;
-		$_on_error and $_on_error->(undef, $_buffer);
+
+
+    if($len==0){
+      $_on_eof and $_on_eof->($_buffer);
+    }
+    else {
+	  	$_on_error and $_on_error->(undef, $_buffer);
+    }
 		return;
   }
   catch($e){

@@ -2,7 +2,7 @@ use Object::Pad;
 package uSAC::IO::Reader;
 class uSAC::IO::Reader;
 
-use feature qw<refaliasing current_sub>;
+use feature qw<refaliasing current_sub say>;
 no warnings qw<experimental uninitialized>;
 
 #use AnyEvent;
@@ -29,7 +29,9 @@ BUILD{
 	IO::FD::fcntl $_fh, F_SETFL, O_NONBLOCK;
 
 	$self->on_read=sub {$self->pause};
-	$self->on_error= $self->on_eof=sub{};
+  my $tmp=sub{};
+	$self->on_error//=$tmp; 
+  $self->on_eof//=$tmp;
 
 	$_max_read_size//=4096*16;
   $self->buffer=[IO::FD::SV($_max_read_size)];#"";
