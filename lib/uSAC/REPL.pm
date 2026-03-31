@@ -424,6 +424,9 @@ sub stop {
   IO::FD::close $new_in;
   IO::FD::close $new_out;
   IO::FD::close $new_err;
+
+  # Exit 
+  uSAC::IO::exit;
 }
 
 1;

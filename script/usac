@@ -1,6 +1,9 @@
 #!/usr/bin/env perl
- 
-
+#########
+#
+# DEPRECATED --- try instead 'perl -MAnyEvent -MuSAC -E0 SCRIPT_FILE'
+#
+#########
 my $backend=$ENV{uSAC_IO_Backend};
 
 # Fallback to AnyEvent
