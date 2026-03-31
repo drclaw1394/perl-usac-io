@@ -167,7 +167,8 @@ method _make_writer :override {
 
 
     #Push to queue if watcher is active or need to do a async call
-    if(defined $_ww or !$cb or $_recursion_counter > RECUSITION_LIMIT){
+    #if(defined $_ww or !$cb or $_recursion_counter > RECUSITION_LIMIT){
+    if(defined $_ww or $_recursion_counter > RECUSITION_LIMIT){
       #DEBUG and print STDERR "SWriter water exists for fd $_wfh. Pushing to queue\n";
 
       if(@$queue){
