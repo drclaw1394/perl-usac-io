@@ -14,7 +14,9 @@ use Errno qw(EAGAIN EINTR EPIPE);
 #use parent "uSAC::IO::Writer";
 #use uSAC::IO::Writer qw<:fields>;
 
-use constant::more RECUSITION_LIMIT=>10;
+use constant::more RECUSITION_LIMIT=>5;
+use constant::more BUFFER_LIMIT=>4096*32;
+
 use constant::more DEBUG=>0;
 
 field $_ww;		# Actual new variable for sub class
@@ -173,7 +175,7 @@ method _make_writer :override {
 
       if(@$queue){
         for my ($entry) ($queue->[-1]){
-          if(!$entry->[2] and length($entry->[0]) < (4096*4)){
+          if(!defined($entry->[2]) and length($entry->[0]) < BUFFER_LIMIT){
             # Append to existing entry only if it doesn't have a callback defined
             $entry->[0].=$_[0][0];
             $entry->[2]=$cb;
