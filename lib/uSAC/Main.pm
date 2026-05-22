@@ -1,4 +1,42 @@
 # Wrapper around a main script to remove setup of event system code
+#
+package TiedStderr;
+
+sub TIEHANDLE {
+    my ($class, $scalar_ref, $callback) = @_;
+    my $self = {
+        scalar   => $scalar_ref,   # reference to the scalar that will hold the output
+        callback => $callback,     # function to call on every write
+    };
+    bless $self, $class;
+}
+
+sub PRINT {
+  say STDOUT "PRINT WRITE";
+    my $self = shift;
+    my $str = join('', @_);
+    ${$self->{scalar}} .= $str;
+    $self->{callback}->($str) if $self->{callback};
+    say STDOUT "ENDO PRINT WRITE";
+}
+
+sub PRINTF {
+  say STDOUT "PRINTF WRITE";
+    my $self = shift;
+    my $fmt  = shift;
+    my $str  = sprintf($fmt, @_);
+    ${$self->{scalar}} .= $str;
+    $self->{callback}->($str) if $self->{callback};
+}
+
+sub WRITE {
+  say STDOUT "Call to WRITE";
+  my $self=shift;
+  my $str = join('', @_);
+  ${$self->{scalar}} .= $str;
+  $self->{callback}->($str) if $self->{callback};
+}
+
 
 package LMain;
 # The LMain pacakge import the Log::ger log routnies. These are dynamicall
@@ -188,10 +226,22 @@ sub _main {
   $STDOUT= writer(1);
   $STDERR= writer(2);
 
+
+
+
+  ######################################################
+  # my $stderr_content="";                             #
+  # tie *STDERR, 'TiedStderr', \$stderr_content, sub { #
+  #     adump($STDERR, @_);                            #
+  # };                                                 #
+  ######################################################
+
   # Force built in file handles to auto flush. This make writing unbuffered and synchrounous.
   #
   STDERR->autoflush(1);
   STDOUT->autoflush(1);
+  
+  
 
 
   # Setup default broker/messaging. Add listeners for logging

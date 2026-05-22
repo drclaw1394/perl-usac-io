@@ -181,5 +181,9 @@ method send_control {
   $_broker->broadcast(undef, $_control_out_name, $_[0]);
 }
 
+method id {
+  $_uuid;
+}
+
 
 1;
