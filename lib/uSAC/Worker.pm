@@ -68,7 +68,7 @@ BUILD {
 		  return if $$ == $_parent_pid;
 
 		  #if($_parent_pid != $$){
-	  	say STDERR " =-=-=-POST FORK pid $$, parent PID $_parent_pid Worker id $_wid";
+      #say STDERR " =-=-=-POST FORK pid $$, parent PID $_parent_pid Worker id $_wid";
 		#}
 
 	  # Close all workers not in parent and that are not this process
@@ -80,7 +80,7 @@ BUILD {
 		  #$self->close
 	  }
 	  else {
-		  say STDERR "-- KEEP WORKER pid $$ wid $_wid ";
+      ## say STDERR "-- KEEP WORKER pid $$ wid $_wid ";
 	  }
   }];
 
@@ -94,7 +94,7 @@ BUILD {
 
 # Create the actual process
 method _sub_process {
-  DEBUG and say STDERR "---CALLED _subprocess in worker";
+  #DEBUG and say STDERR "---CALLED _subprocess in worker";
   my $__on_complete=sub {
     # unregister worker?
     $_on_complete and &$_on_complete
@@ -104,15 +104,15 @@ method _sub_process {
     $_wid=$$; # NOTE: needed for child to know its worker id
     $0=$_name if $_name;
 
-    DEBUG and say  STDERR "++++++DOING CHILD SETUP for wid $_wid";
+    #DEBUG and say  STDERR "++++++DOING CHILD SETUP for wid $_wid";
     $self->_child_setup;
     $_work and $_work->($self);
   };
 
-  DEBUG and say STDERR "---Just before sub_process IO call";
+  #DEBUG and say STDERR "---Just before sub_process IO call";
   @$_io=sub_process $__work, $__on_complete;
   $_wid=$_io->[3]; #NOte this is only in parent
-  DEBUG and say STDERR "____CALLING SUB_PROCESS IN WORKER .. new id $_wid";
+  #DEBUG and say STDERR "____CALLING SUB_PROCESS IN WORKER .. new id $_wid";
   if(@$_io){
     #Do parent stuff here
     #asap sub {
@@ -123,7 +123,7 @@ method _sub_process {
   }
   else {
     # Error in parent
-    DEBUG and say STDERR "---- ERROR IN PARENT";
+    #DEBUG and say STDERR "---- ERROR IN PARENT";
   }
 }
 
@@ -157,14 +157,14 @@ method rpc {
 method do_rpc {
   return unless @$_queue;
   my $e=shift @$_queue;
-  DEBUG and say STDERR "---WORKER RPC CALLED wid $_wid";
+  #DEBUG and say STDERR "---WORKER RPC CALLED wid $_wid";
   my $name=shift @$e; # Name could be code ref
   my $string=shift @$e;
   my $cb=shift @$e;
   my $error=shift @$e;
 
   if($_rpc->{$name}){
-    DEBUG and say STDERR "WORKER id before  sub process $_wid";
+    #DEBUG and say STDERR "WORKER id before  sub process $_wid";
     $self->_sub_process unless $_wid;
     $_call_count++;
     $_active->{++$_seq}=[$cb, $error];
@@ -173,7 +173,7 @@ method do_rpc {
     return $_seq;
   }
   else {
-    DEBUG and say STDERR "--RPC name not in worker $name";
+    #DEBUG and say STDERR "--RPC name not in worker $name";
   }
   undef;
 }
@@ -193,7 +193,7 @@ method close {
 }
 
 method _clean_up {
-  DEBUG and say STDERR "---- CLEAN UP WORKER----";
+  #DEBUG and say STDERR "---- CLEAN UP WORKER----";
   #my $forward_sub=$_bridge->forward_message_sub;
 
   #DEBUG and asay $STDERR, Dumper $_register;
@@ -259,9 +259,9 @@ method _child_setup {
       for my ($msg, $cap)($_[0][0]->@*){
         my $name= $cap->[0];
         #my $seq= $cap->[1];
-      	DEBUG and say STDERR "$$ child rpc called by name: $name";
+        #DEBUG and say STDERR "$$ child rpc called by name: $name";
         my $sub= $_rpc->{$name};
-	DEBUG and say STDERR "$$ child rpc sub found is $sub";
+        #DEBUG and say STDERR "$$ child rpc sub found is $sub";
         my ($seq, $payload)=unpack "La*", $msg->[FP_MSG_PAYLOAD];
 	#say STDERR $seq;
 	#say STDERR $payload;
@@ -273,14 +273,14 @@ method _child_setup {
             #DEBUG and asay $STDERR, "child rpc result ". Dumper $res;
             #$_broker->broadcast(undef, "worker/$_wid/rpc-return/$name/$seq", $res);
             #$_broker->broadcast(undef, "worker/$_wid/rpc-return/$name/$seq", undef);
-	    DEBUG and say STDERR "$$ return sub results to worker/$_wid/rpc-return/$name";
+            #DEBUG and say STDERR "$$ return sub results to worker/$_wid/rpc-return/$name";
 
             $_broker->broadcast(undef, "worker/$_wid/rpc-return/$name", pack "La*", $seq, $res);
           }
           catch($e){
             my $error=Error::Show::context $e;
             #$_broker->broadcast(undef,"worker/$_wid/rpc-error/$name/$seq", $error);
-            say STDERR "$$ RPC ERROR in child----- ". $e;
+            #say STDERR "$$ RPC ERROR in child----- ". $e;
             $_broker->broadcast(undef,"worker/$_wid/rpc-error/$name", pack "La*", $seq, $error);
           }
         }
@@ -320,10 +320,10 @@ method _child_setup {
 
 # Setup parent bridge to child
 method _parent_setup {
-  DEBUG and say STDERR "PARENT SETUP "."@$_io";
+  #DEBUG and say STDERR "PARENT SETUP "."@$_io";
   $_bridge=uSAC::FastPack::Broker::Bridge::Streaming->new(broker=>$_broker, reader=>$_io->[1], writer=>$_io->[0], rfd=>$_io->[1]->fh,  wfd=>$_io->[0]->fh);
 
-  DEBUG and say STDERR "PARENT SETUP after bridge";
+  #DEBUG and say STDERR "PARENT SETUP after bridge";
   my $forward_sub=$_bridge->forward_message_sub;
   $_broker->add_bridge($_bridge);
 
@@ -332,7 +332,7 @@ method _parent_setup {
   #
   $r=[$_bridge->source_id, "^worker/$_wid/", $forward_sub];
 
-  say STDERR " ABOUT TO REGISTER LISTENERS forwarder for wid $_wid, bridge id @{[$_bridge->source_id]}";
+  #say STDERR " ABOUT TO REGISTER LISTENERS forwarder for wid $_wid, bridge id @{[$_bridge->source_id]}";
   $_broker->listen(@$r);
   push @$_register, $r;
   #$_broker->listen(undef, "^worker/$_wid/", $forward_sub);
@@ -344,14 +344,14 @@ method _parent_setup {
         my $name=$cap->[0];
         #my $i=$cap->[1];   
         my ($i,$payload)=unpack "La*", $msg->[FP_MSG_PAYLOAD];
-        DEBUG and say STDERR "RPA RETURN----- $_wid  $name";
+        #DEBUG and say STDERR "RPA RETURN----- $_wid  $name";
         my $e=delete $_active->{$i};
         #$e->[0] and $e->[0]->($msg->[FP_MSG_PAYLOAD]);
         $e->[0] and $e->[0]->($payload);
       }
     }];
   # Add RPA support
-  DEBUG and say STDERR " ABOUT TO REGISTER LISTENERS rpa";
+  #DEBUG and say STDERR " ABOUT TO REGISTER LISTENERS rpa";
   $_broker->listen(@$r);
   push @$_register, $r;
 
@@ -371,34 +371,34 @@ method _parent_setup {
 
     }
   ];
-  DEBUG and say STDERR " ABOUT TO REGISTER LISTENERS rpa-error";
+  #DEBUG and say STDERR " ABOUT TO REGISTER LISTENERS rpa-error";
   $_broker->listen(@$r);
   push @$_register, $r;
   $r=[
     #undef, "^worker/$_wid/rpc-return/(\\w+)/(\\d+)\$", sub {
     undef, "^worker/$_wid/rpc-return/(\\w+)\$", sub {
-      DEBUG and say STDERR "$$ RPC RETURN in server for worker $self  $_wid ----- ". Dumper @_;
+      #DEBUG and say STDERR "$$ RPC RETURN in server for worker $self  $_wid ----- ". Dumper @_;
       shift $_[0]->@*;
       for my ($msg, $cap)($_[0][0]->@*){
         my $name=$cap->[0];
         #my $i=$cap->[1];   
         my ($i,$payload)=unpack "La*", $msg->[FP_MSG_PAYLOAD];
-        DEBUG and say STDERR "RPC RETURN----- $_wid  $name";
+        #DEBUG and say STDERR "RPC RETURN----- $_wid  $name";
         my $e=delete $_active->{$i};
 
         #$_broker->broadcast(undef,"worker/$_wid/rpc/$name/$i", undef);
         if($_shrink_mask and $_call_count >= $_call_max){
-          DEBUG and say STDERR "=======MAX CALL COUNT REACHED";
+          #DEBUG and say STDERR "=======MAX CALL COUNT REACHED";
           $self->_clean_up;
           $self->close;
         }
         elsif(@$_queue == 0 and $_shrink and $_shrink_mask){
-          DEBUG and say STDERR "============Closing worker as queue is empty";
+          #DEBUG and say STDERR "============Closing worker as queue is empty";
           $self->_clean_up;
           $self->close;
         }
 
-        DEBUG and say STDERR "======= about to do callback ", $e;
+        #DEBUG and say STDERR "======= about to do callback ", $e;
 	$e->[0] and $e->[0]->($payload);
 	#$e->[0] and asap $e->[0], $payload;
 	#$_broker->clear_cache;
@@ -408,7 +408,7 @@ method _parent_setup {
   ];
 
   # Add RPC support
-  DEBUG and say STDERR " ABOUT TO REGISTER LISTENERS rpc-return";
+  #DEBUG and say STDERR " ABOUT TO REGISTER LISTENERS rpc-return";
   $_broker->listen(@$r);
   push @$_register,$r;
 
@@ -421,14 +421,14 @@ method _parent_setup {
         my $name=$cap->[0];
         #my $i=$cap->[1];   
         my ($i,$payload)=unpack "La*", $msg->[FP_MSG_PAYLOAD];
-        DEBUG and say STDERR "RPC ERROR----- $_wid  $name $payload";#$msg->[FP_MSG_PAYLOAD]";
+        #DEBUG and say STDERR "RPC ERROR----- $_wid  $name $payload";#$msg->[FP_MSG_PAYLOAD]";
         my $e=delete $_active->{$i};
         #$e->[1] and $e->[1]->($msg->[FP_MSG_PAYLOAD]);
         $e->[1] and $e->[1]->($payload);
       }
     }
   ];
-  DEBUG and say STDERR " ABOUT TO REGISTER LISTENERS rpc-error";
+  #DEBUG and say STDERR " ABOUT TO REGISTER LISTENERS rpc-error";
   $_broker->listen(@$r);
   push @$_register, $r;
 

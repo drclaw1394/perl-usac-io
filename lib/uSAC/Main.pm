@@ -229,12 +229,6 @@ sub _main {
 
 
 
-  ######################################################
-  # my $stderr_content="";                             #
-  # tie *STDERR, 'TiedStderr', \$stderr_content, sub { #
-  #     adump($STDERR, @_);                            #
-  # };                                                 #
-  ######################################################
 
   # Force built in file handles to auto flush. This make writing unbuffered and synchrounous.
   #
@@ -242,6 +236,12 @@ sub _main {
   STDOUT->autoflush(1);
   
   
+  ######################################################
+  # my $stderr_content="";                             #
+  # tie *STDERR, 'TiedStderr', \$stderr_content, sub { #
+  #     adump($STDERR, @_);                            #
+  # };                                                 #
+  ######################################################
 
 
   # Setup default broker/messaging. Add listeners for logging

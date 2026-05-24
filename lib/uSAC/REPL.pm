@@ -74,7 +74,10 @@ my $perl_repl_handler=sub {
           try{
             package main;
             local $@;
-            my $res=Error::Show::streval "sub { no strict \"subs\"; no strict \"vars\"; $line }";
+            #my $res=Error::Show::streval "sub { no strict \"subs\"; no strict \"vars\"; $line }";
+            my $res=Error::Show::streval "sub { no strict \"subs\"; no strict \"vars\";
+$line
+}";
             die $@ if $@;
             my @ret=$res->();
 
@@ -85,9 +88,8 @@ my $perl_repl_handler=sub {
           }
           catch($e){
             # handle syntax errors
-            asay $STDERR, "$$ ERROR in eval: $e";
-            asay_now $STDERR, Error::Show::context $e;
-	    #say STDERR "----ERROR FOR EVAL";
+            # asay $STDERR, "$$ ERROR in eval: $e";
+            asay_now $STDERR, Error::Show::context $e, depth=>0, reverse=>1, start_offset=>1, end_offset=>1;
           }
           asap $repl;
         };
@@ -126,7 +128,7 @@ sub start {
       
       $ch_slave=uSAC::FastPack::Channel->new(broker=>$broker);
       $ch_slave->connect("worker/$$/repl_end_accept", sub {
-          say STDERR "----=-=-=-==-- GOT NEW CHANNEL CONNECTION: @_";
+          #say STDERR "----=-=-=-==-- GOT NEW CHANNEL CONNECTION: @_";
           my $slave=$_[0];
           $slave->on_data=sub {
             asay_now $STDERR, "Data arriving at slave @_";
@@ -149,18 +151,22 @@ sub start {
       open($stdout, ">&=$new_out") or die $!;
       open($stderr, ">&=$new_err") or die $!;
 
+      #close STDIN;
+      #close STDOUT;
+      #close STDERR;
+
       #Term::ReadKey::ReadMode('cbreak', $stdin);
       # Create a term using our inputs and outputs
       $TERM = Term::ReadLine->new('uSAC REPL', $stdin, $stdout);
       
   signal INT=>sub {
-	  say STDERR "REPL worker interrupt";
+    #say STDERR "REPL worker interrupt";
 	  #	Term::ReadKey::ReadMode('restore', $stdin);
     #$repl_worker->close;
 
   };
   signal TERM=>sub {
-	  say STDERR "REPL worker interrupt";
+    #say STDERR "REPL worker interrupt";
 	  #		Term::ReadKey::ReadMode('restore', $stdin);
     #$repl_worker->close;
 
@@ -323,7 +329,7 @@ sub start {
 
   uSAC::FastPack::Channel->accept("worker/". $repl_worker->wid."/repl_end_accept", $broker, sub {
 
-      say STDERR "---- GOT A NEW CHANNEL CONNECTION IN PARENT: @_";
+      #say STDERR "---- GOT A NEW CHANNEL CONNECTION IN PARENT: @_";
       my $master=$_[0];
       $master->on_data=sub {
         asay_now $STDERR, " $$ Data arriving at master @_";
@@ -361,7 +367,7 @@ sub start {
           catch($e){
             # handle syntax errors
             asay $STDERR, "$$ ERROR in eval: $e";
-            asay_now $STDERR, Error::Show::context $e;
+            asay_now $STDERR, Error::Show::context $e, depth=>1;
             #say STDERR "----ERROR FOR EVAL";
           }
         }
@@ -397,7 +403,7 @@ sub start {
     my @list=grep !/^_\</, keys %::; # remove the file names
     
     push @list, @Barewords, @Functions;
-    my $prompt=encode_meta_payload({prompt=>"--->", sym_names=>\@list},1);
+    my $prompt=encode_meta_payload({prompt=>"> ", sym_names=>\@list},1);
 	  #asay $STDERR, "SUB REF TO START REPL";
 	  return unless $repl_worker;
 	  $repl_worker->rpc("readline", $prompt,
