@@ -11,8 +11,8 @@ our $VERSION="v0.1.0";
 # This is an explicit check to see if usac has been invoked
 #
 unless($uSAC::Loaded::Loaded){
-  print STDERR "Script must be loaded by usac ( not perl directly)" ;
-  exit;
+  #print STDERR "Script must be loaded by usac ( not perl directly)" ;
+  #exit;
 }
 
 # Test to see if actually loaded via usac

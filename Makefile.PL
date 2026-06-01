@@ -17,7 +17,7 @@ WriteMakefile(
       "Object::Pad"   =>0,
       "Socket::More::Resolver"=>0,
       "Socket::More"  =>0,
-      "Error::Show"   =>0,
+      "Error::Show"   => v0.5.1,
       "Data::Dump::Color"=>0,
       "Sub::Middler"  =>v0.4.0,
       'Hustle::Table' => v0.8.0,
