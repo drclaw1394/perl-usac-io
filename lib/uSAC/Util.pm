@@ -259,4 +259,87 @@ sub catfile {
   join "/", map s|/$||, @_;
 }
 
+
+
+use Digest::SHA qw<sha256>;
+use MIME::Base64;
+use UUID qw<generate_v4>;
+
+
+# Generate a hash for a file name (or path) and  optionally create a mutlilevel dir structure to with new file name
+# If no name/path is given, a random one is generated and is used as the orginal name
+# The create flag is used to actuall create the dir strutures. otherwise a hash is just calculated
+# 
+# root dir is the root dir to use . is the current working dir if not specified
+#
+#
+# In scalar context returns the hashed path
+# In list context returns the original name and the hased path
+
+sub hashed_path {
+
+  my $org_path=shift//"";         # The filename to process
+  my $root_dir=shift//".";   # The root dir to create directorires. Current dir by default
+  my $create=shift;       # Create the dirs, otherwise just do a lookup
+  my $new_ext=shift;
+
+  my $want_random=!$org_path;   # If no original path, we want a fresh, random, unique filename generated
+
+  
+RANDOM_NAME: 
+
+  # Create a new file name if one isn't provided, use the new extention if provdied
+  if($want_random){
+    generate_v4($org_path);
+    $org_path=MIME::Base64::encode_base64url $org_path;
+    $org_path.=".$new_ext" if $new_ext;
+  }
+
+  # Extract extention if it exists
+  my $index=rindex $org_path, ".";
+  my $ext="";
+  if($index>=0){
+    $ext=lc substr $org_path, $index+1;
+    $ext=".$ext" if $ext;
+  }
+  
+  my $path=$org_path;
+
+
+  # Hash and the filename data an encode into base 64 (url)
+  # This ensures a filename which allway has a length
+  my $enc_path=MIME::Base64::encode_base64url sha256 $path;
+  
+  # append the extensino
+
+  my $l1=substr $enc_path, 0, 3;
+  my $l2=substr $enc_path, 3, 3;
+
+  # if asked for a random name, we need to make sure case sensitve file systems
+  # don't cause issues with an already existing file
+  
+  $path="$l1/$l2/$enc_path$ext";
+  
+  # Test if file name exists only if it was a randomly generated one
+  if ($want_random and -e "$root_dir/$path"){
+    goto RANDOM_NAME;
+  }
+
+  if($create){
+    #adump $STDERR, "---file", $l1, $l2, "file name $h->{_filename}";
+
+    my $p="$root_dir/$l1";
+    (!-e $p) and mkdir $p or die $!;
+    $p.="/$l2";
+
+    (!-e $p) and mkdir $p or die $!;
+  }
+
+  # Attempt tto add file extension
+
+  # In scalar return the last element in the list, which is the new path)l
+  ($org_path, $path);  #url level relative to dir
+
+}
+
 1;
