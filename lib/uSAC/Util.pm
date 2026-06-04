@@ -4,7 +4,7 @@ use warnings;
 # Utility functions
 
 
-use Export::These qw( cwd dirname basename path catfile abs2rel rel2abs dost need);# decode_urlencoded_form);
+use Export::These qw( cwd dirname basename path catfile abs2rel rel2abs dost need hashed_path);# decode_urlencoded_form);
 
 sub cwd {
   my($dev, $inode)=stat ".";
