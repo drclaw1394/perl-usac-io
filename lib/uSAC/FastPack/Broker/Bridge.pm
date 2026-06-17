@@ -19,7 +19,7 @@ use uSAC::IO;
 use v5.36;
 use uSAC::Log;
 use Log::OK;
-use constant::more DEBUG=>1;
+use constant::more DEBUG=>0;
 
 no warnings "experimental";
 #use Data::Dumper;
