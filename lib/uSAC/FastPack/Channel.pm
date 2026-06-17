@@ -1,6 +1,6 @@
 package uSAC::FastPack::Channel;
 
-use uSAC::IO qw(asay);
+use uSAC::IO qw(asay adump timer timer_cancel);
 use Data::Dumper;
 use feature ":all";
 use Object::Pad;
@@ -23,9 +23,14 @@ field $_control_in_name;
 
 field $_data_out_name;
 field $_control_out_name;
+field $_data_in_byte_count;
+field $_data_out_byte_count;
+field $_timer;
 
 BUILD {
   #$_uuid//=uuid4;
+  $_data_in_byte_count=0;
+  $_data_out_byte_count=0;
 }
 
 # Setup listeners depending on mode
@@ -46,7 +51,11 @@ method _setup {
     $_broker->listen(undef, $_control_in_name,  sub {
 
         DEBUG and asay $STDERR, "CONTROL LISTENER for master $_control_in_name";
-        $_on_control and $_on_control->($_[0][1][0][FP_MSG_PAYLOAD]);
+        $_data_in_byte_count+=length $_[0][1][0][FP_MSG_PAYLOAD];
+
+        my $p=decode_meta_payload($_[0][1][0][FP_MSG_PAYLOAD]);
+        $_on_control and $_on_control->($p);
+        #$_on_control and $_on_control->($_[0][1][0][FP_MSG_PAYLOAD]);
       },
 
       "exact");
@@ -59,13 +68,16 @@ method _setup {
     }
 
     # SEND THE FINAL HANDSHAKE
-    $self->send_control("");
+    #$self->send_control("");
+    $self->send_control({});
+
 
     # Data listening
     #
     $_broker->listen(undef, $_data_in_name, sub {
-        DEBUG and asay $STDERR, "$_on_data D== Data in". Dumper @_;
+        #DEBUG and asay $STDERR, "$_on_data D== Data in". Dumper @_;
 
+        $_data_in_byte_count+=length $_[0][1][0][FP_MSG_PAYLOAD];
         $_on_data and $_on_data->($_[0][1][0][FP_MSG_PAYLOAD]);
       },
       "exact");
@@ -86,6 +98,7 @@ method _setup {
         # the first messgae is used to initiate forwarding
         # and acknowlege the connection
         #
+        $_data_in_byte_count+=length $_[0][1][0][FP_MSG_PAYLOAD];
         if($first){
           DEBUG and asay $STDERR, "CONTROL LISTENER for first slave $_control_in_name".Dumper @_;
           my $sender=$_[0][0];
@@ -98,19 +111,34 @@ method _setup {
           $first=undef;
         }
         else {
-          $_on_control and $_on_control->($_[0][1][0][FP_MSG_PAYLOAD]);
+          # Decode meta payload.. as this is the expected format
+          my $p=decode_meta_payload($_[0][1][0][FP_MSG_PAYLOAD]);
+          $_on_control and $_on_control->($p);
+          #$_on_control and $_on_control->($_[0][1][0][FP_MSG_PAYLOAD]);
         }
       },
       "exact"
     );
 
+
+
     # Data listening
     #
     $_broker->listen(undef, $_data_in_name, sub {
+        $_data_in_byte_count+=length $_[0][1][0][FP_MSG_PAYLOAD];
         $_on_data and $_on_data->($_[0][1][0][FP_MSG_PAYLOAD]);
       },
       "exact");
   }
+  # Setup up back pressure
+  my $interval=0.1;
+  $_timer=timer $interval, $interval, sub {
+    my $temp=$_data_in_byte_count;
+
+    $_data_in_byte_count=0; # byte count is relative to last backpressure message. reset
+
+    $self->send_control({command=>"back_pressure", byte_count=>$temp}) if $temp;
+  };
 
 
 
@@ -138,6 +166,16 @@ method connect {
 
 
 };
+
+method close {
+  # need to tare down routing
+  $_broker->ignore(undef, $_data_in_name, undef, "exact", "sub");
+  $_broker->ignore(undef, $_data_out_name, undef, "exact", "sub");
+  $_broker->ignore(undef, $_control_in_name, undef, "exact", "sub");
+  $_broker->ignore(undef, $_control_out_name, undef, "exact", "sub");
+  $_broker->ignore(undef, $_uuid, undef, "begin");
+  timer_cancel $_timer;
+}
 
 
 # Class method, setup a listener for the connection enpoint
@@ -170,15 +208,20 @@ sub accept{
 }
 
 
+# Expects raw data, encoded as you see fit
 method send_data {
   DEBUG and asay $STDERR, "SENDING TO peer on $_data_out_name";
+  $_data_out_byte_count+=length $_[0];
   $_broker->broadcast(undef, $_data_out_name, $_[0]);
 }
 
 
+# Expects a strucured input (hash ref or array ref)
 method send_control {
-  DEBUG and asay $STDERR, "SENDING TO peer on $_control_out_name";
-  $_broker->broadcast(undef, $_control_out_name, $_[0]);
+  DEBUG and adump $STDERR, "SENDING TO peer on $_control_out_name", $_[0];
+  my $p=encode_meta_payload($_[0]);
+  $_data_out_byte_count+=length $p;
+  $_broker->broadcast(undef, $_control_out_name, $p);
 }
 
 method id {

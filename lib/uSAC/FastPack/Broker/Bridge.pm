@@ -19,7 +19,7 @@ use uSAC::IO;
 use v5.36;
 use uSAC::Log;
 use Log::OK;
-use constant::more DEBUG=>0;
+use constant::more DEBUG=>1;
 
 no warnings "experimental";
 #use Data::Dumper;
@@ -77,8 +77,8 @@ BUILD {
   $_on_read_handler=linker 
   sub { my $next=shift; 
 	  sub { 
-		  DEBUG and say STDERR "$$ ON READ......". length $_[0][0];
-		  DEBUG and say STDERR "$$ on read data ". Dumper $_[0];
+		  DEBUG and asay $STDERR, "$$ ON READ......". length $_[0][0];
+      #DEBUG and say STDERR "$$ on read data ". Dumper $_[0];
 		  &$next
 	  }
   }
@@ -95,11 +95,11 @@ BUILD {
       Data::FastPack::decode_fastpack $_[0][0], $outputs, undef, $_rx_namespace;
       #asay $STDERR, "BUffer is ". $_[0];
 
-      DEBUG and say STDERR "$$ Decoding messages in comming bridge packet length after". length $_[0][0];
+      DEBUG and asay $STDERR, "$$ Decoding messages in comming bridge packet length after ". length $_[0][0];
       #say STDERR Dumper $outputs;
 
       for(@{$outputs}){
-        DEBUG and say STDERR "$$ OUTPUT ". Dumper $_;
+        DEBUG and asay $STDERR, "$$ OUTPUT ". Dumper $_;
         if($_->[FP_MSG_ID] eq '0' ){
           $_->[FP_MSG_PAYLOAD] =decode_meta_payload $_->[FP_MSG_PAYLOAD];
           for($_->[FP_MSG_PAYLOAD]{listen}){
@@ -123,7 +123,7 @@ BUILD {
 
 
   # We want meta messages to be forwared
-  DEBUG and Log::OK::TRACE and say STDERR "$$ $_source_id: Bridge id about to listen is registering meta";
+  DEBUG and Log::OK::TRACE and asay $STDERR, "$$ $_source_id: Bridge id about to listen is registering meta";
   #$_broker->listen($_source_id, '0', $_forward_message_sub, "exact");
 
   if($_forward){
@@ -161,7 +161,7 @@ method forward_message_sub {
       }
       #say STDERR "$$ Encoding for bridge $_source_id ". Dumper @ins;
       Data::FastPack::encode_fastpack $buffer, \@ins, undef, $_tx_namespace;
-      DEBUG and say STDERR "$$ BUFFER  length is  ". length $buffer;
+      DEBUG and asay $STDERR, "$$ BUFFER  length is  ". length $buffer;
       $next->([$buffer], $cb); 
 
     }

@@ -329,10 +329,10 @@ RANDOM_NAME:
     #adump $STDERR, "---file", $l1, $l2, "file name $h->{_filename}";
 
     my $p="$root_dir/$l1";
-    (!-e $p) and mkdir $p or die $!;
+    (! -e $p) and (mkdir $p or die "$p --- $!");
     $p.="/$l2";
 
-    (!-e $p) and mkdir $p or die $!;
+    (!-e $p) and (mkdir $p or die $!);
   }
 
   # Attempt tto add file extension
