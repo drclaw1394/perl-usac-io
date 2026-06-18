@@ -15,9 +15,12 @@ class uSAC::FastPack::Channel;
 field $_uuid :param=undef;
 field $_mode :param=undef;
 field $_broker :param;
+field $_tag   :mutator :param=undef;
 
 field $_on_data :mutator;
 field $_on_control :mutator;
+field $_on_close :mutator;
+
 field $_data_in_name;
 field $_control_in_name;
 
@@ -31,6 +34,9 @@ BUILD {
   #$_uuid//=uuid4;
   $_data_in_byte_count=0;
   $_data_out_byte_count=0;
+  if($_tag){
+    $_broker->add_tagged_channel($_tag, $self);
+  }
 }
 
 # Setup listeners depending on mode
@@ -64,6 +70,8 @@ method _setup {
     # anything on channel uuid
     my $bridge=$_broker->bridges->{$sender//""}; 
     if($bridge){
+      $_tag=$sender; 
+      $_broker->add_tagged_channel($_tag, $self);
       $_broker->listen(undef, $_uuid, $bridge, "begin");
     }
 
@@ -104,6 +112,8 @@ method _setup {
           my $sender=$_[0][0];
           my $bridge=$_broker->bridges->{$sender}; 
           if($bridge){
+            $_tag=$sender; 
+            $_broker->add_tagged_channel($_tag, $self);
             $_broker->listen(undef, $_uuid, $bridge, "begin");
           }
 
@@ -168,6 +178,7 @@ method connect {
 };
 
 method close {
+  DEBUG and asay $STDERR, "Closing channel $_uuid, with tag $_tag";
   # need to tare down routing
   $_broker->ignore(undef, $_data_in_name, undef, "exact", "sub");
   $_broker->ignore(undef, $_data_out_name, undef, "exact", "sub");
@@ -175,6 +186,14 @@ method close {
   $_broker->ignore(undef, $_control_out_name, undef, "exact", "sub");
   $_broker->ignore(undef, $_uuid, undef, "begin");
   timer_cancel $_timer;
+
+  # Attempt to remote from tag list if we have a tag
+  if($_tag){
+    DEBUG and asay $STDERR, "-- close in channel.. have tag, removing from tag list $_tag";
+    $_broker->remove_tagged_channel($_tag, $self);
+  }
+  # Do callback
+  $_on_close and &$_on_close;
 }
 
 

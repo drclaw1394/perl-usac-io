@@ -77,7 +77,7 @@ BUILD {
   $_on_read_handler=linker 
   sub { my $next=shift; 
 	  sub { 
-		  DEBUG and asay $STDERR, "$$ ON READ......". length $_[0][0];
+      #DEBUG and asay $STDERR, "$$ ON READ......". length $_[0][0];
       #DEBUG and say STDERR "$$ on read data ". Dumper $_[0];
 		  &$next
 	  }
@@ -95,11 +95,11 @@ BUILD {
       Data::FastPack::decode_fastpack $_[0][0], $outputs, undef, $_rx_namespace;
       #asay $STDERR, "BUffer is ". $_[0];
 
-      DEBUG and asay $STDERR, "$$ Decoding messages in comming bridge packet length after ". length $_[0][0];
+      #DEBUG and asay $STDERR, "$$ Decoding messages in comming bridge packet length after ". length $_[0][0];
       #say STDERR Dumper $outputs;
 
       for(@{$outputs}){
-        DEBUG and asay $STDERR, "$$ OUTPUT ". Dumper $_;
+        #DEBUG and asay $STDERR, "$$ OUTPUT ". Dumper $_;
         if($_->[FP_MSG_ID] eq '0' ){
           $_->[FP_MSG_PAYLOAD] =decode_meta_payload $_->[FP_MSG_PAYLOAD];
           for($_->[FP_MSG_PAYLOAD]{listen}){
@@ -161,7 +161,7 @@ method forward_message_sub {
       }
       #say STDERR "$$ Encoding for bridge $_source_id ". Dumper @ins;
       Data::FastPack::encode_fastpack $buffer, \@ins, undef, $_tx_namespace;
-      DEBUG and asay $STDERR, "$$ BUFFER  length is  ". length $buffer;
+      #DEBUG and asay $STDERR, "$$ BUFFER  length is  ". length $buffer;
       $next->([$buffer], $cb); 
 
     }
@@ -197,6 +197,22 @@ method close {
     # Ingore everything this bridge was listening for and remove it from broker
     $_broker->ignore(undef, undef, $self);
     $_on_read_handler=undef;
+    
+
+    # Also get the any channels tagged with this id, can close
+    # them
+
+    DEBUG and asay $STDERR, "-- closing bridge $_source_id";
+
+    my $list=delete $_broker->tagged_channels->{$_source_id}//[];
+    for(@$list){
+      
+      DEBUG and asay $STDERR, "-- manual close channels tagged $_source_id";
+      $_->tag=undef;# set to undef to prevent double processing in channel
+      $_->close();# Close the channel
+    }
+
+    @$list=();
 }
 
 

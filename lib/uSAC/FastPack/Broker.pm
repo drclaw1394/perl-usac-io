@@ -35,6 +35,7 @@ field $_ns;           # Namespace common to all connection sends to brocker
 
 field $_bridges :reader;        # list of connected bridges which subscription will be requested
 
+field $_tagged_channels :reader;
 field $_connections;  # Local and remote connections streams
 field $_writers;
 
@@ -59,6 +60,7 @@ BUILD {
   $_ht=Hustle::Table->new();
   $_cache//={};
   $_bridges={};
+  $_tagged_channels={};
 
   $_uuid=uuid4;#rand 10000;
   $_default_source_id= uuid4;#rand 10000;
@@ -465,6 +467,35 @@ method add_bridge {
 method remove_bridge {
   my $bridge=shift;
   delete $_bridges->{$bridge->source_id};
+}
+
+method add_tagged_channel {
+  my $tag=shift;
+  my $ch=shift;
+
+  # Get or create a list
+  my $list=$_tagged_channels->{$tag}//=[];
+
+  # Push the  channel to the list for the tag
+  push @$list, $ch unless grep $_==$ch, @$list;
+
+}
+
+method remove_tagged_channel {
+  my $tag=shift;
+  my $ch=shift;
+  my $list=$_tagged_channels->{$tag};
+  if($list){
+    my $index=@$list;
+    for(0..$list->@*-1){
+      if($list->[$_] == $ch){
+        $index=$_ ;
+        last;
+      }
+    }
+    # Remove from list
+    splice @$list, $index,1;
+  }
 }
 
 # A peer is a broker/client on the other end of the the connection
