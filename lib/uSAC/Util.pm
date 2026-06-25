@@ -308,6 +308,10 @@ RANDOM_NAME:
 
   # Hash and the filename data an encode into base 64 (url)
   # This ensures a filename which allway has a length
+  use utf8;
+  #my $temp=utf8::encode $path;
+  utf8::encode $path;
+  #adump $STDERR, $temp;
   my $enc_path=MIME::Base64::encode_base64url sha256 $path;
   
   # append the extensino
