@@ -32,7 +32,7 @@ use uSAC::IO;
 package uSAC::REPL;
 use v5.36;
 use feature "try";
-
+use constant::more DEBUG=>0;
 
 our $TERM;
 our $stdout;
@@ -70,7 +70,7 @@ sub my_gen_master {
 }
 
 my $perl_repl_handler=sub {
-	#say STDERR  "IN PERL REPL HANDLER ", @_;
+  #asay $STDERR, "IN PERL REPL HANDLER ", @_;
           my $line=$_[0];
           try{
             package main;
@@ -82,7 +82,7 @@ $line
             die $@ if $@;
             my @ret=$res->();
 
-            #asay_now $STDOUT, @ret;
+            adump $STDOUT, @ret;
 	    
 	    #say STDERR "----RETURN FOR EVAL @ret";
 	    #say STDERR "";
@@ -133,7 +133,7 @@ sub start {
           #say STDERR "----=-=-=-==-- GOT NEW CHANNEL CONNECTION: @_";
           my $slave=$_[0];
           $slave->on_data=sub {
-            asay_now $STDERR, "Data arriving at slave @_";
+            DEBUG and asay_now $STDERR, "Data arriving at slave @_";
 
           };
       });
@@ -149,12 +149,12 @@ sub start {
 
       #require Term::ReadLine;
       #require Term::ReadKey;
-      asay_now $STDERR, "BEFORE opens";
+      DEBUG and asay_now $STDERR, "BEFORE opens";
       open($stdin, "<&=$new_in") or die $!;
       open($stdout, ">&=$new_out") or die $!;
       open($stderr, ">&=$new_err") or die $!;
 
-      asay_now $STDERR, "AFTER opens";
+      DEBUG and asay_now $STDERR, "AFTER opens";
 
       #close STDIN;
       #close STDOUT;
@@ -176,7 +176,6 @@ sub start {
     #$repl_worker->close;
 
   };
-      #use Data::Dumper;
       sub my_gen_org {
         # Use local cache of object, but send requests to master to update
         my ($text, $state)=@_;
@@ -306,10 +305,10 @@ sub start {
 
 
 	      my $return;
-        uSAC::IO::asay_now $STDERR, "CALLED readline with $prompt"; 
+        DEBUG and uSAC::IO::asay_now $STDERR, "CALLED readline with $prompt"; 
         my $line;
         if( defined ($line = $TERM->readline($prompt)) ) {
-          asay_now $STDERR, "line is read: $line";
+          DEBUG and asay_now $STDERR, "line is read: $line";
           $TERM->addhistory($line) if /\S/;
 	        #print $stdout "LINE from readline iis $line, with length ". length $line;
 	        #print $stdout "\n";
@@ -317,7 +316,7 @@ sub start {
         }
 	else {
 		#print $stdout "READLINE UNDEF\n";
-          asay_now $STDERR, "line is read and undef";
+          DEBUG and asay_now $STDERR, "line is read and undef";
           $return=encode_meta_payload {line=>""}, 1;
 	}
 
@@ -326,7 +325,7 @@ sub start {
     },
 
     on_complete=> sub{
-      asay $STDERR, "WORKER COMPLETE------------sdasdfasdf";
+      DEBUG and asay $STDERR, "WORKER COMPLETE------------sdasdfasdf";
       #require Term::ReadKey;
       #Term::ReadKey::ReadMode('restore');
       $repl_worker=close;
@@ -335,15 +334,14 @@ sub start {
   );
 
 
-  asay_now $STDERR, "Before channel accept";
+  DEBUG and asay_now $STDERR, "Before channel accept";
   uSAC::FastPack::Channel->accept("worker/". $repl_worker->wid."/repl_end_accept", $broker, sub {
 
       #say STDERR "---- GOT A NEW CHANNEL CONNECTION IN PARENT: @_";
       my $master=$_[0];
       $master->on_data=sub {
-        asay_now $STDERR, " $$ Data arriving at master @_";
+        DEBUG and asay_now $STDERR, " $$ Data arriving at master @_";
 			  my $msg=decode_meta_payload $_[0], 1;
-        use Data::Dumper;
         #asay_now $STDERR, Dumper $msg;
         if($msg->{line}){
           my $line=$msg->{line};
@@ -368,15 +366,15 @@ sub start {
             die $@ if $@;
             my @ret=$res->();
 
-            asay_now $STDERR, @ret;
+            uSAC::REPL::DEBUG and asay_now $STDERR, @ret;
 
             #say STDERR "----RETURN FOR EVAL @ret";
             #say STDERR "";
           }
           catch($e){
             # handle syntax errors
-            asay $STDERR, "$$ ERROR in eval: $e";
-            asay_now $STDERR, Error::Show::context $e, depth=>1;
+            uSAC::REPL::DEBUG and asay $STDERR, "$$ ERROR in eval: $e";
+            uSAC::REPL::DEBUG and asay_now $STDERR, Error::Show::context $e, depth=>1;
             #say STDERR "----ERROR FOR EVAL";
           }
         }
@@ -386,7 +384,7 @@ sub start {
 
 
   });
-  asay_now $STDERR, "after channel accept";
+  DEBUG and asay_now $STDERR, "after channel accept";
 
   #
   #Stop the parent from having a watcher on the  input
@@ -409,7 +407,7 @@ sub start {
 
   $repl=sub {
     
-    asay_now $STDERR, "--in repl sub";
+    DEBUG and asay_now $STDERR, "--in repl sub";
     # Rebuild the symbols here
     my @list=grep !/^_\</, keys %::; # remove the file names
     
@@ -419,7 +417,7 @@ sub start {
 	  return unless $repl_worker;
 	  $repl_worker->rpc("readline", $prompt,
 		  sub {
-			  asay $STDERR, "REPL callback";
+			  DEBUG and asay $STDERR, "REPL callback";
 			  my $line=decode_meta_payload $_[0], 1;
 			  $line=$line->{line};
 
@@ -432,10 +430,12 @@ sub start {
 		  }
 	  );
   };
-  asay_now $STDERR, " before repl call";
+
+  DEBUG and asay_now $STDERR, " before repl call";
 
   #ASAP needed here to allow worker setup
-  timer 2,0,$repl;
+  #timer 2,0,$repl;
+  $repl->();
 }
 
 sub stop {

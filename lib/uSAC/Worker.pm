@@ -124,6 +124,7 @@ method _sub_process {
       $self->_parent_setup;
       $_io->[2]->pipe_to($STDERR);
       #	}
+      $self->do_rpc;
 
     }
     else {
@@ -151,6 +152,8 @@ method rpa {
 }
 
 method rpc {
+  
+  DEBUG and asay_now $STDERR, "WORKER RPC";
   my $name=shift; # Name could be code ref
   my $string=shift;
   my $cb=shift;
@@ -164,8 +167,9 @@ method rpc {
 
 method do_rpc {
   return unless @$_queue;
+  return if $_wid <0; # still launching
   my $e=shift @$_queue;
-  #DEBUG and say STDERR "---WORKER RPC CALLED wid $_wid";
+  DEBUG and asay $STDERR, "---WORKER RPC CALLED wid $_wid";
   my $name=shift @$e; # Name could be code ref
   my $string=shift @$e;
   my $cb=shift @$e;
@@ -173,12 +177,21 @@ method do_rpc {
 
   if($_rpc->{$name}){
     DEBUG and asay_now $STDERR, "WORKER id before  sub process in do_rpc $_wid";
+    if($_wid){
+      # just try rpc
+        $_call_count++;
+        $_active->{++$_seq}=[$cb, $error];
+        $_broker->broadcast(undef, "worker/$_wid/rpc/$name", pack "La*" ,$_seq, $string);
+    }
+    else{
+      # Lauch child
     $self->_sub_process(sub {
         $_call_count++;
         $_active->{++$_seq}=[$cb, $error];
         $_broker->broadcast(undef, "worker/$_wid/rpc/$name", pack "La*" ,$_seq, $string);
       }
-    ) unless $_wid;
+    )
+  }
     #return $_seq;
   }
   else {

@@ -24,7 +24,7 @@ use File::Path qw<make_path remove_tree>;
 use Data::Dumper;
 use Data::FastPack::Meta;
 use Data::Combination;
-use constant::more DEBUG=>1;
+use constant::more DEBUG=>0;
 
 #Datagram
 use constant::more qw<r_CIPO=0 w_CIPO r_COPI w_COPI r_CEPI w_CEPI>;
@@ -1417,11 +1417,11 @@ sub adump_now($;@){
 
 sub _make_pool {
 	my $preallocate=shift;
-	#say STDERR "CALLED MAKE_POOL WITH $preallocate";
+	asay $STDERR, "CALLED MAKE_POOL WITH $preallocate";
   # BOOTSTRAP THE POOL
   unless(defined $uSAC::Main::POOL){
     
-	say STDERR "No pool... create one";
+	asay $STDERR, "No pool... create one";
     my %fds;
     my $rpc={
       eval=>sub {
@@ -1429,7 +1429,7 @@ sub _make_pool {
       },
       getaddrinfo=>sub {
 
-        #DEBUG and asay $STDERR, "$$ CALLED GETADDRINFO with @_". Dumper (@_); 
+        DEBUG and asay $STDERR, "$$ CALLED GETADDRINFO with @_". Dumper (@_); 
         my $input=decode_meta_payload $_[0], 1;
         #DEBUG and asay $STDERR, "$$ DECODED ". Dumper($input);
 

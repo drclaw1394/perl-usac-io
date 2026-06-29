@@ -20,10 +20,10 @@ my $t2; $t2=timer 0, 1, sub {
     }
     else {
       $_->eval(" for(1..10000000){sin 10*10}; time", sub {
-          asay $STDERR, "GOT RESULT", Dumper @_;
+          adump $STDERR, "GOT RESULT", @_;
       },
       sub {
-        asay $STDERR, "GOT AND ERROR", Dumper @_;
+        adump $STDERR, "GOT AND ERROR", @_;
       }
     );
       ##################################################

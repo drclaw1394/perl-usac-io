@@ -62,9 +62,10 @@ method next_worker {
     
     if($urgent or (@$_workers < $_max_size)){
       # Make a new worker
+      asay_now $STDERR, "Creating a new worker in pool";
       $w=uSAC::Worker->new(rpc=>$_rpc, work=>sub{}, on_complete=>sub{
           # Push back ti available
-          #asay $STDERR, "-----WORKER PUSHED BACK----";
+          asay $STDERR, "-----WORKER PUSHED BACK----";
           #push @$_available, $w;
           #delete $_in_use->{$w};
 
@@ -94,7 +95,7 @@ method next_worker {
 # Call a named / stored routine
 method rpc {
   my ($name, $string, $cb, $error)=@_;
-  #say STDERR "$$ AVAIBLABLE WORKER POOL @$_available";
+  asay $STDERR, "$$ AVAIBLABLE WORKER POOL @$_available";
   my $w=$self->next_worker;
   unless(defined $w){
     $error and $error->("Could not get worker");
