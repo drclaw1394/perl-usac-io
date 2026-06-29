@@ -168,13 +168,14 @@ sub start {
     #say STDERR "REPL worker interrupt";
 	  #	Term::ReadKey::ReadMode('restore', $stdin);
     #$repl_worker->close;
+    rl_cleanup_after_signal();
 
   };
   signal TERM=>sub {
     #say STDERR "REPL worker interrupt";
 	  #		Term::ReadKey::ReadMode('restore', $stdin);
     #$repl_worker->close;
-
+    rl_cleanup_after_signal();
   };
       sub my_gen_org {
         # Use local cache of object, but send requests to master to update
