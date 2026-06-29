@@ -24,7 +24,7 @@ use File::Path qw<make_path remove_tree>;
 use Data::Dumper;
 use Data::FastPack::Meta;
 use Data::Combination;
-use constant::more DEBUG=>0;
+use constant::more DEBUG=>1;
 
 #Datagram
 use constant::more qw<r_CIPO=0 w_CIPO r_COPI w_COPI r_CEPI w_CEPI>;
@@ -926,10 +926,11 @@ our %procs;
 #
 # Returns array of (writer, reader, reader, pid)
 #
-sub sub_process ($;$$$){
-  my ($cmd, $on_complete, $on_stdout, $on_stderr)=@_;
+sub sub_process ($;$$$$){
+  my ($cmd, $on_parent, $on_complete, $on_stdout, $on_stderr)=@_;
   #asay $STDERR, 'TOP OF sub_Pocess : '. $cmd;
 
+  asap sub {
   my @pipes;
   # Create pipes?
   IO::FD::pipe $pipes[r_CIPO], $pipes[w_CIPO];    # Create pipe for input to child
@@ -963,18 +964,22 @@ sub sub_process ($;$$$){
     $error->pipe_to($STDERR);
 
 
+      asay_now $STDERR, "$writer $reader $error $pid";
     my $c={pid=>$pid, pipes=>\@pipes, reader=>$reader, error=>$error, writer=>$writer};
     $procs{$pid}=$c;
     DEBUG and asay $STDERR, "created child $pid";
 
-    _shutdown_loop;
+    #_shutdown_loop;
     uSAC::IO::child $pid, sub {
       my ($ppid, $status)=@_;
         if($procs{$ppid}){
-          $procs{$ppid}{pid}=0; # Mark as done
+          #$procs{$ppid}{pid}=0; # Mark as done
+          delete $procs{$ppid};
         }
 
         local $?=$status;
+        asay $STDERR, " Process complete status $?";
+
         $on_complete and  $on_complete->([$status, $ppid]); #Status first to match perl system command
         #asay $STDERR, "AFTER WHILE $ppid";
     };
@@ -982,10 +987,13 @@ sub sub_process ($;$$$){
       $reader->on_read=$on_stdout if $on_stdout;
       $error->on_read=$on_stderr if $on_stderr;
 
-    return ($writer, $reader, $error, $pid);
+      #return ($writer, $reader, $error, $pid);
+    $on_parent and  $on_parent->($writer, $reader, $error,$pid);
+
   }
   else {
     # child
+    asay_now $STDERR, "-- IN CHILD $$ --";
     my $cpid=$$;
     IO::FD::close $pipes[w_CIPO];
     IO::FD::close $pipes[r_COPI];
@@ -1019,19 +1027,25 @@ sub sub_process ($;$$$){
     # client
     # 
     if(defined $cmd and ! ref $cmd){
+      DEBUG and asay $STDERR, "$cpid CMD IS A STRING ======= $cmd";
       exec $cmd or asay $STDERR, $! and exit -1; # TODO... how to fix this... 
 
       #TODO signal to parent the exec failed somehow??
       
     }
     elsif(defined $cmd) {
+      # USE ASAP here to force handling of the special
+      # exception to restart the child
+      #asap sub {
       $uSAC::Main::worker_sub =$cmd; #, $pid; #Shedual
       DEBUG and asay $STDERR, "$cpid CMD IS A CODE REF======= $cmd";
       # Stop all watchers, and stop the event loop
       die " $cpid RETURN FROM CHILD";
-
+      #};
+      #return ();
     }
   }
+}
 }
 
 # Kill a job if it isn't already finished
@@ -1307,7 +1321,39 @@ sub backtick {
 	$io[2]->destroy();
   };
 
-  (@io)= sub_process $cmd, sub {
+  sub_process $cmd, 
+  sub {
+    # parent continuation
+    @io=@_;
+
+    $pid=$io[3];
+
+    # Back tick handles stadard out only
+    $io[1]->on_read=sub {
+      $buffer.=$_[0][0]; $_[0][0]="";
+    };
+
+    $io[1]->on_eof=sub {
+      $do_result->();
+    };
+
+
+    # Consume the error stream
+    $io[2]->on_read=sub {
+      $_[0][0]="";
+    };
+
+    # Start readers
+    $io[1]->start;
+    $io[2]->start;
+
+    # return the pid of th child process
+    #$io[3];
+    $pid;
+
+  },
+  sub {
+    # On child cpmplete
       my $a=shift;
 
       # Save the status and pid of the process. We might have a reading to do however
@@ -1316,30 +1362,6 @@ sub backtick {
 
   };
 
-  $pid=$io[3];
-
-  # Back tick handles stadard out only
-  $io[1]->on_read=sub {
-    $buffer.=$_[0][0]; $_[0][0]="";
-  };
-
-  $io[1]->on_eof=sub {
-	$do_result->();
-  };
-
-
-  # Consume the error stream
-  $io[2]->on_read=sub {
-    $_[0][0]="";
-  };
-
-  # Start readers
-  $io[1]->start;
-  $io[2]->start;
-
-  # return the pid of th child process
-  #$io[3];
-  $pid;
 }
 
 

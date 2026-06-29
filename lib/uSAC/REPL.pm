@@ -16,6 +16,7 @@ use B::Keywords ":all";
 
 # Add additional packages to main
 package main;
+use uSAC::IO;
 ################################################################
 # use List::Util qw(                                           #
 # reduce any all none notall first reductions                  #
@@ -81,7 +82,7 @@ $line
             die $@ if $@;
             my @ret=$res->();
 
-            asay_now $STDOUT, @ret;
+            #asay_now $STDOUT, @ret;
 	    
 	    #say STDERR "----RETURN FOR EVAL @ret";
 	    #say STDERR "";
@@ -109,6 +110,7 @@ sub start {
   $new_out=IO::FD::dup(1);
   $new_err=IO::FD::dup(2);
 
+  $STDERR->write(["AFTER dups \n"]);
   # Flush
   $STDOUT->write([""], sub {});
   $STDERR->write([""], sub {});
@@ -147,9 +149,12 @@ sub start {
 
       #require Term::ReadLine;
       #require Term::ReadKey;
+      asay_now $STDERR, "BEFORE opens";
       open($stdin, "<&=$new_in") or die $!;
       open($stdout, ">&=$new_out") or die $!;
       open($stderr, ">&=$new_err") or die $!;
+
+      asay_now $STDERR, "AFTER opens";
 
       #close STDIN;
       #close STDOUT;
@@ -301,9 +306,10 @@ sub start {
 
 
 	      my $return;
-        #uSAC::IO::asay $STDERR, "CALLED readline with $prompt"; 
+        uSAC::IO::asay_now $STDERR, "CALLED readline with $prompt"; 
         my $line;
         if( defined ($line = $TERM->readline($prompt)) ) {
+          asay_now $STDERR, "line is read: $line";
           $TERM->addhistory($line) if /\S/;
 	        #print $stdout "LINE from readline iis $line, with length ". length $line;
 	        #print $stdout "\n";
@@ -311,6 +317,7 @@ sub start {
         }
 	else {
 		#print $stdout "READLINE UNDEF\n";
+          asay_now $STDERR, "line is read and undef";
           $return=encode_meta_payload {line=>""}, 1;
 	}
 
@@ -327,6 +334,8 @@ sub start {
     }
   );
 
+
+  asay_now $STDERR, "Before channel accept";
   uSAC::FastPack::Channel->accept("worker/". $repl_worker->wid."/repl_end_accept", $broker, sub {
 
       #say STDERR "---- GOT A NEW CHANNEL CONNECTION IN PARENT: @_";
@@ -377,6 +386,7 @@ sub start {
 
 
   });
+  asay_now $STDERR, "after channel accept";
 
   #
   #Stop the parent from having a watcher on the  input
@@ -399,6 +409,7 @@ sub start {
 
   $repl=sub {
     
+    asay_now $STDERR, "--in repl sub";
     # Rebuild the symbols here
     my @list=grep !/^_\</, keys %::; # remove the file names
     
@@ -408,7 +419,7 @@ sub start {
 	  return unless $repl_worker;
 	  $repl_worker->rpc("readline", $prompt,
 		  sub {
-			  #asay $STDERR, "REPL callback";
+			  asay $STDERR, "REPL callback";
 			  my $line=decode_meta_payload $_[0], 1;
 			  $line=$line->{line};
 
@@ -421,7 +432,10 @@ sub start {
 		  }
 	  );
   };
-  asap $repl;
+  asay_now $STDERR, " before repl call";
+
+  #ASAP needed here to allow worker setup
+  timer 2,0,$repl;
 }
 
 sub stop {

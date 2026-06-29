@@ -55,7 +55,7 @@ field $_pass_through :param = [];
 field $_forward      :param = undef;
 
 BUILD {
-  #say "BUILD IN BASE";
+  #say "BUILD IN BASE BRIDGE";
   # create a new source_id, messages coming in on this broker are not sent back out!
 
   $_source_id= uuid4;#rand 10000;
@@ -77,7 +77,7 @@ BUILD {
   $_on_read_handler=linker 
   sub { my $next=shift; 
 	  sub { 
-      #DEBUG and asay $STDERR, "$$ ON READ......". length $_[0][0];
+      DEBUG and asay $STDERR, "$$ ON READ......". length $_[0][0];
       #DEBUG and say STDERR "$$ on read data ". Dumper $_[0];
 		  &$next
 	  }
@@ -90,10 +90,11 @@ BUILD {
       my $outputs=[];
       my $cb=$_[1];
 
-      #say STDERR "$$ Decoding messages in comming bridge $_source_id. packet length". length $_[0][0];
+      DEBUG and asay_now $STDERR, "$$ Decoding messages in comming bridge $_source_id. packet length". length $_[0][0];
+      DEBUG and asay_now $STDERR, "$$ ". unpack "H*", $_[0][0];
       #DEBUG  and say STDERR $$. " ". Dumper $_rx_namespace;
       Data::FastPack::decode_fastpack $_[0][0], $outputs, undef, $_rx_namespace;
-      #asay $STDERR, "BUffer is ". $_[0];
+      DEBUG and asay $STDERR, "$$ BUffer len after decode is :". length $_[0][0];
 
       #DEBUG and asay $STDERR, "$$ Decoding messages in comming bridge packet length after ". length $_[0][0];
       #say STDERR Dumper $outputs;
@@ -110,6 +111,7 @@ BUILD {
           }
         }
       }
+      DEBUG and adump $STDERR, $outputs;
       #DEBUG and Log::OK::TRACE and asay $STDERR, "DECODE FASTPACK====";
 
       $next->([$_source_id, $outputs], $cb);
@@ -140,6 +142,7 @@ BUILD {
 #  Must have the output_buffer_sub set before calling this
 method forward_message_sub {
   die "Now output_buffer_set. Cannot make forward_message_sub" unless ref $_buffer_out_sub eq "CODE";
+  DEBUG and asay_now $STDERR, "forward message sub called, bufferout $_buffer_out_sub";
   #$_buffer_out_wrapper= sub {goto $_buffer_out_sub};
   $_forward_message_sub //= linker 
   sub {
@@ -156,12 +159,15 @@ method forward_message_sub {
       my @ins;
       for my ($msg, $cap)(@$inputs){
         $msg->[FP_MSG_PAYLOAD] =encode_meta_payload $msg->[FP_MSG_PAYLOAD] if $msg->[FP_MSG_ID] eq '0';
-        #asay $STDERR, "Payload out is $msg->[FP_MSG_PAYLOAD]";
+        #say STDERR "Payload out is $msg->[FP_MSG_PAYLOAD]";
         push @ins, $msg;
       }
-      #say STDERR "$$ Encoding for bridge $_source_id ". Dumper @ins;
+      DEBUG and asay_now $STDERR, "";
+      DEBUG and asay_now $STDERR, "Buffer length before encoding message: ". length $buffer;
+      DEBUG and adump $STDERR, "$$ Encoding for bridge $_source_id ", @ins;
       Data::FastPack::encode_fastpack $buffer, \@ins, undef, $_tx_namespace;
-      #DEBUG and asay $STDERR, "$$ BUFFER  length is  ". length $buffer;
+      DEBUG and adump $STDERR, unpack "H*", $buffer;
+      #DEBUG and asay_now $STDERR, "$$ BUFFER  length is  ". length $buffer;
       $next->([$buffer], $cb); 
 
     }
@@ -173,7 +179,7 @@ method forward_message_sub {
     use Scalar::Util qw<weaken>;
     weaken($next);
     sub {
-      DEBUG and Log::OK::TRACE and asay $STDERR, "$$ FORWARDING MESSAGE==== length ".length $_[0][0];
+      DEBUG and  asay_now $STDERR, "$$ FORWARDING MESSAGE==== length ".length $_[0][0];
       &$next
     }
   }

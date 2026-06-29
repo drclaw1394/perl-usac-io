@@ -309,13 +309,15 @@ sub _post_loop {
     $tick_timer_raw=1; # Synchronous true until asap is called
     #uSAC::IO::asay $STDERR, "in tick timer check----";
     atry sub {
-	    #uSAC::IO::asay $STDERR, "---DOING ASAP FOR TICK TIMER=======";
+      #uSAC::IO::asay $STDERR, "---DOING ASAP FOR TICK TIMER=======";
       my $id=uSAC::IO::timer(0.5, 0.5, sub {
 	      #uSAC::IO::asay $STDERR, "--raw timer callback--";
         #print STDERR "-- RAW TIMER CALLBACK-- \n";
         $uSAC::IO::Clock=time;
-	#uSAC::IO::asay $STDERR, "WATCHERS for $$ ARE ". join " ", %watchers;
-	#uSAC::IO::asay $STDERR, "PROCs for $$ ARE ". join " ", %uSAC::IO::procs;
+        #uSAC::IO::asay $STDERR, "WATCHERS for $$ ARE ". join " ", %watchers;
+        #uSAC::IO::asay $STDERR, "PROCs for $$ ARE ". join " ", %uSAC::IO::procs;
+        #uSAC::IO::asay $STDERR, "asap timer for $$ ", $asap_timer;
+        #uSAC::IO::asay $STDERR, "main inprogress sync", $uSAC::Main::IN_PROGRESS_SYNC;
         #print STDERR "\n";
 
         # ONly exit if nothing to do. Check the watchers, the asap timer and
@@ -370,6 +372,8 @@ sub _exception{
             $cb->($e);
           }
           else {
+          uSAC::IO::asay($STDERR, "$$ IN ASAP EXCEPTION HANDLER --- unmatched $e");
+            
             uSAC::IO::asay($STDERR, Error::Show::context $e);
           }
         }

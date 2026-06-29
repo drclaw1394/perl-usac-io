@@ -4,7 +4,7 @@ use uSAC::IO;
 use Object::Pad;
 use uSAC::Log;
 use Log::OK;
-use constant::more DEBUG=>1;
+use constant::more DEBUG=>0;
 
 
 class uSAC::FastPack::Broker::Bridge::Streaming :isa(uSAC::FastPack::Broker::Bridge);
@@ -18,6 +18,7 @@ field $_on_error :mutator;
 
 BUILD {
 
+  #say "BUILD IN BASE STREM BRIDGE";
   my $source_id=$self->source_id; # From parent class. local (faster) copy
 
   $_reader//=reader($_rfd);
@@ -27,6 +28,7 @@ BUILD {
 
   #  The sub to call with serialized data
   $self->buffer_out_sub=$_writer->writer;
+  asay_now $STDERR, "writer bufferout ".$self->buffer_out_sub;
   $_reader->on_read=$self->on_read_handler;
 
   #$self->_link;

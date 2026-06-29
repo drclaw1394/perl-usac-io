@@ -12,16 +12,16 @@ sub TIEHANDLE {
 }
 
 sub PRINT {
-  say STDOUT "PRINT WRITE";
+  #say STDOUT "PRINT WRITE";
     my $self = shift;
     my $str = join('', @_);
     ${$self->{scalar}} .= $str;
     $self->{callback}->($str) if $self->{callback};
-    say STDOUT "ENDO PRINT WRITE";
+    #say STDOUT "ENDO PRINT WRITE";
 }
 
 sub PRINTF {
-  say STDOUT "PRINTF WRITE";
+  #say STDOUT "PRINTF WRITE";
     my $self = shift;
     my $fmt  = shift;
     my $str  = sprintf($fmt, @_);
@@ -30,11 +30,15 @@ sub PRINTF {
 }
 
 sub WRITE {
-  say STDOUT "Call to WRITE";
+  #say STDOUT "Call to WRITE";
   my $self=shift;
   my $str = join('', @_);
   ${$self->{scalar}} .= $str;
   $self->{callback}->($str) if $self->{callback};
+}
+
+sub CLOSE {
+    
 }
 
 
@@ -75,7 +79,7 @@ use uSAC::Pool;
 our $POOL;
 our $USAC_RUN=1;
 
-our $IN_PROGRESS_SYNC=1;
+our $IN_PROGRESS_SYNC=undef;
 
 our $WORKER;
 
@@ -236,13 +240,15 @@ sub _main {
   STDOUT->autoflush(1);
   
   
-  ######################################################
-  # my $stderr_content="";                             #
-  # tie *STDERR, 'TiedStderr', \$stderr_content, sub { #
-  #     adump($STDERR, @_);                            #
-  # };                                                 #
-  ######################################################
-
+  my $stderr_content="";
+  tie *STDERR, 'TiedStderr', \$stderr_content, sub {
+      adump($STDERR, "---wrapped", @_);
+  };
+                                                     
+  my $stdout_content="";
+  tie *STDOUT, 'TiedStderr', \$stdout_content, sub {
+      adump($STDOUT, "--wrapped", @_);
+  };
 
   # Setup default broker/messaging. Add listeners for logging
   #
@@ -334,8 +340,10 @@ sub _main {
               }
 
               if(!defined $res and $@){
-                print STDERR "RRERROR: $@\n";
+                print STDERR "--- $$ RRERROR: $@\n";
+                print STDERR "-- $$ res is $res\n";
                 $IN_PROGRESS_SYNC=undef;
+                print STDERR  Error::Show::context $@;
                 die $@;
                 # Compile error
                 #exit;
@@ -360,19 +368,22 @@ sub _main {
 
     _do_it();
 }
+
   sub _do_it {
-    $uSAC::Main::POOL->close if $uSAC::Main::POOL;
-    $Default_Broker->_post_fork;
-    $POOL=undef;
-    uSAC::IO::asap($worker_sub?$worker_sub:$parent_sub, $$);  # Call user code in a schedualled fashion
-    uSAC::IO::asap(sub {$Default_Broker->broadcast(undef,"post-fork", 1)});
-    $worker_sub=undef;
-    # NOTE: THis while loop is important. no really any easy way to recall the run loop, without it
-    # Run loop is recalled on fork ( so for parent and child)
-    while($USAC_RUN){
+    asay $STDERR , "---do it? worker sub? $worker_sub";
+    #while($USAC_RUN){
       uSAC::IO::_pre_loop;          # Setup up event loop ie create cv or do nothing
+      $uSAC::Main::POOL->close if $uSAC::Main::POOL;
+      $Default_Broker->_post_fork;
+      $POOL=undef;
+      uSAC::IO::asap($worker_sub?$worker_sub:$parent_sub, $$);  # Call user code in a schedualled fashion
+      uSAC::IO::asap(sub {$Default_Broker->broadcast(undef,"post-fork", 1)});
+      $worker_sub=undef;
+      # NOTE: THis while loop is important. no really any easy way to recall the run loop, without it
+      # Run loop is recalled on fork ( so for parent and child)
       uSAC::IO::_post_loop;     # run event loop ie wait for cv or call  run
-    }
+      #}
+      asay $STDERR, "About to exit $$";
     CORE::exit($exit_code);  # Exit perl with code
   }
 
