@@ -193,8 +193,12 @@ sub dost(*) {
 }
 
 my %needed;
-# Modified version of perl 'require'. Returns the last value in the module on repeated calls
-# Executes the scripts in the callers package
+
+# This was supposed to be a better require and always return the last value when requiring a script.
+# But in reality it really on if the script or moudle is 'used' or 'required' beforehand, the return value is lost.
+#
+# In this case it attempts to return the package name
+#
 #
 sub need (*) {
   my $input=shift;
@@ -243,13 +247,29 @@ sub need (*) {
       require (\"$key\");
       ";
       die "$!" if $@;
+
       
-      local $@;
+      #local $@;
       #$res=require ($key);
       die "Could not require non bare word need" unless $res;
     }
+      if(ref $res ){
+        # First time loaded, and any ref.. 
+         uSAC::IO::adump($STDERR, "first time loaded ref", $key, $res);
+      }
+      elsif( $res == 1){
+         # likely loaded previously. user package name
+         uSAC::IO::adump($STDERR, "loaded res is 1", $key, $res);
+         $res=$input;
+      }
+      else {
+         # Non ref.. packagename?
+         uSAC::IO::adump($STDERR, "loaded non reference", $key, $res);
+         #$res=$input;
+      }
     $needed{$key}=$res;
   }
+  uSAC::IO::adump($STDERR, " ---- END OF NEED", $key, $res);
   $res;
 }
 

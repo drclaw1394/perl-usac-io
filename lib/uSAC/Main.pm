@@ -242,12 +242,14 @@ sub _main {
   
   my $stderr_content="";
   tie *STDERR, 'TiedStderr', \$stderr_content, sub {
-      adump($STDERR, "---wrapped", @_);
+    #adump($STDERR, "---wrapped", @_);
+      aprint_now $STDERR, @_;
   };
                                                      
   my $stdout_content="";
   tie *STDOUT, 'TiedStderr', \$stdout_content, sub {
-      adump($STDOUT, "--wrapped", @_);
+    #adump($STDOUT, "--wrapped", @_);
+      aprint_now $STDOUT, @_;
   };
 
   # Setup default broker/messaging. Add listeners for logging

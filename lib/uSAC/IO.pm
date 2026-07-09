@@ -21,7 +21,6 @@ use IO::FD;
 use IO::FD::DWIM;
 use File::Path qw<make_path remove_tree>;
 
-use Data::Dumper;
 use Data::FastPack::Meta;
 use Data::Combination;
 use constant::more DEBUG=>0;
@@ -49,10 +48,6 @@ our $STDERR;
 
 use Export::These qw{accept asap timer delay interval timer_cancel sub_process sub_process_cancel backtick getaddrinfo getnameinfo connect connect_cancel connect_addr bind pipe pair listen 
 dreader dwriter reader writer sreader swriter signal socket_stage asay asay_now aprint aprint_now adump adump_now $STDOUT $STDIN $STDERR
-io_lines io_accumulate io_grep io_filter io_upper io_lower
-io_file_open
-io_file_slurp
-io_file_spurt
 path_create
 path_remove
 create_socket
@@ -1097,187 +1092,6 @@ sub schedual_job  {
 
 
 #synchronous
-sub io_map :prototype($){
-  my $filter=shift;
-  sub {
-    my ($next, $index, @options)=@_;
-    sub {
-      #my $cb=$_[$#_];
-      @{$_[0]}= map $filter->($_), @{$_[0]};
-      &$next;
-    }
-  }
-}
-
-#synchronous
-
-#Inplace
-sub io_grep :prototype($){
-  my $filter=$_[0];
-  sub {
-    my ($next)=@_;
-    sub {
-      @{$_[0]}= grep $_=~ $filter, @{$_[0]};
-      &$next;
-    }
-  }
-}
-
-# Inplace
-sub io_filter :prototype($){
-  my $filter=$_[0];
-  sub {
-    my ($next)=@_;
-    sub {
-      @{$_[0]}= grep $_=~ $filter, @{$_[0]};
-      &$next;
-    }
-  }
-}
-
-#synchronous
-#Modify inputs
-sub io_upper :prototype(){
-  sub {
-    my ($next, $index, @options)=@_;
-    sub {
-      for my($s)(@{$_[0]}){
-        $s=uc $s; 
-      }
-      &$next;
-    }
-  }
-}
-
-sub io_lower :prototype(){
-  sub {
-    my ($next, $index, @options)=@_;
-    sub {
-      for my($s)(@{$_[0]}){
-        $s=lc $s; 
-      }
-      &$next;
-    }
-  }
-}
-
-#synchronous
-#consumes input
-sub io_lines {
-  my $sep=shift//$/; # save input seperator
-  my $slen=length $sep;
-  my $buffer=""; # buffing
-  sub {
-    my ($next, $index, @options)=@_;
-    sub {
-      my @lines;
-
-      # expects last element as a callback, if  no callback is last data
-      my $cb=$_[$#_];
-
-      # Alias of in put means consumed in place 
-      #
-      my $idx;
-      for(@{$_[0]}){
-        while(($idx=index $_, $sep)>=0){
-          # found sep
-          if($buffer){
-            push @lines, $buffer.substr $_, 0, $idx, ""; #extract line
-            $buffer="";
-          }
-          else {
-            push @lines, substr $_, 0, $idx, ""; #extract line
-          }
-          substr $_, 0, $slen,""; #//Strip sep
-        }
-        # accumulate remainder to buffer
-        $buffer.=$_;
-      }
-
-      if($cb){
-        $cb->();
-      }
-      else{
-        # Add the remainder if last call
-        push @lines, $buffer;
-        $next->(\@lines, $cb);
-      }
-    }
-  }
-}
-
-
-# return accumulated results from stdout
-# consumes input
-sub io_accumulate {
-  my $buffer=[""];
-  sub {
-    my ($next, $index, @options)=@_;
-    sub {
-      my $cb=pop;
-      # Consume input, but leave array
-      $buffer->[0] .= pop $_[0]->@* for @{$_[0]};
-
-      
-      # Call next with no callback provided. Marks end or data
-      if($cb){
-        #Do callback to indicate data is consumed;
-        $cb->();
-      }
-      else {
-        # No more data (no cb) so finish it
-        $next->($buffer, $cb)
-      }
-    }
-  }
-}
-
-# Copy the input argument. Prevents future operations form modifiing input data
-# INPUTS are left unchanged
-sub io_copy {
-  my @buffer;
-  sub {
-    my ($next, $index, @options)=@_;
-    sub {
-      my $cb=pop;
-      @buffer= $_[0]->@*;
-
-      # Call next with no callback provided. Marks end or data
-      $next->(\@buffer, $cb) unless $cb;
-    }
-  }
-}
-
-# The inputs are consumbed by any middleware next in the normal chain
-# The iputs are copied for each of the tees.
-# Tees are run asynchrounously
-#
-sub io_tee {
-  my @tees=@_;
-  my @buffers;
-
-  for(@tees){
-    push @buffers, [];
-  }
-
-  sub {
-    my ($next, $index, @options)=@_;
-    sub {
-      my $cb=$_[1];
-      # tees are schedualed
-      for(0..@tees-1){
-        # Copy inputs to each of the buffers
-        push $buffers[$_]->@*, $_[0]->@*;
-        asap($tees[$_], $buffers[$_], $cb);
-      }
-
-      # Call next syncrhonously
-      &$next;
-    }
-  }
-
-}
-
 
 
 use Sub::Middler;
@@ -1429,7 +1243,7 @@ sub _make_pool {
       },
       getaddrinfo=>sub {
 
-        DEBUG and asay $STDERR, "$$ CALLED GETADDRINFO with @_". Dumper (@_); 
+        DEBUG and adump $STDERR, "$$ CALLED GETADDRINFO with @_", @_; 
         my $input=decode_meta_payload $_[0], 1;
         #DEBUG and asay $STDERR, "$$ DECODED ". Dumper($input);
 
@@ -1469,10 +1283,10 @@ sub _make_pool {
       },
 
       file_open => sub {
-        DEBUG and say STDERR "$$ CALLED FILE OPEN with", Dumper (@_);
+        DEBUG and adump $STDERR, "$$ CALLED FILE OPEN with", @_;
         my $input=decode_meta_payload $_[0], 1;
 
-        DEBUG and say STDERR "$$ DECODED ". Dumper($input);
+        DEBUG and asay $STDERR, "$$ DECODED ", $input;
 
         my $return_out="";
 
@@ -1532,7 +1346,7 @@ sub _make_pool {
         #D
         #EBUG and asay $STDERR, "$$ CALLED GETADDRINFO with @_". Dumper (@_); 
         my $input=decode_meta_payload $_[0], 1;
-        DEBUG and say STDERR "$$ DECODED for read ". Dumper($input);
+        DEBUG and adump $STDERR, "$$ DECODED for read ", $input;
 
         my $return_out="";
 
@@ -1637,154 +1451,6 @@ sub getnameinfo {
 
 
 
-# Open files
-sub io_file_open {
-  my ($fid, $error)=@_;
-
-  #adump $STDERR, "io_file_open_wrapper";
-
-  my $pool=_make_pool;
-  sub {
-    my ($next, $index, @options)=@_;
-    #adump $STDERR, "io_file_open_linker ", @_;
-    sub {
-      #adump $STDERR, "io_file_open";
-      my $cb=$_[$#_];
-      my $enc=encode_meta_payload $_[0], 1;
-      my $__cb=sub {
-        DEBUG and asay $STDERR, "$$ Callback in file_open", Dumper @_;;
-        #DEBUG and asay $STDERR, Dumper @_;
-        my $p=decode_meta_payload $_[0], 1;
-
-
-        # call next with generated fid
-        $$fid=$p->{fid};
-        DEBUG and asay $STDERR, "$$ Callback in file_open", Dumper $p;;
-        $next->([], $cb);
-      };
-
-      # Call sticky_rpc
-      $pool->sticky_rpc("file_open", $enc, $__cb, $error);
-    }
-  }
-}
-
-sub io_file_close {
-  my ($fid, $error)=@_;
-  my $pool=_make_pool; 
-  sub {
-    my ($next, $index, @options)=@_;
-    sub {
-      #adump $STDERR, "io_file_close";
-      # First argument is the fid, remainder is data
-      #close the file and call next, Only Close the file if NO CALLBACK is
-      &$next if $_[1];
-
-      my $cb=$_[$#_];
-
-      #specified
-      my $args=$_[0];
-        $_[0]=[];
-      my $enc=encode_meta_payload [{fid=>$$fid}], 1;
-      my $__cb=sub {
-
-        DEBUG and asay $STDERR, "$$ Callback in file_close";
-        #say STDERR "FILE CLOSE in $$ ". Dumper $args;
-        my $p=decode_meta_payload $_[0], 1;
-
-        $$fid=undef;
-        $next->($args, my $c=undef);
-      };
-      $pool->sticky_rpc("file_close", $enc, $__cb, $error);
-    }
-  }
-}
-
-#link  file_read, $accumulate $dispatch
-sub io_file_read {
-  my ($fid,  $error)=@_;
-  my $pool=_make_pool;
-  sub {
-    my ($next, $index, @options)=@_;
-      # Setup variables to allow callback to read more from file
-      my $__cb;
-      my $enc;
-      my $__wid;
-      my $internal_cb=sub {
-        $pool->sticky_rpc("file_read", $enc, $__cb, $error, $__wid);
-      };
-      $__cb=sub {
-        DEBUG and say STDERR "$$ Callback in file_read";
-        #DEBUG and asay $STDERR, Dumper @_;
-        my $p=decode_meta_payload $_[0], 1;
-        #DEBUG and asay $STDERR, Dumper $p;
-        #$cb->($p);
-        if($p->{rc}){
-          #say STDERR "RC non zero. call internal";
-          $next->($p->{data}, $internal_cb);
-        }
-        else {
-
-          #say STDERR "RC zero. call normal callback?";
-          $__wid=undef;
-          $next->($p->{data}, my $c=undef);
-        }
-      };
-
-    sub {
-      #say STDERR "io_file_read";
-      
-      unless($__wid){
-        # Decode sthe file id once
-        $__wid=unpack "L", $$fid;
-      #my $cb=$_[$#_];
-        $enc=encode_meta_payload [{fid=>$$fid}], 1;
-      }
-      #$internal_cb->();
-      $pool->sticky_rpc("file_read", $enc, $__cb, $error, $__wid);
-    }
-  }
-}
-
-sub io_file_write{
-  my ($fid, $error)=@_;
-  my $pool=_make_pool;
-  sub {
-    my ($next, $index, @options)=@_;
-    sub {
-      my $cb=$_[$#_];
-      my $enc=encode_meta_payload {fid=>$$fid, data=>$_[0]}, 1;
-      my $__cb=sub {
-        DEBUG and asay $STDERR, "$$ Callback in file_write";
-        #DEBUG and asay $STDERR, Dumper @_;
-        my $p=decode_meta_payload $_[0], 1;
-        #DEBUG and asay $STDERR, Dumper $p;
-        #$cb->($p)
-        $next->($p, $cb);
-      };
-      $pool->rpc("file_write", $enc, $__cb, $error);
-    } 
-  }
-}
-
-
-sub io_file_slurp {
-  my ($error)=@_;
-  my $fid="";
-  (
-    io_file_open (\$fid, $error),
-    io_file_read (\$fid, $error),   # uses the id from file open
-    #io_accumulate,   
-    io_file_close (\$fid, $error),
-  )
-}
-
-sub io_file_spurt {
-  my ($path, $cb, $error)=@_;
-  # open
-  # write by chunks
-  # execute callback
-}
 
 # Create a path on the file system
 sub path_create {
@@ -1816,14 +1482,14 @@ sub file_open {
   my $pool=_make_pool;
   my $enc=encode_meta_payload $_[0], 1;
   my $__cb=sub {
-	  DEBUG and asay $STDERR, "$$ Callback in file_open", Dumper @_;;
+	  DEBUG and adump $STDERR, "$$ Callback in file_open", @_;
 	  #DEBUG and asay $STDERR, Dumper @_;
 	  my $p=decode_meta_payload [$path], 1;
 
 
 	  # call next with generated fid
 	  my $fid=$p->{fid};
-	  DEBUG and asay $STDERR, "$$ Callback in file_open", Dumper $p;;
+	  DEBUG and adump $STDERR, "$$ Callback in file_open", $p;;
 	  $cb->($fid);
   };
 

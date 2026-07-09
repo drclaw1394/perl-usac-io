@@ -229,7 +229,9 @@ sub io_backtick {
 
         $next->([$buffer], $cb);
       };
-      sub_process $cmd, 
+
+      my $tmp=$_[0]//[];
+      sub_process "$cmd $tmp->@*"; 
       sub {
         # parent continuation
         @io=@_;

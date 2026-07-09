@@ -60,6 +60,10 @@ BUILD {
 
   $_source_id= uuid4;#rand 10000;
 
+  if($_broker){
+    $_broker->add_bridge($self);
+  }
+  
 
   $_tx_namespace=create_namespace;
   $_rx_namespace=create_namespace;
