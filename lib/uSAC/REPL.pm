@@ -1,5 +1,20 @@
 package uSAC::REPL;
 
+###
+# Extend Lexical::Persistence.  Use custom compile step 
+package Lexical::Persistence::Ex;
+use Error::Show;
+
+use parent "Lexical::Persistence";
+
+sub compile {
+  my ($self, $code)=@_;
+  Error::Show::streval($self->prepare($code));
+}
+###
+
+
+package uSAC::REPL;
 use v5.36;
 use feature "try";
 use Error::Show;
@@ -69,31 +84,31 @@ sub my_gen_master {
 
 }
 
+
+my $lp = Lexical::Persistence::Ex->new;
+
+
 my $perl_repl_handler=sub {
-  #asay $STDERR, "IN PERL REPL HANDLER ", @_;
           my $line=$_[0];
           try{
             package main;
             local $@;
-            #my $res=Error::Show::streval "sub { no strict \"subs\"; no strict \"vars\"; $line }";
-            my $res=Error::Show::streval "sub { no strict \"subs\"; no strict \"vars\";
-$line
-}";
+            #my $res=Error::Show::streval "sub { no strict \"subs\"; no strict \"vars\";
+            adump $STDOUT, $lp->do( "package main; 
+              $line;
+              package main;");
             die $@ if $@;
-            my @ret=$res->();
 
-            adump $STDOUT, @ret;
-	    
-	    #say STDERR "----RETURN FOR EVAL @ret";
-	    #say STDERR "";
+            #my @ret=$res->();
+            #adump $STDOUT, @ret;
           }
           catch($e){
-            # handle syntax errors
-            # asay $STDERR, "$$ ERROR in eval: $e";
+            asay $STDERR, "CAUoijasdoijfawf: $e";
             asay_now $STDERR, Error::Show::context $e, depth=>0, reverse=>1, start_offset=>1, end_offset=>1;
           }
           asap $repl;
-        };
+};
+
 
 sub start {
   return if $repl_worker;

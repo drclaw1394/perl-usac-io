@@ -1,17 +1,25 @@
 package uSAC::Scheduler;
+
 use uSAC::IO;
 use uSAC::Log;
 use Log::OK;
+use BSD::Resource;
 use Object::Pad;
+use UUID qw<uuid4>;
 
 use List::Insertion {prefix=> "time",     type=>"numeric", duplicate=>"left", accessor=>'->[JOB_START()]'};
+
+use List::Insertion {prefix=> "time",     type=>"numeric", duplicate=>"right", accessor=>'->[JOB_START()]'};
+
 use List::Insertion {prefix=> "priority", type=>"numeric", duplicate=>"left", accessor=>'->[JOB_PRIORITY()]'};
 
 # Manages a schedualed list of jobs. Jobs are sorted by start time in the schedual
 # Once the current time is triggers a job, it is added to the immediate queue, which is sorted by priority
 # Lowest numerical priority ie exectued first 
 #
-# Periodic job 'templates' are kept seperate list, sorted by ID. A rendered version of the template is added ot the schedualled list once it is complete/failed.
+# Periodic job 'templates' are kept in seperate list, sorted by ID. A rendered
+# version of the template is added ot the schedualled list once it is
+# complete/failed.
 #
 #
 
@@ -40,6 +48,7 @@ JOB_DEPS
 JOB_INFORM
 JOB_PROCESS
 JOB_CB
+JOB_ON_SCHEDUAL
 JOB_STATUS
 JOB_ATTEMPT
 >;
@@ -54,6 +63,9 @@ my %keys=(
   on_result   =>      JOB_RESULT, # Can be a callback to stream the results as the come
   on_complete =>      JOB_CB,     # Called when the job is complete
   on_status   =>      JOB_STATUS, # Status if a worker is used
+  on_schedual =>      JOB_ON_SCHEDUAL, # Called just before scheduallingof the job
+                                      # this where sub jobs should be added
+
   start       =>      JOB_START,
   interval    =>      JOB_INTERVAL,
   delay       =>      JOB_DELAY,
@@ -95,20 +107,23 @@ field $_run;
 #
 field $_jobs; 
 
+# Sorted by increasing start time
+# Items are consumed by shifting and using the first item in the queue
+# Duplicate start times are added 'to the right' so is a fifo for jobs
 #
-field $_periodic;
-
-# Sorted by start time
 field $_schedualed
 
-# Sorted by priority
+# Sorted by increasing priority
+# Items are consumed by popping the queue.
+# Duplicate priorities are added  'to the left' so jobs are fifo
+#
 field $_immediate;
 
 # Failed jobs
-field $_failed;
+#field $_failed;
 
 # back off
-field $_backoff;
+#field $_backoff;
 
 # How many active jobs can be run concurrently
 field $_max_concurrency;
@@ -136,6 +151,16 @@ field $_schedual_timer;
 field $_timer_sub;
 
 field $_process_sub;
+
+
+# Persitant storage hooks
+#
+field $_on_immediate_drained :mutator;    # Called when immediate cache is  drained.
+field $_on_schedualed_drained :mutator;    # Called when immediate cache is  drained.
+                                 # Allows persitent storage of immediate jobs
+
+field $_on_system_pressure_check :mutator;  #A callback which returns true if a job can be run. and false if no more jobs should be run currently
+
 
 BUILD {
   $_schedualed=[];
@@ -249,6 +274,9 @@ BUILD {
             # Check for expriy, to see if we actuall reinsert
             if($job->[JOB_EXPIRY]==0 or $job->[JOB_START] < $job->[JOB_EXPIRY]){
               Log::OK::TRACE and log_trace "--PERIODIC job.. re added";
+
+              $job->[JOB_ID]=uuid4; #// Give a new id NOTE: need to fix deps of repeat
+              
               $self->schedual_job($job);
             }
             else {
@@ -299,26 +327,30 @@ BUILD {
         # broadcast the id of the job that finished
 
       };
+
       if(ref $job->[JOB_WORK]){
         my $w=uSAC::Worker->new(work=> $job->[JOB_WORK], on_complete=>$cb, on_status=>$job->[JOB_STATUS], on_result=>sub { 
-            if(ref($job->[JOB_RESULT])){
-              # If a code ref... forward
               my $v=$_[0];
               asap sub {$job->[JOB_RESULT]->($v)}, 
-            }
-            else {
-              # otherwise append
-              asay $STDERR, "----append";
-              $job->[JOB_RESULT].=$_[0]
-            }
-          });
+          },
+
+        on_child=>sub {
+          # This is hard sleep... this happens after fork, but before exec or
+          # running worker code
+          sleep $job->[JOB_DELAY] if $job->[JOB_DELAY];
+        });
+
         # Save the worker in job entry
         $job->[JOB_PROCESS]=$w;
       }
       else {
-        my $pid=backtick $job->[JOB_WORK], $cb;
-        # Not a woker, but we save the PID
-        $job->[JOB_PROCESS]=$pid;
+        backtick $job->[JOB_WORK], sub {
+          my $pid=shift;
+          # Not a woker, but we save the PID
+          $job->[JOB_PROCESS]=$pid;
+
+        },
+        $cb;
       }
 
     }
@@ -358,19 +390,30 @@ method create_job{
   }
   # Now we need to make a unique ID, have a sane priority and etc 
 
+  $job[JOB_ID]//=uuid4;
   $job[JOB_NAME]//="Job $seq";
   $job[JOB_INTERVAL]//=0;
-  $job[JOB_START]//=time;
+  $job[JOB_START]//=0;        #If no start time given. do it asap!
+  $job[JOB_DELAY]//=0;
   $job[JOB_RETRY]//=5;
   #$job[JOB_EXPIRY]=0;
   $job[JOB_PRIORITY]//=0;
   $job[JOB_DEPS]//=[];
   $job[JOB_STATE]//=JOB_STATE_UNSCHEDUALED;
   $job[JOB_RESULT]//="";
+  for($job[JOB_ON_SCHEDUAL]){
+    if(! ref ){
+      $_=eval "$_";
+    }
+  }
 
   \@job;
 }
 
+
+# Finds insert point in schedual queue.  Inserts job recalcuate schedual timer
+# if is first item in quque
+#
 method _schedual {
   my $job=shift;
   my $i=-1;
@@ -380,14 +423,13 @@ method _schedual {
   }
   else {
       # Now insert using priority into immediate 
-      if(@$_schedualed){
-        $i=time_numeric_left($job, $_schedualed);
+      #if(@$_schedualed){
+        $i=time_numeric_right($job, $_schedualed);
         splice @$_schedualed, $i, 0, $job; 
-      }
-      else {
-        push @$_schedualed, $job;
-      }
-      #$job->[JOB_STATE]=JOB_STATE_SCHEDUALED;
+        #}
+      #else {
+      #  push @$_schedualed, $job;
+      #  }
   }
 
   if($i == 0){
@@ -402,46 +444,69 @@ method schedual_job {
   # Adds the job to the schedualled queue, by inserting into the correct position
   # Recalculates a timer to trigger moving the head if the insertion point is the last item
   #
-  
+  # Does on_schedual callback to allow a job to setup sub jobs and deps
 
-  
-  my ($job)=@_;
 
-  # Ensure id is set
-  $job->[JOB_ID]=$seq++;
+  my @ids;
 
-  if($job->[JOB_INTERVAL] > 0){
-    $job->[JOB_TYPE] = JOB_TYPE_PERIODIC;
+  for my ($job)(@_){
+
+    # Allow job to setup sub jobs. Done here for perioding jobs
+    # The callback must set the deps of the job if it creates any sub jobs
+    my @d;
+    $job->[JOB_ON_SCHEDUAL] and @d=$job->[JOB_ON_SCHEDUAL]->($job);
+    push $job->[JOB_DEPS]->@*, @d;
+
+
+
+
+    # If job already exists. die
+    die "Job does not have an ID $job->[JOB_ID]" unless defined $job->[JOB_ID];
+
+    die "Job already exists $job->[JOB_ID]" if exists $_jobs->{$job->[JOB_ID]};
+
+    # Ensure id is set
+    #$job->[JOB_ID]=$seq++;
+
+    if($job->[JOB_INTERVAL] > 0){
+      $job->[JOB_TYPE] = JOB_TYPE_PERIODIC;
+    }
+    else{
+      $job->[JOB_TYPE] = JOB_TYPE_SCHEDUALED;
+    }
+
+    # Expire the job after 2 days past start date if one hasn't been set
+    $job->[JOB_EXPIRY]//=$job->[JOB_START]+3600*24*2; # Two days past
+
+
+
+    # Check dep jobs actually exist, if the don't we fail to schedual at all
+    #
+    #$job->[JOB_DEPS]//=[];
+    for($job->[JOB_DEPS]->@*){
+      my $j=$_jobs->{$_};
+      return undef unless defined $j;
+      push $j->[JOB_INFORM]->@*, $job->[JOB_ID];
+    }
+
+    # Add the job to the job DB, keyed by id
+
+    $job->[JOB_STATE]=JOB_STATE_SCHEDUALED;
+    $_jobs->{$job->[JOB_ID]}=$job;
+
+    # No need to schdual if it has deps..
+    if( $job->[JOB_DEPS]->@*){
+     push @ids, $job->[JOB_ID];
+     next;
+    }
+
+
+    $self->_schedual($job);
+
+    #Return the JOB ID
+    push @ids, $job->[JOB_ID];
   }
-  else{
-    $job->[JOB_TYPE] = JOB_TYPE_SCHEDUALED;
-  }
-
-  # Expire the job after 2 days past start date if one hasn't been set
-  $job->[JOB_EXPIRY]//=$job->[JOB_START]+3600*24*2; # Two days past
-
-  
-  # Check dep jobs actually exist, if the don't we fail to schedual at all
-  #
-  #$job->[JOB_DEPS]//=[];
-  for($job->[JOB_DEPS]->@*){
-    my $j=$_jobs->{$_};
-    return undef unless defined $j;
-    push $j->[JOB_INFORM]->@*, $job->[JOB_ID];
-  }
-
-  # Add the job to the job DB, keyed by id
-  
-  $job->[JOB_STATE]=JOB_STATE_SCHEDUALED;
-  $_jobs->{$job->[JOB_ID]}=$job;
-
-  return $job->[JOB_ID] if $job->[JOB_DEPS]->@*;
-
-
-  $self->_schedual($job);
-
-  #Return the JOB ID
-  $job->[JOB_ID];
+  return @ids;
 }
 
 method cancel_job {
@@ -453,15 +518,15 @@ method cancel_job {
   for($job->[JOB_STATE]){
     if($_ == JOB_STATE_SCHEDUALED){
       # In the schedualed list. Find by start time   and remove
-      my $i=time_numeric_left $job->[JOB_START], $_schedualed;
+      my $i=time_numeric_right $job->[JOB_START], $_schedualed;
       
-      # $i is left most index of duplicates.. so continue search upwards
-      while($i < @$_schedualed){
+      # $i is right most index of duplicates.. so continue search leftwards /down
+      while($i > -1){
         if($_schedualed->[$i][JOB_ID]==$job->[JOB_ID]){
           splice @$_schedualed, $i, 1; 
           last;
         }
-        $i++;
+        $i--;
       }
     }
     elsif($_ == JOB_STATE_IMMEDIATE){
@@ -584,4 +649,6 @@ current time (or less) as the start time, and the large value for the priority.
 This would force it to the front of the queue and then processed at the next
 available chance.
 
+This is an in memory shedular only. To make a persisat, a front end can be
+added.
 

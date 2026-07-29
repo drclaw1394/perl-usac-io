@@ -889,7 +889,7 @@ sub pipe ($$){
 
 sub delay {
   
-  my ($d,$cb)=@_;
+  my ($d, $cb)=@_;
   timer $d, 0, $cb;
 }
 
@@ -921,8 +921,9 @@ our %procs;
 #
 # Returns array of (writer, reader, reader, pid)
 #
-sub sub_process ($;$$$$){
-  my ($cmd, $on_parent, $on_complete, $on_stdout, $on_stderr)=@_;
+sub sub_process ($;$$$){
+  my ($cmd, $on_parent, $on_complete, $on_child)=@_;
+  my $delay=0;
   #asay $STDERR, 'TOP OF sub_Pocess : '. $cmd;
 
   asap sub {
@@ -979,8 +980,8 @@ sub sub_process ($;$$$$){
         #asay $STDERR, "AFTER WHILE $ppid";
     };
 
-      $reader->on_read=$on_stdout if $on_stdout;
-      $error->on_read=$on_stderr if $on_stderr;
+    #$reader->on_read=$on_stdout if $on_stdout;
+    #$error->on_read=$on_stderr if $on_stderr;
 
       #return ($writer, $reader, $error, $pid);
     $on_parent and  $on_parent->($writer, $reader, $error,$pid);
@@ -1004,6 +1005,14 @@ sub sub_process ($;$$$$){
     IO::FD::close $pipes[w_COPI];
     IO::FD::close $pipes[w_CEPI];
 
+    # If provided execute the on child callback
+    use feature "try";
+    try {
+      $on_child and $on_child->($$);
+    }
+    catch($e){
+
+    }
 
     # Shedual the code to reconfigure the run loop
 
@@ -1099,9 +1108,11 @@ use Sub::Middler;
 # Backtick is like the system qx or `` operators in vanilla perl.
 # Here the on_result callback is called with the accumualted output from the command
 # The $? varible is set before executing the callback to check for success
-sub backtick {
+sub backtick ($;$$){
   my $cmd=shift;
+  my $on_start=shift;
   my $on_result=shift;
+  
 
 
   my $buffer="";
@@ -1164,6 +1175,7 @@ sub backtick {
     # return the pid of th child process
     #$io[3];
     $pid;
+    $on_start and $on_start->($pid);
 
   },
   sub {
@@ -1510,8 +1522,6 @@ sub file_close {
       };
       $pool->sticky_rpc("file_close", $enc, $__cb, $error);
 }
-
-
 
 
 1;

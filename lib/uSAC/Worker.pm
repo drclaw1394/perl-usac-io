@@ -23,6 +23,7 @@ no warnings "experimental";
 
 field $_rpc         :param = undef;
 field $_on_complete :param = undef;   # Callback expecting a single argument as [$status, pid]; 
+field $_on_child    :param = undef;
 field $_on_result   :param = undef;   # Callback for payload updates
 field $_on_status   :param = undef;   # Callback for status updates
 field $_work        :param = undef;   # Work to do (a sub ref or cmd string)
@@ -133,7 +134,8 @@ method _sub_process {
     }
     $on_setup and &$on_setup;
   },
-  $__on_complete;
+  $__on_complete,
+  $_on_child;
 }
 
 method eval {

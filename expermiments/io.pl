@@ -2,6 +2,7 @@ use uSAC::IO;
 
 use Data::Dumper;
 use Devel::MAT::Dumper;
+use uSAC::Linker;
 use feature ":all";
 
 sub error {
