@@ -17,6 +17,7 @@ unless($uSAC::Loaded::Loaded){
 
 # Test to see if actually loaded via usac
 
+use Time::HiRes qw<time>;
 use IO::FD;
 use IO::FD::DWIM;
 use File::Path qw<make_path remove_tree>;
@@ -46,7 +47,7 @@ our $STDIN;
 our $STDOUT;
 our $STDERR;
 
-use Export::These qw{accept asap timer delay interval timer_cancel sub_process sub_process_cancel backtick getaddrinfo getnameinfo connect connect_cancel connect_addr bind pipe pair listen 
+use Export::These qw{time accept asap timer delay interval timer_cancel sub_process sub_process_cancel backtick getaddrinfo getnameinfo connect connect_cancel connect_addr bind pipe pair listen 
 dreader dwriter reader writer sreader swriter signal socket_stage asay asay_now aprint aprint_now adump adump_now $STDOUT $STDIN $STDERR
 path_create
 path_remove
@@ -960,7 +961,7 @@ sub sub_process ($;$$$){
     $error->pipe_to($STDERR);
 
 
-      asay_now $STDERR, "$writer $reader $error $pid";
+    DEBUG and asay_now $STDERR, "$writer $reader $error $pid";
     my $c={pid=>$pid, pipes=>\@pipes, reader=>$reader, error=>$error, writer=>$writer};
     $procs{$pid}=$c;
     DEBUG and asay $STDERR, "created child $pid";
@@ -974,7 +975,7 @@ sub sub_process ($;$$$){
         }
 
         local $?=$status;
-        asay $STDERR, " Process complete status $?";
+        DEBUG and asay $STDERR, " Process complete status $?";
 
         $on_complete and  $on_complete->([$status, $ppid]); #Status first to match perl system command
         #asay $STDERR, "AFTER WHILE $ppid";
@@ -984,12 +985,12 @@ sub sub_process ($;$$$){
     #$error->on_read=$on_stderr if $on_stderr;
 
       #return ($writer, $reader, $error, $pid);
-    $on_parent and  $on_parent->($writer, $reader, $error,$pid);
+    $on_parent and  $on_parent->($writer, $reader, $error, $pid);
 
   }
   else {
     # child
-    asay_now $STDERR, "-- IN CHILD $$ --";
+    DEBUG and asay_now $STDERR, "-- IN CHILD $$ --";
     my $cpid=$$;
     IO::FD::close $pipes[w_CIPO];
     IO::FD::close $pipes[r_COPI];
@@ -1108,10 +1109,13 @@ use Sub::Middler;
 # Backtick is like the system qx or `` operators in vanilla perl.
 # Here the on_result callback is called with the accumualted output from the command
 # The $? varible is set before executing the callback to check for success
-sub backtick ($;$$){
+sub backtick ($;$$$$){
   my $cmd=shift;
+
   my $on_start=shift;
-  my $on_result=shift;
+  my $on_complete=shift;
+  my $on_result=shift;  # Accumulated results
+  my $on_status=shift;  # STDERR?
   
 
 
@@ -1122,29 +1126,26 @@ sub backtick ($;$$){
   my @io;
   my $join=0;
 
-  my $do_result=sub {
-	  $join++;
-	  return if $join < 2;
-	  # Close the io
-      if(ref($on_result) eq "ARRAY"){
-        my $m=linker $on_result;
-
-        local $?=$status;
-        $m->([$buffer],undef);
-      }
-      elsif(ref($on_result) eq "CODE"){
-        local $?=$status;
-        $on_result->([$buffer], undef);
-        
-      }
+  #########################################
+  # my $do_result=sub {                   #
+  #                                       #
+  #       #$join++;                       #
+  #   #return if $join < 2;               #
+  #         # Close the io                #
+  #     if(ref($on_result) eq "ARRAY"){   #
+  #       my $m=linker $on_result;        #
+  #                                       #
+  #       local $?=$status;               #
+  #       $m->([$buffer],undef);          #
+  #     }                                 #
+  #     elsif(ref($on_result) eq "CODE"){ #
+  #       local $?=$status;               #
+  #       $on_result->([$buffer], undef); #
+  #                                       #
+  #     }                                 #
+  #########################################
       
-      	IO::FD::close($io[0]->fh);
-	$io[0]->destroy();
-	IO::FD::close($io[1]->fh);
-	$io[1]->destroy();
-	IO::FD::close($io[2]->fh);
-	$io[2]->destroy();
-  };
+  #};
 
   sub_process $cmd, 
   sub {
@@ -1154,19 +1155,31 @@ sub backtick ($;$$){
     $pid=$io[3];
 
     # Back tick handles stadard out only
-    $io[1]->on_read=sub {
-      $buffer.=$_[0][0]; $_[0][0]="";
+    $io[1]->on_read=$on_result//sub {
+      # $buffer.=$_[0][0];
+      $_[0][0]="";
     };
 
     $io[1]->on_eof=sub {
-      $do_result->();
+      IO::FD::close($io[1]->fh);
+      $io[1]->destroy();
+      $on_result and &$on_result;
     };
 
 
-    # Consume the error stream
-    $io[2]->on_read=sub {
+    # Consume the error stream if no on status
+    $io[2]->on_read=$on_status//sub {
       $_[0][0]="";
     };
+
+    $io[2]->on_eof=sub {
+        
+      IO::FD::close($io[2]->fh);
+      $io[2]->destroy();
+      $on_status and &$on_status;
+    };
+
+
 
     # Start readers
     $io[1]->start;
@@ -1181,10 +1194,13 @@ sub backtick ($;$$){
   sub {
     # On child cpmplete
       my $a=shift;
+      IO::FD::close($io[0]->fh);
+      $io[0]->destroy();
 
       # Save the status and pid of the process. We might have a reading to do however
-      ($status, $pid)=$a->@*;
-      $do_result->();
+      #($status, $pid)=$a->@*;
+      #$do_result->();
+      $on_complete->($a);
 
   };
 
@@ -1201,9 +1217,19 @@ sub system ($;$){
 
 # Fork this process. setup broker/node for communications via pipes
 # 
-sub worker {
-  #sub_process;
-}
+######################################
+# sub worker {                       #
+#   #sub_process;                    #
+#   require uSAC::Worker;            #
+#   uSAC::Worker->new(@_);           #
+# }                                  #
+#                                    #
+# sub job {                          #
+#   require uSAC::Scheduler;         #
+#   uSAC::Scheduler->create_job(@_); #
+# }                                  #
+######################################
+
 
 
 

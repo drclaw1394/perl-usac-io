@@ -94,7 +94,8 @@ my $perl_repl_handler=sub {
             package main;
             local $@;
             #my $res=Error::Show::streval "sub { no strict \"subs\"; no strict \"vars\";
-            adump $STDOUT, $lp->do( "package main; 
+            adump $STDERR, $lp->do( "package main; 
+              no strict 'vars';
               $line;
               package main;");
             die $@ if $@;
@@ -103,7 +104,6 @@ my $perl_repl_handler=sub {
             #adump $STDOUT, @ret;
           }
           catch($e){
-            asay $STDERR, "CAUoijasdoijfawf: $e";
             asay_now $STDERR, Error::Show::context $e, depth=>0, reverse=>1, start_offset=>1, end_offset=>1;
           }
           asap $repl;

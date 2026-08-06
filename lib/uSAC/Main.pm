@@ -372,7 +372,7 @@ sub _main {
 }
 
   sub _do_it {
-    asay $STDERR , "---do it? worker sub? $worker_sub";
+    #asay $STDERR , "---do it? worker sub? $worker_sub";
     #while($USAC_RUN){
       uSAC::IO::_pre_loop;          # Setup up event loop ie create cv or do nothing
       $uSAC::Main::POOL->close if $uSAC::Main::POOL;

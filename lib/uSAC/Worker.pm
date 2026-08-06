@@ -88,7 +88,7 @@ BUILD {
   $_broker->listen(@$r);
   
 
-  asay_now $STDERR, "-- in worker BUILD $_work";
+  #asay_now $STDERR, "-- in worker BUILD $_work";
   #DEBUG and asay $STDERR, Dumper $_rpc;
   $self->_sub_process if defined $_work;
 
@@ -108,7 +108,7 @@ method _sub_process {
     $_wid=$$; # NOTE: needed for child to know its worker id
     $0=$_name if $_name;
 
-    asay_now $STDERR, "++++++DOING CHILD SETUP for wid $_wid";
+    DEBUG and asay_now $STDERR, "++++++DOING CHILD SETUP for wid $_wid";
     $self->_child_setup;
     $_work and $_work->($self);
   };
@@ -234,7 +234,7 @@ method _clean_up {
 
 # Setup child bridge to parent
 method _child_setup {
-  asay_now $STDERR, "-- $$ IN CHILD SETUP";
+  DEBUG and asay_now $STDERR, "-- $$ IN CHILD SETUP";
   # remove existing registrations
   $self->_clean_up;
   # If we are the result of a fork,  make sure
