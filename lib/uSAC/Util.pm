@@ -246,7 +246,9 @@ sub need (*) {
       $res=eval "package $c[0];
       require (\"$key\");
       ";
-      die "$!" if $@;
+      die "$!
+      $@
+      " if $@;
 
       
       #local $@;

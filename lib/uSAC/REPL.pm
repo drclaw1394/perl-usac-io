@@ -94,8 +94,7 @@ my $perl_repl_handler=sub {
             package main;
             local $@;
             #my $res=Error::Show::streval "sub { no strict \"subs\"; no strict \"vars\";
-            adump $STDERR, $lp->do( "package main; 
-              no strict 'vars';
+            adump $STDERR, $lp->do( "package main; no strict 'vars';
               $line;
               package main;");
             die $@ if $@;
